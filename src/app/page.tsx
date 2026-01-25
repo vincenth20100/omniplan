@@ -10,18 +10,21 @@ import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
+import { SpatialView } from '@/components/spatial/spatial-view';
+import { ConflictDetector } from '@/components/ai/conflict-detector';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
 
-  const selectedTask = state.tasks.find(t => t.id === state.selectedTaskId);
+  const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
+  const selectedTask = state.tasks.find(t => t.id === lastSelectedId);
 
   const handleAddTask = () => {
     dispatch({ type: 'ADD_TASK' });
   };
 
   const handleRemoveTask = () => {
-    if (state.selectedTaskId) {
+    if (state.selectedTaskIds.length > 0) {
       // TODO: Add a confirmation dialog
       dispatch({ type: 'REMOVE_TASK' });
     }
@@ -34,6 +37,10 @@ export default function Home() {
       {isLoaded && state.visibleColumns && (
         <ViewOptions visibleColumns={state.visibleColumns} dispatch={dispatch} />
       )}
+       <Separator className="my-2" />
+      <ConflictDetector projectState={state} dispatch={dispatch} />
+       <Separator className="my-2" />
+      <SpatialView projectState={state} />
     </>
   );
 
@@ -43,7 +50,7 @@ export default function Home() {
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline ml-2">Add Task</span>
         </Button>
-        <Button variant="outline" size="sm" onClick={handleRemoveTask} disabled={!state.selectedTaskId}>
+        <Button variant="outline" size="sm" onClick={handleRemoveTask} disabled={state.selectedTaskIds.length === 0}>
             <Trash2 className="h-4 w-4" />
              <span className="hidden sm:inline ml-2">Remove Task</span>
         </Button>
@@ -69,7 +76,7 @@ export default function Home() {
                     task={selectedTask} 
                     links={state.links} 
                     tasks={state.tasks}
-                    onClose={() => dispatch({ type: 'SELECT_TASK', payload: null })}
+                    onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
                   />
                 </ResizablePanel>
               </>

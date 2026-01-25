@@ -11,7 +11,7 @@ export function GanttChart({ projectState, dispatch }: { projectState: ProjectSt
                 <ResizablePanel defaultSize={40} minSize={20}>
                     <TaskTable 
                         tasks={projectState.tasks} 
-                        selectedTaskId={projectState.selectedTaskId} 
+                        selectedTaskIds={projectState.selectedTaskIds} 
                         dispatch={dispatch} 
                         visibleColumns={projectState.visibleColumns}
                     />
@@ -22,7 +22,7 @@ export function GanttChart({ projectState, dispatch }: { projectState: ProjectSt
                         tasks={projectState.tasks} 
                         links={projectState.links}
                         dispatch={dispatch}
-                        selectedTaskId={projectState.selectedTaskId}
+                        selectedTaskIds={projectState.selectedTaskIds}
                         />
                 </ResizablePanel>
             </ResizablePanelGroup>

@@ -8,7 +8,7 @@ import { Flame, ChevronRight, ChevronDown } from 'lucide-react';
 import React from 'react';
 import { EditableCell } from './editable-cell';
 
-export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['wbs', 'name', 'start', 'finish'] }: { tasks: Task[], selectedTaskId: string | null, dispatch: any, visibleColumns: string[] }) {
+export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = ['wbs', 'name', 'start', 'finish'] }: { tasks: Task[], selectedTaskIds: string[], dispatch: any, visibleColumns: string[] }) {
     
     const [draggedId, setDraggedId] = React.useState<string | null>(null);
     const [dragOverId, setDragOverId] = React.useState<string | null>(null);
@@ -26,8 +26,8 @@ export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['
         return map;
     }, [tasks]);
 
-    const handleSelectTask = (taskId: string) => {
-        dispatch({ type: 'SELECT_TASK', payload: taskId });
+    const handleSelectTask = (e: React.MouseEvent, taskId: string) => {
+        dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } });
     };
 
     const handleToggle = (e: React.MouseEvent, taskId: string) => {
@@ -36,6 +36,9 @@ export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['
     }
 
     const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, taskId: string) => {
+        if (!selectedTaskIds.includes(taskId)) {
+            dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: false, shiftKey: false }});
+        }
         e.dataTransfer.setData('text/plain', taskId);
         setTimeout(() => setDraggedId(taskId), 0);
     };
@@ -55,6 +58,8 @@ export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['
         e.preventDefault();
         const sourceId = e.dataTransfer.getData('text/plain');
         if (sourceId && sourceId !== targetId) {
+            // For now, drag-and-drop only supports single-task reordering.
+            // Complex multi-task reordering is a future enhancement.
             dispatch({ type: 'REORDER_TASK', payload: { sourceId, targetId } });
         }
         setDraggedId(null);
@@ -184,11 +189,11 @@ export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['
                             className={cn(
                                 "cursor-pointer", 
                                 "transition-all duration-150",
-                                selectedTaskId === task.id && "bg-accent/50",
+                                selectedTaskIds.includes(task.id) && "bg-accent/50",
                                 draggedId === task.id && "opacity-30",
                                 dragOverId === task.id && "border-t-2 border-primary"
                             )}
-                            onClick={() => handleSelectTask(task.id)}
+                            onClick={(e) => handleSelectTask(e, task.id)}
                         >
                             {orderedVisibleColumns.map(columnId => (
                                 <TableCell key={columnId} className="font-medium">

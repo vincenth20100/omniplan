@@ -11,7 +11,7 @@ import { addDays, differenceInDays, min, max, startOfDay } from 'date-fns';
 const VIEW_PADDING_DAYS = 30;
 const DAY_SCALE = 35; // pixels per day
 
-export function Timeline({ tasks, links, dispatch, selectedTaskId }: { tasks: Task[], links: Link[], dispatch: any, selectedTaskId: string | null }) {
+export function Timeline({ tasks, links, dispatch, selectedTaskIds }: { tasks: Task[], links: Link[], dispatch: any, selectedTaskIds: string[] }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
 
@@ -69,8 +69,8 @@ export function Timeline({ tasks, links, dispatch, selectedTaskId }: { tasks: Ta
               scale={DAY_SCALE}
               dispatch={dispatch}
               row={index}
-              isSelected={task.id === selectedTaskId}
-              onSelect={() => dispatch({ type: 'SELECT_TASK', payload: task.id })}
+              isSelected={selectedTaskIds.includes(task.id)}
+              onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
               registerBarElement={registerBarElement}
             />
           ))}

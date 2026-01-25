@@ -13,7 +13,7 @@ const initialState: ProjectState = {
   links: initialLinks,
   zones: [],
   historyLog: [],
-  selectedTaskId: null,
+  selectedTaskIds: [],
   visibleColumns: initialVisibleColumns,
 };
 
@@ -21,7 +21,7 @@ type Action =
   | { type: 'INIT_STATE'; payload: ProjectState }
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
-  | { type: 'SELECT_TASK'; payload: string | null }
+  | { type: 'SELECT_TASK'; payload: { taskId: string | null, ctrlKey?: boolean, shiftKey?: boolean } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
   | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } }
@@ -128,7 +128,41 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, tasks: reScheduledTasks };
       }
       case 'SELECT_TASK': {
-        return { ...state, selectedTaskId: action.payload };
+        const { taskId, ctrlKey, shiftKey } = action.payload;
+
+        if (taskId === null) {
+          return { ...state, selectedTaskIds: [] };
+        }
+
+        const visibleTasks = getVisibleTasks(state.tasks);
+        const currentSelection = new Set(state.selectedTaskIds);
+        
+        if (shiftKey && state.selectedTaskIds.length > 0) {
+            const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
+            const lastSelectedIndex = visibleTasks.findIndex(t => t.id === lastSelectedId);
+            const currentSelectedIndex = visibleTasks.findIndex(t => t.id === taskId);
+            
+            if (lastSelectedIndex !== -1 && currentSelectedIndex !== -1) {
+                const start = Math.min(lastSelectedIndex, currentSelectedIndex);
+                const end = Math.max(lastSelectedIndex, currentSelectedIndex);
+                const rangeIds = visibleTasks.slice(start, end + 1).map(t => t.id);
+                
+                // For shift-click, we typically replace the selection with the new range from the anchor
+                // A more complex implementation could add to it, but this is a common behavior.
+                return { ...state, selectedTaskIds: rangeIds };
+            }
+        }
+
+        if (ctrlKey) {
+            if (currentSelection.has(taskId)) {
+                currentSelection.delete(taskId);
+            } else {
+                currentSelection.add(taskId);
+            }
+            return { ...state, selectedTaskIds: Array.from(currentSelection) };
+        }
+
+        return { ...state, selectedTaskIds: [taskId] };
       }
       case 'SET_CONFLICTS': {
         const conflictIds = new Set(action.payload.map(c => c.taskId));
@@ -148,63 +182,66 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const visibleTasks = getVisibleTasks(state.tasks);
         if (visibleTasks.length === 0) return state;
 
-        const currentId = state.selectedTaskId;
-        const currentIndex = currentId ? visibleTasks.findIndex(t => t.id === currentId) : -1;
+        const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
+        const currentIndex = lastSelectedId ? visibleTasks.findIndex(t => t.id === lastSelectedId) : -1;
         
         if (currentIndex === -1) {
-             return { ...state, selectedTaskId: visibleTasks[0]?.id || null };
+             return { ...state, selectedTaskIds: [visibleTasks[0]?.id].filter(Boolean) };
         }
         
         const { direction } = action.payload;
         let nextIndex = currentIndex + (direction === 'up' ? -1 : 1);
         nextIndex = Math.max(0, Math.min(nextIndex, visibleTasks.length - 1));
+        const nextTaskId = visibleTasks[nextIndex]?.id;
 
-        return { ...state, selectedTaskId: visibleTasks[nextIndex]?.id || null };
+        return { ...state, selectedTaskIds: nextTaskId ? [nextTaskId] : [] };
       }
       case 'SET_COLUMNS': {
         return { ...state, visibleColumns: action.payload };
       }
       case 'INDENT_TASK': {
-        if (!state.selectedTaskId) return state;
+        if (state.selectedTaskIds.length === 0) return state;
 
-        const sortedTasks = [...state.tasks].sort((a,b) => (a.wbs || "").localeCompare(b.wbs || ""));
-        const taskIndex = sortedTasks.findIndex(t => t.id === state.selectedTaskId);
-        const task = sortedTasks[taskIndex];
-
-        if (taskIndex === 0 || !task || task.isSummary) return state;
+        let newTasks = [...state.tasks];
+        const taskMap = new Map(newTasks.map(t => [t.id, t]));
         
-        const potentialParent = sortedTasks[taskIndex - 1];
+        const sortedTasks = [...newTasks].sort((a, b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true, sensitivity: 'base' }));
 
-        if (potentialParent.level < task.level || potentialParent.isSummary) return state;
+        const firstSelectedTaskInOrder = sortedTasks.find(t => state.selectedTaskIds.includes(t.id));
+        if (!firstSelectedTaskInOrder) return state;
+
+        const firstSelectedIndex = sortedTasks.findIndex(t => t.id === firstSelectedTaskInOrder.id);
+        if (firstSelectedIndex === 0) return state;
+
+        const newParent = sortedTasks[firstSelectedIndex - 1];
         
-        let newTasks = state.tasks.map(t => {
-            if (t.id === task.id) {
-                return { ...t, parentId: potentialParent.id };
+        if (state.selectedTaskIds.includes(newParent.id)) return state;
+
+        for (const taskId of state.selectedTaskIds) {
+            const taskToUpdate = taskMap.get(taskId);
+            if (taskToUpdate) {
+                taskToUpdate.parentId = newParent.id;
             }
-            return t;
-        });
+        }
 
-        newTasks = updateHierarchyAndSort(newTasks);
+        newTasks = updateHierarchyAndSort(Array.from(taskMap.values()));
         const reScheduledTasks = runScheduler(newTasks, state.links);
         return { ...state, tasks: reScheduledTasks };
       }
       case 'OUTDENT_TASK': {
-        if (!state.selectedTaskId) return state;
+        if (state.selectedTaskIds.length === 0) return state;
 
-        const task = state.tasks.find(t => t.id === state.selectedTaskId);
-        if (!task || !task.parentId) return state;
+        const taskMap = new Map(state.tasks.map(t => [t.id, t]));
 
-        const parent = state.tasks.find(t => t.id === task.parentId);
-        if (!parent) return state;
-        
-        let newTasks = state.tasks.map(t => {
-          if (t.id === task.id) {
-            return { ...t, parentId: parent.parentId };
-          }
-          return t;
+        state.selectedTaskIds.forEach(id => {
+            const taskToUpdate = taskMap.get(id);
+            if (taskToUpdate?.parentId) {
+                const currentParent = taskMap.get(taskToUpdate.parentId);
+                taskToUpdate.parentId = currentParent?.parentId ?? null;
+            }
         });
 
-        newTasks = updateHierarchyAndSort(newTasks);
+        const newTasks = updateHierarchyAndSort(Array.from(taskMap.values()));
         const reScheduledTasks = runScheduler(newTasks, state.links);
         return { ...state, tasks: reScheduledTasks };
       }
@@ -220,10 +257,11 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         };
 
         let newTasks = [...state.tasks];
-        let newSelectedId = newTask.id;
+        const newSelectedIds = [newTask.id];
 
-        if (state.selectedTaskId) {
-            const selectedIndex = newTasks.findIndex(t => t.id === state.selectedTaskId);
+        if (state.selectedTaskIds.length > 0) {
+            const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
+            const selectedIndex = newTasks.findIndex(t => t.id === lastSelectedId);
             const selectedTask = newTasks[selectedIndex];
             if (selectedTask) {
               newTask.parentId = selectedTask.parentId;
@@ -240,28 +278,30 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         const hierarchicalTasks = updateHierarchyAndSort(newTasks);
         const reScheduledTasks = runScheduler(hierarchicalTasks, state.links);
-        return { ...state, tasks: reScheduledTasks, selectedTaskId: newSelectedId };
+        return { ...state, tasks: reScheduledTasks, selectedTaskIds: newSelectedIds };
       }
       case 'REMOVE_TASK': {
-        if (!state.selectedTaskId) return state;
+        if (state.selectedTaskIds.length === 0) return state;
 
-        const taskToRemoveId = state.selectedTaskId;
-        const taskMap = new Map(state.tasks.map(t => [t.id, t]));
-        
         const idsToRemove = new Set<string>();
-        const queue = [taskToRemoveId];
-        
-        while(queue.length > 0) {
-            const currentId = queue.shift()!;
-            if (!idsToRemove.has(currentId)) {
-                idsToRemove.add(currentId);
-                 state.tasks.forEach(t => {
-                    if(t.parentId === currentId) {
-                        queue.push(t.id);
+        const queue: string[] = [];
+
+        state.selectedTaskIds.forEach(id => {
+            if (!idsToRemove.has(id)) {
+                queue.push(id);
+                while(queue.length > 0) {
+                    const currentId = queue.shift()!;
+                    if (!idsToRemove.has(currentId)) {
+                        idsToRemove.add(currentId);
+                        state.tasks.forEach(t => {
+                            if(t.parentId === currentId) {
+                                queue.push(t.id);
+                            }
+                        });
                     }
-                });
+                }
             }
-        }
+        });
         
         const newTasks = state.tasks.filter(t => !idsToRemove.has(t.id));
         const newLinks = state.links.filter(l => !idsToRemove.has(l.source) && !idsToRemove.has(l.target));
@@ -269,7 +309,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const hierarchicalTasks = updateHierarchyAndSort(newTasks);
         const reScheduledTasks = runScheduler(hierarchicalTasks, newLinks);
         
-        return { ...state, tasks: reScheduledTasks, links: newLinks, selectedTaskId: null };
+        return { ...state, tasks: reScheduledTasks, links: newLinks, selectedTaskIds: [] };
       }
       case 'REORDER_TASK': {
         const { sourceId, targetId } = action.payload;

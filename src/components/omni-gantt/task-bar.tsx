@@ -19,7 +19,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     dispatch: any;
     row: number;
     isSelected: boolean;
-    onSelect: () => void;
+    onSelect: (event: React.MouseEvent) => void;
     registerBarElement: (taskId: string, element: HTMLDivElement | null) => void;
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
@@ -46,7 +46,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         if (isSummary || !mode) return;
         e.preventDefault();
         e.stopPropagation();
-        onSelect();
+        onSelect(e);
 
         dragStartInfo.current = {
             startX: e.clientX,

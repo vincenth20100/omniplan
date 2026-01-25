@@ -48,6 +48,6 @@ export interface ProjectState {
     links: Link[];
     zones: Zone[];
     historyLog: any[];
-    selectedTaskId: string | null;
+    selectedTaskIds: string[];
     visibleColumns: string[];
 }
