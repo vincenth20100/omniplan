@@ -58,7 +58,7 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
     }
 
     for (const children of childrenMap.values()) {
-        children.sort((a, b) => (originalIndices.get(a) ?? 0) - (originalIndices.get(b) ?? 0));
+        children.sort((a, b) => (originalIndices.get(a.id) ?? 0) - (originalIndices.get(b.id) ?? 0));
     }
 
     function traverse(taskId: string, level: number, wbs: string) {
@@ -202,10 +202,10 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       case 'INDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
 
-        let newTasks = [...state.tasks];
-        const taskMap = new Map(newTasks.map(t => [t.id, t]));
+        const tasksCopy = state.tasks.map(t => ({...t}));
+        const taskMap = new Map(tasksCopy.map(t => [t.id, t]));
         
-        const sortedTasks = [...newTasks].sort((a, b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true, sensitivity: 'base' }));
+        const sortedTasks = [...tasksCopy].sort((a, b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true, sensitivity: 'base' }));
 
         const firstSelectedTaskInOrder = sortedTasks.find(t => state.selectedTaskIds.includes(t.id));
         if (!firstSelectedTaskInOrder) return state;
@@ -217,6 +217,10 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         if (state.selectedTaskIds.includes(newParent.id)) return state;
 
+        if (!newParent.isSummary) {
+          newParent.isSummary = true;
+        }
+
         for (const taskId of state.selectedTaskIds) {
             const taskToUpdate = taskMap.get(taskId);
             if (taskToUpdate) {
@@ -224,7 +228,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             }
         }
 
-        newTasks = updateHierarchyAndSort(Array.from(taskMap.values()));
+        const newTasks = updateHierarchyAndSort(Array.from(taskMap.values()));
         const reScheduledTasks = runScheduler(newTasks, state.links);
         return { ...state, tasks: reScheduledTasks };
       }
@@ -346,25 +350,52 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const { sourceIds, parentId } = action.payload;
         if (sourceIds.includes(parentId)) return state;
 
-        const taskMap = new Map(state.tasks.map(t => [t.id, {...t}]));
+        const tasksCopy = state.tasks.map(t => ({...t}));
+        const taskMap = new Map(tasksCopy.map(t => [t.id, t]));
+
         const parentTask = taskMap.get(parentId);
         if (!parentTask) return state;
 
+        if (!parentTask.isSummary) {
+          parentTask.isSummary = true;
+        }
+        
         for (const sourceId of sourceIds) {
-            let p = parentTask;
+            let p: Task | undefined = parentTask;
             while(p) {
                 if (p.id === sourceId) return state; // Prevent nesting under a child
-                p = p.parentId ? taskMap.get(p.parentId)! : null!;
-            }
-
-            const taskToUpdate = taskMap.get(sourceId);
-            if (taskToUpdate) {
-                taskToUpdate.parentId = parentId;
+                p = p.parentId ? taskMap.get(p.parentId) : undefined;
             }
         }
 
-        const newTasks = updateHierarchyAndSort(Array.from(taskMap.values()));
-        const reScheduledTasks = runScheduler(newTasks, state.links);
+        const sourceTasks: Task[] = [];
+        sourceIds.forEach(id => {
+            const task = taskMap.get(id);
+            if (task) {
+                task.parentId = parentId;
+                sourceTasks.push(task);
+            }
+        });
+
+        const remainingTasks = tasksCopy.filter(t => !sourceIds.includes(t.id));
+
+        let parentIndex = remainingTasks.findIndex(t => t.id === parentId);
+        
+        const existingChildren = remainingTasks.filter(t => t.parentId === parentId);
+        let insertAfterIndex = parentIndex;
+
+        if (existingChildren.length > 0) {
+            const wbsSortedChildren = existingChildren.sort((a,b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true, sensitivity: 'base' }));
+            const lastChildId = wbsSortedChildren[wbsSortedChildren.length-1].id;
+            const lastChildIndex = remainingTasks.findIndex(t => t.id === lastChildId);
+            insertAfterIndex = Math.max(parentIndex, lastChildIndex);
+        }
+
+        remainingTasks.splice(insertAfterIndex + 1, 0, ...sourceTasks);
+        
+        const hierarchicalTasks = updateHierarchyAndSort(remainingTasks);
+        const reScheduledTasks = runScheduler(hierarchicalTasks, state.links);
+        
         return { ...state, tasks: reScheduledTasks };
       }
       default:
