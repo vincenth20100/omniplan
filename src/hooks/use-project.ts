@@ -1,14 +1,16 @@
 'use client';
 
 import { useReducer, useEffect, useState } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType } from '@/lib/types';
 import { initialTasks, initialLinks } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 
 const ALL_COLUMNS = [
     { id: 'wbs', name: 'WBS', defaultWidth: 70 },
-    { id: 'name', name: 'Task Name', defaultWidth: 200 },
+    { id: 'name', name: 'Task Name', defaultWidth: 150 },
+    { id: 'predecessors', name: 'Predecessors', defaultWidth: 120 },
+    { id: 'successors', name: 'Successors', defaultWidth: 120 },
     { id: 'duration', name: 'Duration', defaultWidth: 80 },
     { id: 'start', name: 'Start', defaultWidth: 100 },
     { id: 'finish', name: 'Finish', defaultWidth: 100 },
@@ -18,7 +20,7 @@ const ALL_COLUMNS = [
 ];
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, width: c.defaultWidth }));
-const initialVisibleColumns = ['wbs', 'name', 'start', 'finish'];
+const initialVisibleColumns = ['wbs', 'name', 'predecessors', 'duration', 'start', 'finish'];
 
 const initialState: ProjectState = {
   tasks: [],
@@ -49,7 +51,8 @@ type Action =
   | { type: 'REMOVE_TASK' }
   | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string; position: 'top' | 'bottom' } }
   | { type: 'NEST_TASKS', payload: { sourceIds: string[], parentId: string }}
-  | { type: 'SET_UI_DENSITY', payload: UiDensity };
+  | { type: 'SET_UI_DENSITY', payload: UiDensity }
+  | { type: 'UPDATE_RELATIONSHIPS', payload: { taskId: string, field: 'predecessors' | 'successors', value: string }};
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -136,12 +139,12 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         const updatedTask = newTasks.find(t => t.id === id);
         if (updatedTask && !updatedTask.isSummary) {
-          // If duration is explicitly changed, update finish date
-          if (updates.duration !== undefined) {
+          // If start date is changed (e.g., by moving), update finish date to preserve duration
+          if (updates.start !== undefined && updates.duration === undefined && updates.finish === undefined) {
             updatedTask.finish = calendarService.addWorkingDays(updatedTask.start, updatedTask.duration > 0 ? updatedTask.duration - 1 : 0);
-          } 
-          // If start date is changed (e.g., by moving or editing), update finish date to preserve duration
-          else if (updates.start !== undefined && updates.finish === undefined) {
+          }
+          // If duration is explicitly changed, update finish date
+          else if (updates.duration !== undefined) {
             updatedTask.finish = calendarService.addWorkingDays(updatedTask.start, updatedTask.duration > 0 ? updatedTask.duration - 1 : 0);
           } 
           // If finish date is changed, update duration
@@ -456,6 +459,59 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       }
       case 'SET_UI_DENSITY': {
         return { ...state, uiDensity: action.payload };
+      }
+      case 'UPDATE_RELATIONSHIPS': {
+        const { taskId, field, value } = action.payload;
+
+        const wbsToIdMap = new Map(state.tasks.map(t => [t.wbs, t.id]));
+        
+        const otherLinks = state.links.filter(link => {
+            if (field === 'predecessors') return link.target !== taskId;
+            if (field === 'successors') return link.source !== taskId;
+            return true;
+        });
+
+        const newLinksForTask: Link[] = [];
+        if (value.trim()) {
+            const linkParts = value.split(',').map(s => s.trim()).filter(Boolean);
+    
+            for (const part of linkParts) {
+                const match = part.match(/^([\d.]+)\s*([A-Z]{2})?\s*([+-]\d+d?)?$/i);
+                if (!match) continue;
+    
+                const [, wbs, type, lagStr] = match;
+                const linkedTaskId = wbsToIdMap.get(wbs);
+                if (!linkedTaskId || linkedTaskId === taskId) continue;
+    
+                const linkType = (type?.toUpperCase() as LinkType) || 'FS';
+                const lag = lagStr ? parseInt(lagStr.replace('d', ''), 10) : 0;
+                
+                let newLink: Link;
+                if (field === 'predecessors') {
+                    newLink = {
+                        id: `l-${taskId}-${linkedTaskId}-${Math.random()}`,
+                        source: linkedTaskId,
+                        target: taskId,
+                        type: linkType,
+                        lag: lag
+                    };
+                } else { // successors
+                    newLink = {
+                        id: `l-${taskId}-${linkedTaskId}-${Math.random()}`,
+                        source: taskId,
+                        target: linkedTaskId,
+                        type: linkType,
+                        lag: lag
+                    };
+                }
+                newLinksForTask.push(newLink);
+            }
+        }
+        
+        const newLinks = [...otherLinks, ...newLinksForTask];
+        const reScheduledTasks = runScheduler(state.tasks, newLinks);
+        
+        return { ...state, tasks: reScheduledTasks, links: newLinks };
       }
       default:
         return state;

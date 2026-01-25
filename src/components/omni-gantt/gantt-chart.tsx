@@ -27,9 +27,10 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
     return (
         <div className="border rounded-lg overflow-hidden h-full flex flex-col bg-card">
             <ResizablePanelGroup direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={40} minSize={20}>
+                <ResizablePanel defaultSize={50} minSize={20}>
                     <TaskTable 
-                        tasks={projectState.tasks} 
+                        tasks={projectState.tasks}
+                        links={projectState.links}
                         selectedTaskIds={projectState.selectedTaskIds} 
                         dispatch={dispatch} 
                         visibleColumns={projectState.visibleColumns}
@@ -40,7 +41,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
                     />
                 </ResizablePanel>
                 <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={60}>
+                <ResizablePanel defaultSize={50}>
                     <Timeline 
                         tasks={projectState.tasks} 
                         links={projectState.links}

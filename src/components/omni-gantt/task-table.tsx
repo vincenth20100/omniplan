@@ -1,5 +1,5 @@
 'use client';
-import type { Task, ColumnSpec, UiDensity } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity, Link } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -15,6 +15,7 @@ import type { ConstraintType } from '@/lib/types';
 
 export function TaskTable({ 
     tasks, 
+    links,
     selectedTaskIds, 
     dispatch, 
     visibleColumns = ['wbs', 'name', 'start', 'finish'],
@@ -24,6 +25,7 @@ export function TaskTable({
     uiDensity
 }: { 
     tasks: Task[], 
+    links: Link[],
     selectedTaskIds: string[], 
     dispatch: any, 
     visibleColumns: string[],
@@ -251,6 +253,56 @@ export function TaskTable({
                 )
             }
         },
+        predecessors: { 
+            name: 'Predecessors', 
+            render: (task) => {
+                if (task.isSummary) return '';
+                const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
+                const predecessorLinks = links.filter(l => l.target === task.id);
+                const predecessorString = predecessorLinks.map(l => {
+                    const sourceWbs = idToWbsMap.get(l.source);
+                    if (!sourceWbs) return '';
+                    let lagString = '';
+                    if (l.lag > 0) lagString = `+${l.lag}d`;
+                    if (l.lag < 0) lagString = `${l.lag}d`;
+                    return `${sourceWbs}${l.type}${lagString}`;
+                }).join(', ');
+                
+                return (
+                    <EditableCell
+                        value={predecessorString}
+                        onSave={(newValue) => {
+                            dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId: task.id, field: 'predecessors', value: newValue } });
+                        }}
+                    />
+                );
+            }
+        },
+        successors: { 
+            name: 'Successors', 
+            render: (task) => {
+                if (task.isSummary) return '';
+                const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
+                const successorLinks = links.filter(l => l.source === task.id);
+                const successorString = successorLinks.map(l => {
+                    const targetWbs = idToWbsMap.get(l.target);
+                    if (!targetWbs) return '';
+                    let lagString = '';
+                    if (l.lag > 0) lagString = `+${l.lag}d`;
+                    if (l.lag < 0) lagString = `${l.lag}d`;
+                    return `${targetWbs}${l.type}${lagString}`;
+                }).join(', ');
+                
+                return (
+                    <EditableCell
+                        value={successorString}
+                        onSave={(newValue) => {
+                            dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId: task.id, field: 'successors', value: newValue } });
+                        }}
+                    />
+                );
+            }
+        },
         duration: { name: 'Duration', render: (task) => {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             if (task.isSummary && !hasChildren) return '';
@@ -453,7 +505,7 @@ export function TaskTable({
                                             )}
                                             data-density={uiDensity}
                                         >
-                                          {columnDefinitions[column.id].render(task)}
+                                          {columnDefinitions[column.id]?.render(task)}
                                         </div>
                                     </TableCell>
                                 ))}
