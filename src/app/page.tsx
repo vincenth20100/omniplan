@@ -8,6 +8,9 @@ import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { Separator } from '@/components/ui/separator';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { Button } from '@/components/ui/button';
+import { Layers, Filter } from 'lucide-react';
+import { ColumnSelector } from '@/components/layout/column-selector';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
@@ -22,8 +25,22 @@ export default function Home() {
     </div>
   );
 
+  const headerActions = (
+    <>
+      <Button variant="outline" size="sm" disabled>
+        <Filter className="mr-2 h-4 w-4" />
+        Filter
+      </Button>
+      <Button variant="outline" size="sm" disabled>
+        <Layers className="mr-2 h-4 w-4" />
+        Group
+      </Button>
+      {isLoaded && state.visibleColumns && <ColumnSelector visibleColumns={state.visibleColumns} dispatch={dispatch} />}
+    </>
+  );
+
   return (
-    <MainLayout sidebarContent={sidebarContent}>
+    <MainLayout sidebarContent={sidebarContent} headerActions={headerActions}>
       <div className="flex flex-col h-[calc(100vh-120px)] w-full">
         {isLoaded ? (
           <ResizablePanelGroup direction="vertical">

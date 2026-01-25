@@ -49,4 +49,5 @@ export interface ProjectState {
     zones: Zone[];
     historyLog: any[];
     selectedTaskId: string | null;
+    visibleColumns: string[];
 }

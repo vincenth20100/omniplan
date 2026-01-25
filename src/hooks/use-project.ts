@@ -6,12 +6,15 @@ import { initialTasks, initialLinks } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 
+const initialVisibleColumns = ['wbs', 'name', 'start', 'finish'];
+
 const initialState: ProjectState = {
   tasks: [],
   links: initialLinks,
   zones: [],
   historyLog: [],
   selectedTaskId: null,
+  visibleColumns: initialVisibleColumns,
 };
 
 type Action =
@@ -21,7 +24,8 @@ type Action =
   | { type: 'SELECT_TASK'; payload: string | null }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
-  | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } };
+  | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } }
+  | { type: 'SET_COLUMNS'; payload: string[] };
 
 function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[]): Task[] => {
@@ -103,6 +107,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         return { ...state, selectedTaskId: visibleTasks[nextIndex]?.id || null };
       }
+      case 'SET_COLUMNS': {
+        return { ...state, visibleColumns: action.payload };
+      }
       default:
         return state;
     }
@@ -155,7 +162,7 @@ export function useProject() {
     }));
     
     const scheduledTasks = calculateSchedule(tasksWithDates, initialLinks);
-    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks } });
+    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, visibleColumns: initialVisibleColumns } });
     setIsLoaded(true);
   }, []);
 

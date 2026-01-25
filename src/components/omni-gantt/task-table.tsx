@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils';
 import { Flame, ChevronRight, ChevronDown } from 'lucide-react';
 import React from 'react';
 
-export function TaskTable({ tasks, selectedTaskId, dispatch }: { tasks: Task[], selectedTaskId: string | null, dispatch: any }) {
+export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['wbs', 'name', 'start', 'finish'] }: { tasks: Task[], selectedTaskId: string | null, dispatch: any, visibleColumns: string[] }) {
+    
     const handleSelectTask = (taskId: string) => {
         dispatch({ type: 'SELECT_TASK', payload: taskId });
     };
@@ -16,6 +17,35 @@ export function TaskTable({ tasks, selectedTaskId, dispatch }: { tasks: Task[], 
       e.stopPropagation();
       dispatch({ type: 'TOGGLE_TASK_COLLAPSE', payload: { taskId } });
     }
+
+    const columnDefinitions: Record<string, { name: string, render: (task: Task) => React.ReactNode, className?: string }> = {
+        wbs: { name: 'WBS', render: (task) => task.wbs, className: "w-[10%]" },
+        name: { 
+            name: 'Task Name', 
+            className: "w-auto",
+            render: (task) => (
+                <div className="flex items-center gap-2" style={{ paddingLeft: `${(task.level || 0) * 1.5}rem` }}>
+                    {task.isSummary ? (
+                        <button onClick={(e) => handleToggle(e, task.id)} className="p-0.5 rounded-sm hover:bg-muted -ml-7 mr-2">
+                            {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                    ) : (
+                    <div className="w-5" style={{ marginLeft: '-1.75rem', marginRight: '0.5rem' }}></div>
+                    )}
+                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
+                    <span className="truncate">{task.name}</span>
+                </div>
+            )
+        },
+        duration: { name: 'Duration', render: (task) => task.duration ? `${task.duration}d` : '', className: "w-[100px]" },
+        start: { name: 'Start', render: (task) => format(task.start, 'MMM d, yyyy'), className: "w-[120px]" },
+        finish: { name: 'Finish', render: (task) => format(task.finish, 'MMM d, yyyy'), className: "w-[120px]" },
+        percentComplete: { name: '% Complete', render: (task) => `${task.percentComplete}%`, className: "w-[100px]" },
+        constraintType: { name: 'Constraint Type', render: (task) => task.constraintType, className: "w-[150px]" },
+        constraintDate: { name: 'Constraint Date', render: (task) => task.constraintDate ? format(task.constraintDate, 'MMM d, yyyy') : '', className: "w-[120px]" },
+    };
+
+    const orderedVisibleColumns = Object.keys(columnDefinitions).filter(id => visibleColumns.includes(id));
 
     const visibleTasks = React.useMemo(() => {
         const taskMap = new Map(tasks.map(t => [t.id, t]));
@@ -35,10 +65,11 @@ export function TaskTable({ tasks, selectedTaskId, dispatch }: { tasks: Task[], 
             <Table>
                 <TableHeader className="sticky top-0 bg-card z-10">
                     <TableRow>
-                        <TableHead className="w-[15%]">WBS</TableHead>
-                        <TableHead className="w-[45%]">Task Name</TableHead>
-                        <TableHead>Start</TableHead>
-                        <TableHead>Finish</TableHead>
+                        {orderedVisibleColumns.map(columnId => (
+                            <TableHead key={columnId} className={columnDefinitions[columnId].className}>
+                                {columnDefinitions[columnId].name}
+                            </TableHead>
+                        ))}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -48,22 +79,11 @@ export function TaskTable({ tasks, selectedTaskId, dispatch }: { tasks: Task[], 
                             className={cn("cursor-pointer", selectedTaskId === task.id && "bg-accent/50")}
                             onClick={() => handleSelectTask(task.id)}
                         >
-                            <TableCell>{task.wbs}</TableCell>
-                            <TableCell className="font-medium">
-                                <div className="flex items-center gap-2" style={{ paddingLeft: `${(task.level || 0) * 1.5}rem` }}>
-                                    {task.isSummary ? (
-                                        <button onClick={(e) => handleToggle(e, task.id)} className="p-0.5 rounded-sm hover:bg-muted -ml-7 mr-2">
-                                            {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                        </button>
-                                    ) : (
-                                      <div className="w-5" style={{ marginLeft: '-1.75rem', marginRight: '0.5rem' }}></div>
-                                    )}
-                                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
-                                    <span>{task.name}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>{format(task.start, 'MMM d, yyyy')}</TableCell>
-                            <TableCell>{format(task.finish, 'MMM d, yyyy')}</TableCell>
+                            {orderedVisibleColumns.map(columnId => (
+                                <TableCell key={columnId} className="font-medium">
+                                    {columnDefinitions[columnId].render(task)}
+                                </TableCell>
+                            ))}
                         </TableRow>
                     ))}
                 </TableBody>
