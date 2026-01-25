@@ -65,7 +65,12 @@ export function calculateSchedule(tasks: Task[], links: Link[]): Task[] {
   const inDegree: Record<string, number> = {};
   nonSummaryTasks.forEach(task => inDegree[task.id] = 0);
   links.forEach(link => {
-    if (inDegree[link.target] !== undefined) {
+    const sourceTask = allTasksMap.get(link.source);
+    if (
+      inDegree[link.target] !== undefined &&
+      sourceTask &&
+      !sourceTask.isSummary
+    ) {
       inDegree[link.target]++;
     }
   });
