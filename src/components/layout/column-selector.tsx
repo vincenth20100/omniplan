@@ -14,6 +14,8 @@ import type { ProjectState } from "@/lib/types";
 const ALL_COLUMNS = [
     { id: 'wbs', name: 'WBS' },
     { id: 'name', name: 'Task Name' },
+    { id: 'predecessors', name: 'Predecessors' },
+    { id: 'successors', name: 'Successors' },
     { id: 'duration', name: 'Duration' },
     { id: 'start', name: 'Start' },
     { id: 'finish', name: 'Finish' },

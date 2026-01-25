@@ -20,7 +20,7 @@ const ALL_COLUMNS = [
 ];
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, width: c.defaultWidth }));
-const initialVisibleColumns = ['wbs', 'name', 'predecessors', 'duration', 'start', 'finish'];
+const initialVisibleColumns = ['wbs', 'name', 'predecessors', 'successors', 'duration', 'start', 'finish'];
 
 const initialState: ProjectState = {
   tasks: [],
