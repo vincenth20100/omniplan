@@ -8,7 +8,7 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { GanttChartSquare } from 'lucide-react';
+import { GanttChartSquare, Layers, Filter, Columns3 } from 'lucide-react';
 import React from 'react';
 
 const AppHeader = ({ children }: { children: React.ReactNode }) => (
@@ -42,6 +42,20 @@ export function MainLayout({ children, sidebarContent }: { children: React.React
         <AppHeader>
           <SidebarTrigger />
           <h1 className="text-xl font-semibold font-headline">Project Plan</h1>
+           <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled>
+                <Filter className="mr-2 h-4 w-4" />
+                Filter
+              </Button>
+              <Button variant="outline" size="sm" disabled>
+                <Layers className="mr-2 h-4 w-4" />
+                Group
+              </Button>
+               <Button variant="outline" size="sm" disabled>
+                <Columns3 className="mr-2 h-4 w-4" />
+                Columns
+              </Button>
+          </div>
         </AppHeader>
         <main className="flex-1 p-4 md:p-6">
           {children}

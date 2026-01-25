@@ -8,6 +8,7 @@ import { Flame } from 'lucide-react';
 
 const ROW_HEIGHT = 48; // Corresponds to h-12 in tailwind
 const BAR_HEIGHT = 28;
+const SUMMARY_BAR_HEIGHT = 14;
 
 type DragMode = 'move' | 'resize-end' | null;
 
@@ -22,6 +23,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     registerBarElement: (taskId: string, element: HTMLDivElement | null) => void;
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
+    const isSummary = task.isSummary;
 
     useEffect(() => {
         registerBarElement(task.id, barRef.current);
@@ -31,7 +33,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     const offsetDays = differenceInDays(task.start, ganttStartDate);
     const left = offsetDays * scale;
     const width = task.duration * scale;
-    const top = row * ROW_HEIGHT + (ROW_HEIGHT - BAR_HEIGHT) / 2;
+    const top = row * ROW_HEIGHT + (ROW_HEIGHT - (isSummary ? SUMMARY_BAR_HEIGHT : BAR_HEIGHT)) / 2;
 
     const dragStartInfo = useRef<{
         startX: number;
@@ -41,7 +43,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     } | null>(null);
 
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, mode: DragMode) => {
-        if (!mode) return;
+        if (isSummary || !mode) return;
         e.preventDefault();
         e.stopPropagation();
         onSelect();
@@ -83,31 +85,46 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         <div
             ref={barRef}
             className={cn(
-                "absolute rounded-md flex items-center group cursor-pointer transition-all duration-200",
+                "absolute flex items-center group transition-all duration-200",
+                !isSummary && "cursor-pointer",
                 isSelected ? "ring-2 ring-offset-2 ring-accent ring-offset-card" : "hover:ring-1 hover:ring-accent",
-                task.schedulingConflict ? "bg-destructive/70" : "bg-primary/80"
+                isSummary ? "bg-card border-2 border-primary/90 rounded-sm" : 
+                    (task.schedulingConflict ? "bg-destructive/70 rounded-md" : "bg-primary/80 rounded-md")
             )}
             style={{
                 top: `${top}px`,
                 left: `${left}px`,
                 width: `${width}px`,
-                height: `${BAR_HEIGHT}px`
+                height: `${isSummary ? SUMMARY_BAR_HEIGHT : BAR_HEIGHT}px`
             }}
             onMouseDown={(e) => handleMouseDown(e, 'move')}
             onClick={onSelect}
         >
-            <div 
-                className="absolute top-0 left-0 h-full bg-primary rounded-l-md"
-                style={{ width: `${task.percentComplete}%`}}
-            />
-            <div className="relative px-2 text-primary-foreground text-sm truncate w-full flex justify-between items-center">
+            {!isSummary && ( 
+                <div 
+                    className="absolute top-0 left-0 h-full bg-primary rounded-l-md"
+                    style={{ width: `${task.percentComplete}%`}}
+                />
+            )}
+             <div className={cn(
+                "relative px-2 text-sm truncate w-full flex justify-between items-center",
+                isSummary ? "text-primary font-medium" : "text-primary-foreground"
+            )}>
                 <span>{task.name}</span>
-                {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive-foreground flex-shrink-0" />}
+                {!isSummary && task.schedulingConflict && <Flame className="h-4 w-4 text-destructive-foreground flex-shrink-0" />}
             </div>
-            <div 
-                className="absolute right-0 top-0 w-2 h-full cursor-ew-resize"
-                onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
-            />
+            {!isSummary && (
+                <div 
+                    className="absolute right-0 top-0 w-2 h-full cursor-ew-resize"
+                    onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
+                />
+            )}
+            {isSummary && (
+            <>
+                <div className="absolute -left-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-t-[7px] border-t-primary/90 border-r-[7px] border-r-transparent"></div>
+                <div className="absolute -right-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-t-[7px] border-t-primary/90 border-r-[7px] border-r-transparent"></div>
+            </>
+        )}
         </div>
     );
 });

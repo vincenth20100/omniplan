@@ -10,6 +10,13 @@ export interface Task {
   duration: number; // in working days
   percentComplete: number;
   
+  // New properties for hierarchy
+  wbs?: string; // Work Breakdown Structure ID
+  parentId?: string | null;
+  level?: number;
+  isSummary?: boolean;
+  isCollapsed?: boolean;
+
   constraintType?: ConstraintType | null;
   constraintDate?: Date | null;
   zoneId?: string | null;
