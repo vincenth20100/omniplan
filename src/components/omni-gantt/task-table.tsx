@@ -10,6 +10,9 @@ import { EditableCell } from './editable-cell';
 
 export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['wbs', 'name', 'start', 'finish'] }: { tasks: Task[], selectedTaskId: string | null, dispatch: any, visibleColumns: string[] }) {
     
+    const [draggedId, setDraggedId] = React.useState<string | null>(null);
+    const [dragOverId, setDragOverId] = React.useState<string | null>(null);
+
     const childrenMap = React.useMemo(() => {
         const map = new Map<string, Task[]>();
         tasks.forEach(task => {
@@ -31,6 +34,38 @@ export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['
       e.stopPropagation();
       dispatch({ type: 'TOGGLE_TASK_COLLAPSE', payload: { taskId } });
     }
+
+    const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, taskId: string) => {
+        e.dataTransfer.setData('text/plain', taskId);
+        setTimeout(() => setDraggedId(taskId), 0);
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>, taskId: string) => {
+        e.preventDefault();
+        if (taskId !== draggedId) {
+            setDragOverId(taskId);
+        }
+    };
+    
+    const handleDragLeave = () => {
+        setDragOverId(null);
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetId: string) => {
+        e.preventDefault();
+        const sourceId = e.dataTransfer.getData('text/plain');
+        if (sourceId && sourceId !== targetId) {
+            dispatch({ type: 'REORDER_TASK', payload: { sourceId, targetId } });
+        }
+        setDraggedId(null);
+        setDragOverId(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedId(null);
+        setDragOverId(null);
+    };
+
 
     const columnDefinitions: Record<string, { name: string, render: (task: Task) => React.ReactNode, className?: string }> = {
         wbs: { name: 'WBS', render: (task) => task.wbs, className: "w-[10%]" },
@@ -140,7 +175,19 @@ export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['
                     {visibleTasks.map((task) => (
                         <TableRow
                             key={task.id}
-                            className={cn("cursor-pointer", selectedTaskId === task.id && "bg-accent/50")}
+                            draggable={true}
+                            onDragStart={(e) => handleDragStart(e, task.id)}
+                            onDrop={(e) => handleDrop(e, task.id)}
+                            onDragOver={(e) => handleDragOver(e, task.id)}
+                            onDragLeave={handleDragLeave}
+                            onDragEnd={handleDragEnd}
+                            className={cn(
+                                "cursor-pointer", 
+                                "transition-all duration-150",
+                                selectedTaskId === task.id && "bg-accent/50",
+                                draggedId === task.id && "opacity-30",
+                                dragOverId === task.id && "border-t-2 border-primary"
+                            )}
                             onClick={() => handleSelectTask(task.id)}
                         >
                             {orderedVisibleColumns.map(columnId => (
