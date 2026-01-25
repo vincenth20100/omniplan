@@ -34,6 +34,13 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[]): Task[] {
                         taskMap.set(task.id, task);
                         changed = true;
                     }
+                } else if (children.length === 0) {
+                    if (task.duration !== 0 || task.percentComplete !== 0) {
+                        task.duration = 0;
+                        task.percentComplete = 0;
+                        taskMap.set(task.id, task);
+                        changed = true;
+                    }
                 }
             }
         }

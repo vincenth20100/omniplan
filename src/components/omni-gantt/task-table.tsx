@@ -9,6 +9,19 @@ import React from 'react';
 
 export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['wbs', 'name', 'start', 'finish'] }: { tasks: Task[], selectedTaskId: string | null, dispatch: any, visibleColumns: string[] }) {
     
+    const childrenMap = React.useMemo(() => {
+        const map = new Map<string, Task[]>();
+        tasks.forEach(task => {
+            if (task.parentId) {
+                if (!map.has(task.parentId)) {
+                    map.set(task.parentId, []);
+                }
+                map.get(task.parentId)!.push(task);
+            }
+        });
+        return map;
+    }, [tasks]);
+
     const handleSelectTask = (taskId: string) => {
         dispatch({ type: 'SELECT_TASK', payload: taskId });
     };
@@ -23,24 +36,43 @@ export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['
         name: { 
             name: 'Task Name', 
             className: "w-auto",
-            render: (task) => (
-                <div className="flex items-center gap-2" style={{ paddingLeft: `${(task.level || 0) * 1.5}rem` }}>
-                    {task.isSummary ? (
-                        <button onClick={(e) => handleToggle(e, task.id)} className="p-0.5 rounded-sm hover:bg-muted -ml-7 mr-2">
-                            {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </button>
-                    ) : (
-                    <div className="w-5" style={{ marginLeft: '-1.75rem', marginRight: '0.5rem' }}></div>
-                    )}
-                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
-                    <span className="truncate">{task.name}</span>
-                </div>
-            )
+            render: (task) => {
+                const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+                return (
+                    <div className="flex items-center gap-2" style={{ paddingLeft: `${(task.level || 0) * 1.5}rem` }}>
+                        {hasChildren ? (
+                            <button onClick={(e) => handleToggle(e, task.id)} className="p-0.5 rounded-sm hover:bg-muted -ml-7 mr-2">
+                                {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </button>
+                        ) : (
+                            <div className="w-5" style={{ marginLeft: '-1.75rem', marginRight: '0.5rem' }}></div>
+                        )}
+                        {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
+                        <span className="truncate">{task.name}</span>
+                    </div>
+                )
+            }
         },
-        duration: { name: 'Duration', render: (task) => task.duration ? `${task.duration}d` : '', className: "w-[100px]" },
-        start: { name: 'Start', render: (task) => format(task.start, 'MMM d, yyyy'), className: "w-[120px]" },
-        finish: { name: 'Finish', render: (task) => format(task.finish, 'MMM d, yyyy'), className: "w-[120px]" },
-        percentComplete: { name: '% Complete', render: (task) => `${task.percentComplete}%`, className: "w-[100px]" },
+        duration: { name: 'Duration', render: (task) => {
+            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+            if (task.isSummary && !hasChildren) return '';
+            return task.duration ? `${task.duration}d` : '';
+        }, className: "w-[100px]" },
+        start: { name: 'Start', render: (task) => {
+            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+            if (task.isSummary && !hasChildren) return '';
+            return format(task.start, 'MMM d, yyyy');
+        }, className: "w-[120px]" },
+        finish: { name: 'Finish', render: (task) => {
+            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+            if (task.isSummary && !hasChildren) return '';
+            return format(task.finish, 'MMM d, yyyy');
+        }, className: "w-[120px]" },
+        percentComplete: { name: '% Complete', render: (task) => {
+            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+            if (task.isSummary && !hasChildren) return '';
+            return `${task.percentComplete}%`;
+        }, className: "w-[100px]" },
         constraintType: { name: 'Constraint Type', render: (task) => task.constraintType, className: "w-[150px]" },
         constraintDate: { name: 'Constraint Date', render: (task) => task.constraintDate ? format(task.constraintDate, 'MMM d, yyyy') : '', className: "w-[120px]" },
     };
