@@ -25,11 +25,75 @@ type Action =
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
   | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } }
-  | { type: 'SET_COLUMNS'; payload: string[] };
+  | { type: 'SET_COLUMNS'; payload: string[] }
+  | { type: 'INDENT_TASK' }
+  | { type: 'OUTDENT_TASK' };
+
+
+function updateHierarchyAndSort(tasks: Task[]): Task[] {
+    const taskMap = new Map(tasks.map(t => ({ ...t })).map(t => [t.id, t]));
+    
+    // Clear parent if parent doesn't exist
+    for (const task of taskMap.values()) {
+        if (task.parentId && !taskMap.has(task.parentId)) {
+            task.parentId = null;
+        }
+    }
+
+    const rootTasks = Array.from(taskMap.values()).filter(t => !t.parentId);
+
+    const originalIndices = new Map(tasks.map((t, i) => [t.id, i]));
+    rootTasks.sort((a, b) => (originalIndices.get(a.id) ?? 0) - (originalIndices.get(b.id) ?? 0));
+    
+    const childrenMap = new Map<string, string[]>();
+    for (const task of taskMap.values()) {
+        if (task.parentId) {
+            if (!childrenMap.has(task.parentId)) childrenMap.set(task.parentId, []);
+            childrenMap.get(task.parentId)!.push(task.id);
+        }
+    }
+
+    for (const children of childrenMap.values()) {
+        children.sort((a, b) => (originalIndices.get(a) ?? 0) - (originalIndices.get(b) ?? 0));
+    }
+
+    function traverse(taskId: string, level: number, wbs: string) {
+        const task = taskMap.get(taskId)!;
+        task.level = level;
+        task.wbs = wbs;
+
+        const childrenIds = childrenMap.get(taskId) || [];
+        childrenIds.forEach((childId, index) => {
+            traverse(childId, level + 1, `${wbs}.${index + 1}`);
+        });
+    }
+
+    rootTasks.forEach((task, index) => {
+        traverse(task.id, 0, `${index + 1}`);
+    });
+
+    const finalTasks = Array.from(taskMap.values());
+    finalTasks.sort((a, b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true, sensitivity: 'base' }));
+
+    return finalTasks;
+}
 
 function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[]): Task[] => {
       return calculateSchedule(tasks, links);
+  };
+
+  const getVisibleTasks = (tasks: Task[]): Task[] => {
+      const taskMap = new Map(tasks.map(t => [t.id, t]));
+      return tasks.filter(task => {
+          if (!task.parentId) return true;
+          let parent = taskMap.get(task.parentId);
+          while(parent) {
+              if (parent.isCollapsed) return false;
+              parent = taskMap.get(parent.parentId || '');
+          }
+          return true;
+      });
   };
     
   const newState = ((): ProjectState => {
@@ -78,19 +142,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, tasks: newTasks };
       }
       case 'MOVE_SELECTION': {
-        const getVisibleTasks = (tasks: Task[]): Task[] => {
-            const taskMap = new Map(tasks.map(t => [t.id, t]));
-            return tasks.filter(task => {
-                if (!task.parentId) return true;
-                let parent = taskMap.get(task.parentId);
-                while(parent) {
-                    if (parent.isCollapsed) return false;
-                    parent = taskMap.get(parent.parentId || '');
-                }
-                return true;
-            });
-        };
-        
         const visibleTasks = getVisibleTasks(state.tasks);
         if (visibleTasks.length === 0) return state;
 
@@ -109,6 +160,50 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       }
       case 'SET_COLUMNS': {
         return { ...state, visibleColumns: action.payload };
+      }
+      case 'INDENT_TASK': {
+        if (!state.selectedTaskId) return state;
+
+        const sortedTasks = [...state.tasks].sort((a,b) => (a.wbs || "").localeCompare(b.wbs || ""));
+        const taskIndex = sortedTasks.findIndex(t => t.id === state.selectedTaskId);
+        const task = sortedTasks[taskIndex];
+
+        if (taskIndex === 0 || !task || task.isSummary) return state;
+        
+        const potentialParent = sortedTasks[taskIndex - 1];
+
+        if (potentialParent.level < task.level || potentialParent.isSummary) return state;
+        
+        let newTasks = state.tasks.map(t => {
+            if (t.id === task.id) {
+                return { ...t, parentId: potentialParent.id };
+            }
+            return t;
+        });
+
+        newTasks = updateHierarchyAndSort(newTasks);
+        const reScheduledTasks = runScheduler(newTasks, state.links);
+        return { ...state, tasks: reScheduledTasks };
+      }
+      case 'OUTDENT_TASK': {
+        if (!state.selectedTaskId) return state;
+
+        const task = state.tasks.find(t => t.id === state.selectedTaskId);
+        if (!task || !task.parentId) return state;
+
+        const parent = state.tasks.find(t => t.id === task.parentId);
+        if (!parent) return state;
+        
+        let newTasks = state.tasks.map(t => {
+          if (t.id === task.id) {
+            return { ...t, parentId: parent.parentId };
+          }
+          return t;
+        });
+
+        newTasks = updateHierarchyAndSort(newTasks);
+        const reScheduledTasks = runScheduler(newTasks, state.links);
+        return { ...state, tasks: reScheduledTasks };
       }
       default:
         return state;
@@ -130,8 +225,16 @@ export function useProject() {
       if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
         return;
       }
-
-      if (event.key === 'ArrowUp') {
+      
+      if (event.shiftKey && event.altKey) {
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          dispatch({ type: 'INDENT_TASK' });
+        } else if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          dispatch({ type: 'OUTDENT_TASK' });
+        }
+      } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         dispatch({ type: 'MOVE_SELECTION', payload: { direction: 'up' } });
       } else if (event.key === 'ArrowDown') {
