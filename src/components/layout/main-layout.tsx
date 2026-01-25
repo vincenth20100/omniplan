@@ -17,7 +17,7 @@ const AppHeader = ({ children }: { children: React.ReactNode }) => (
   </header>
 );
 
-export function MainLayout({ children, sidebarContent, headerActions }: { children: React.ReactNode, sidebarContent: React.ReactNode, headerActions?: React.ReactNode }) {
+export function MainLayout({ children, sidebarContent, headerLeftActions, headerRightActions }: { children: React.ReactNode, sidebarContent: React.ReactNode, headerLeftActions?: React.ReactNode, headerRightActions?: React.ReactNode }) {
   return (
     <SidebarProvider>
       <Sidebar>
@@ -41,9 +41,10 @@ export function MainLayout({ children, sidebarContent, headerActions }: { childr
       <SidebarInset>
         <AppHeader>
           <SidebarTrigger />
+          {headerLeftActions}
           <h1 className="text-xl font-semibold font-headline">Project Plan</h1>
            <div className="ml-auto flex items-center gap-2">
-              {headerActions}
+              {headerRightActions}
           </div>
         </AppHeader>
         <main className="flex-1 p-4 md:p-6">

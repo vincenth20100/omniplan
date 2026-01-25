@@ -4,9 +4,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { GanttChart } from '@/components/omni-gantt/gantt-chart';
 import { TaskDetailsPanel } from '@/components/details/task-details-panel';
 import { useProject } from '@/hooks/use-project';
-import { ConflictDetector } from '@/components/ai/conflict-detector';
-import { SpatialView } from '@/components/spatial/spatial-view';
-import { Separator } from '@/components/ui/separator';
+import { FileExplorer } from '@/components/file-management/file-explorer';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Layers, Filter } from 'lucide-react';
@@ -18,14 +16,16 @@ export default function Home() {
   const selectedTask = state.tasks.find(t => t.id === state.selectedTaskId);
 
   const sidebarContent = (
-    <div>
-      <ConflictDetector projectState={state} dispatch={dispatch} />
-      <Separator className="my-4"/>
-      <SpatialView projectState={state} />
-    </div>
+    <FileExplorer />
   );
 
-  const headerActions = (
+  const headerLeftActions = (
+    <>
+      {isLoaded && state.visibleColumns && <ColumnSelector visibleColumns={state.visibleColumns} dispatch={dispatch} />}
+    </>
+  );
+
+  const headerRightActions = (
     <>
       <Button variant="outline" size="sm" disabled>
         <Filter className="mr-2 h-4 w-4" />
@@ -35,12 +35,15 @@ export default function Home() {
         <Layers className="mr-2 h-4 w-4" />
         Group
       </Button>
-      {isLoaded && state.visibleColumns && <ColumnSelector visibleColumns={state.visibleColumns} dispatch={dispatch} />}
     </>
   );
 
   return (
-    <MainLayout sidebarContent={sidebarContent} headerActions={headerActions}>
+    <MainLayout 
+      sidebarContent={sidebarContent} 
+      headerLeftActions={headerLeftActions}
+      headerRightActions={headerRightActions}
+    >
       <div className="flex flex-col h-[calc(100vh-120px)] w-full">
         {isLoaded ? (
           <ResizablePanelGroup direction="vertical">
