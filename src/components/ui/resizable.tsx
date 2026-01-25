@@ -3,9 +3,9 @@
 import * as React from "react"
 import { Grip } from "lucide-react"
 import {
-  ResizableHandle as ResizableHandlePrimitive,
-  ResizablePanel as ResizablePanelPrimitive,
-  ResizablePanelGroup as ResizablePanelGroupPrimitive,
+  PanelGroup as ResizablePanelGroupPrimitive,
+  Panel as ResizablePanelPrimitive,
+  PanelResizeHandle as ResizableHandlePrimitive,
 } from "react-resizable-panels"
 
 import { cn } from "@/lib/utils"
