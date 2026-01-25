@@ -1,7 +1,7 @@
 import type { Task, Link } from './types';
 import { addDays } from 'date-fns';
 
-const today = new Date();
+const today = new Date('2024-08-01T00:00:00.000Z');
 
 export const initialTasks: Omit<Task, 'start' | 'finish' | 'constraintDate'>[] & { start: string, finish: string, constraintDate?: string } = [
   { id: '1', name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100 },

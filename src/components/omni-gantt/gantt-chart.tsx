@@ -3,12 +3,8 @@ import type { ProjectState } from '@/lib/types';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { TaskTable } from './task-table';
 import { Timeline } from './timeline';
-import { useState } from 'react';
-import { startOfDay } from 'date-fns';
 
 export function GanttChart({ projectState, dispatch }: { projectState: ProjectState, dispatch: any }) {
-    const [timelineStartDate, setTimelineStartDate] = useState(startOfDay(new Date()));
-
     return (
         <div className="border rounded-lg overflow-hidden h-full flex flex-col bg-card">
             <ResizablePanelGroup direction="horizontal" className="h-full">

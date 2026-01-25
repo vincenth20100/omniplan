@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { ProjectState, Task, Link } from '@/lib/types';
+import type { Task, Link } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TimelineHeader } from './timeline-header';
 import { TaskBar } from './task-bar';
@@ -13,22 +13,36 @@ const DAY_SCALE = 35; // pixels per day
 
 export function Timeline({ tasks, links, dispatch, selectedTaskId }: { tasks: Task[], links: Link[], dispatch: any, selectedTaskId: string | null }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
+  const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
+
+  useEffect(() => {
+      // This will only run on the client, preventing hydration mismatch
+      const today = startOfDay(new Date());
+      setDefaultDateRange({
+          viewStartDate: addDays(today, -VIEW_PADDING_DAYS),
+          viewEndDate: addDays(today, VIEW_PADDING_DAYS),
+      });
+  }, []);
 
   const { viewStartDate, viewEndDate } = useMemo(() => {
-    if (tasks.length === 0) {
-      const today = startOfDay(new Date());
-      return {
-        viewStartDate: addDays(today, -VIEW_PADDING_DAYS),
-        viewEndDate: addDays(today, VIEW_PADDING_DAYS),
-      };
+    if (tasks.length > 0) {
+        const minDate = min(tasks.map(t => t.start));
+        const maxDate = max(tasks.map(t => t.finish));
+        return {
+          viewStartDate: addDays(minDate, -15),
+          viewEndDate: addDays(maxDate, 15),
+        };
     }
-    const minDate = min(tasks.map(t => t.start));
-    const maxDate = max(tasks.map(t => t.finish));
+    if (defaultDateRange) {
+        return defaultDateRange;
+    }
+    // Return a static date for SSR to prevent mismatch, will be updated on client.
+    const staticDate = startOfDay(new Date('2024-01-01T00:00:00.000Z'));
     return {
-      viewStartDate: addDays(minDate, -15),
-      viewEndDate: addDays(maxDate, 15),
+      viewStartDate: addDays(staticDate, -VIEW_PADDING_DAYS),
+      viewEndDate: addDays(staticDate, VIEW_PADDING_DAYS),
     };
-  }, [tasks]);
+  }, [tasks, defaultDateRange]);
 
   const totalWidth = useMemo(() => {
     return (differenceInDays(viewEndDate, viewStartDate) + 1) * DAY_SCALE;
@@ -37,6 +51,10 @@ export function Timeline({ tasks, links, dispatch, selectedTaskId }: { tasks: Ta
   const registerBarElement = (taskId: string, element: HTMLDivElement | null) => {
     setTaskBarElements(prev => ({ ...prev, [taskId]: element }));
   };
+  
+  if (tasks.length === 0 && !defaultDateRange) {
+    return <div className="flex h-full w-full items-center justify-center"><p>Loading timeline...</p></div>
+  }
 
   return (
     <ScrollArea className="h-full w-full">
@@ -59,8 +77,6 @@ export function Timeline({ tasks, links, dispatch, selectedTaskId }: { tasks: Ta
           <DependencyLines 
             tasks={tasks}
             links={links} 
-            ganttStartDate={viewStartDate} 
-            scale={DAY_SCALE} 
             taskBarElements={taskBarElements} 
           />
         </div>
