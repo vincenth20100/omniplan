@@ -1,14 +1,16 @@
-import type { Link, Task, UiDensity } from '@/lib/types';
+'use client';
+import type { Link, Task, UiDensity, LinkType } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { EditableCell } from '@/components/omni-gantt/editable-cell';
+import { EditableSelectCell } from '@/components/omni-gantt/editable-select-cell';
+import { Button } from '@/components/ui/button';
+import { Trash2 } from 'lucide-react';
 
 export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensity }: { predecessorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
     if (predecessorLinks.length === 0) {
-        return <div className="border rounded-md min-h-[120px] flex items-center justify-center"><p className="text-sm text-muted-foreground">This task has no predecessors.</p></div>;
+        return <div className="border rounded-md min-h-0 flex items-center justify-center py-4"><p className="text-sm text-muted-foreground">This task has no predecessors.</p></div>;
     }
 
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
@@ -27,8 +29,15 @@ export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensit
         uiDensity === 'compact' && "h-8"
     );
 
+    const linkTypeOptions = [
+        { value: 'FS', label: 'FS' },
+        { value: 'SS', label: 'SS' },
+        { value: 'FF', label: 'FF' },
+        { value: 'SF', label: 'SF' },
+    ];
+
     return (
-        <ScrollArea className="border rounded-md">
+        <ScrollArea className="border rounded-md min-h-0">
             <Table>
                 <TableHeader>
                     <TableRow 
@@ -41,14 +50,15 @@ export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensit
                     >
                         <TableHead className="w-[40px] p-0"><div className={cellInnerDivClass}>ID</div></TableHead>
                         <TableHead className="p-0"><div className={cellInnerDivClass}>Task</div></TableHead>
-                        <TableHead className="w-[50px] p-0"><div className={cellInnerDivClass}>Type</div></TableHead>
+                        <TableHead className="w-[80px] p-0"><div className={cellInnerDivClass}>Type</div></TableHead>
                         <TableHead className="w-[60px] p-0"><div className={cellInnerDivClass}>Lag</div></TableHead>
-                        <TableHead className="w-[90px] p-0"><div className={cellInnerDivClass}>Finish</div></TableHead>
+                        <TableHead className="w-[40px] p-0"><div className={cellInnerDivClass}></div></TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {predecessorLinks.map(link => {
                         const sourceTask = taskMap.get(link.source);
+                        if (!sourceTask) return null;
                         return (
                             <TableRow 
                                 key={link.id} 
@@ -64,10 +74,30 @@ export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensit
                                     <div className={cellInnerDivClass}>{sourceTask?.wbs || 'N/A'}</div>
                                 </TableCell>
                                 <TableCell className={cn(cellClass, "max-w-[20ch]")} title={sourceTask?.name}>
-                                    <div className={cellInnerDivClass}>{sourceTask?.name || 'Unknown Task'}</div>
+                                    <div className={cellInnerDivClass}>
+                                        <EditableCell 
+                                            value={sourceTask.name}
+                                            onSave={(newValue) => {
+                                                if(newValue.trim()){
+                                                    dispatch({ type: 'UPDATE_TASK', payload: { id: sourceTask.id, name: newValue } });
+                                                }
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </div>
                                 </TableCell>
                                 <TableCell className={cellClass}>
-                                    <div className={cellInnerDivClass}><Badge variant="secondary">{link.type}</Badge></div>
+                                    <div className={cellInnerDivClass}>
+                                        <EditableSelectCell
+                                            value={link.type}
+                                            onSave={(newValue) => {
+                                                if (newValue) {
+                                                    dispatch({ type: 'UPDATE_LINK', payload: { id: link.id, type: newValue as LinkType } });
+                                                }
+                                            }}
+                                            options={linkTypeOptions}
+                                        />
+                                    </div>
                                 </TableCell>
                                  <TableCell className={cellClass}>
                                     <div className={cellInnerDivClass}>
@@ -84,7 +114,11 @@ export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensit
                                     </div>
                                 </TableCell>
                                 <TableCell className={cellClass}>
-                                    <div className={cellInnerDivClass}>{sourceTask ? format(sourceTask.finish, 'MMM d, yy') : 'N/A'}</div>
+                                    <div className={cn(cellInnerDivClass, "justify-center")}>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => dispatch({ type: 'REMOVE_LINK', payload: { linkId: link.id }})}>
+                                            <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         );

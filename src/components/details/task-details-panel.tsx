@@ -42,7 +42,7 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                 </Button>
             </div>
             <div className={cn(
-                "flex-grow overflow-auto grid grid-cols-1 md:grid-cols-2 gap-4",
+                "flex-grow overflow-auto grid grid-cols-1 gap-4",
                  uiDensity === 'large' && 'p-4',
                  uiDensity === 'medium' && 'p-3',
                  uiDensity === 'compact' && 'p-2'

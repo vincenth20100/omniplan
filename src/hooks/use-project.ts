@@ -21,7 +21,7 @@ const ALL_COLUMNS = [
 ];
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, width: c.defaultWidth }));
-const initialVisibleColumns = ['wbs', 'name', 'predecessors', 'duration', 'start', 'finish', 'cost'];
+const initialVisibleColumns = ['wbs', 'name', 'predecessors', 'successors', 'duration', 'start', 'finish', 'cost'];
 
 const initialState: ProjectState = {
   tasks: [],
@@ -50,6 +50,7 @@ type Action =
   | { type: 'OUTDENT_TASK' }
   | { type: 'ADD_TASK' }
   | { type: 'REMOVE_TASK' }
+  | { type: 'REMOVE_LINK'; payload: { linkId: string } }
   | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string; position: 'top' | 'bottom' } }
   | { type: 'NEST_TASKS', payload: { sourceIds: string[], parentId: string }}
   | { type: 'SET_UI_DENSITY', payload: UiDensity }
@@ -375,6 +376,12 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const reScheduledTasks = runScheduler(hierarchicalTasks, newLinks);
         
         return { ...state, tasks: reScheduledTasks, links: newLinks, selectedTaskIds: [] };
+      }
+      case 'REMOVE_LINK': {
+        const { linkId } = action.payload;
+        const newLinks = state.links.filter(l => l.id !== linkId);
+        const reScheduledTasks = runScheduler(state.tasks, newLinks);
+        return { ...state, tasks: reScheduledTasks, links: newLinks };
       }
       case 'REORDER_TASKS': {
         const { sourceIds, targetId, position } = action.payload;
