@@ -7,16 +7,16 @@ import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 
 const ALL_COLUMNS = [
-    { id: 'wbs', name: 'WBS', defaultWidth: 70 },
+    { id: 'wbs', name: 'WBS', defaultWidth: 50 },
     { id: 'name', name: 'Task Name', defaultWidth: 150 },
-    { id: 'predecessors', name: 'Predecessors', defaultWidth: 120 },
-    { id: 'successors', name: 'Successors', defaultWidth: 120 },
-    { id: 'duration', name: 'Duration', defaultWidth: 80 },
-    { id: 'start', name: 'Start', defaultWidth: 100 },
-    { id: 'finish', name: 'Finish', defaultWidth: 100 },
-    { id: 'percentComplete', name: '% Complete', defaultWidth: 100 },
-    { id: 'constraintType', name: 'Constraint Type', defaultWidth: 120 },
-    { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 120 },
+    { id: 'predecessors', name: 'Predecessors', defaultWidth: 100 },
+    { id: 'successors', name: 'Successors', defaultWidth: 100 },
+    { id: 'duration', name: 'Duration', defaultWidth: 60 },
+    { id: 'start', name: 'Start', defaultWidth: 90 },
+    { id: 'finish', name: 'Finish', defaultWidth: 90 },
+    { id: 'percentComplete', name: '% Complete', defaultWidth: 80 },
+    { id: 'constraintType', name: 'Constraint Type', defaultWidth: 110 },
+    { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110 },
 ];
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, width: c.defaultWidth }));
