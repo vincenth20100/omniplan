@@ -82,6 +82,7 @@ export default function Home() {
                     tasks={state.tasks}
                     dispatch={dispatch}
                     onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
+                    uiDensity={state.uiDensity}
                   />
                 </ResizablePanel>
               </>

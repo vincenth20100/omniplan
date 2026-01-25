@@ -1,22 +1,38 @@
 'use client';
-import type { Task, Link } from '@/lib/types';
+import type { Task, Link, UiDensity } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { PredecessorList } from './predecessor-list';
 import { SuccessorList } from './successor-list';
 import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void }) {
+export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDensity }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void, uiDensity: UiDensity }) {
 
     const predecessors = links.filter(l => l.target === task.id);
     const successors = links.filter(l => l.source === task.id);
 
     return (
         <div className="flex flex-col h-full bg-card border-t rounded-t-lg overflow-hidden">
-            <div className="p-4 flex items-center justify-between border-b">
+            <div className={cn(
+                    "flex items-center justify-between border-b",
+                    uiDensity === 'large' && 'p-4',
+                    uiDensity === 'medium' && 'p-3',
+                    uiDensity === 'compact' && 'p-2'
+                )}>
                 <div>
-                    <h2 className="text-lg font-semibold">{task.name}</h2>
-                    <p className="text-sm text-muted-foreground">
+                    <h2 className={cn(
+                        "font-semibold",
+                        uiDensity === 'large' && 'text-lg',
+                        uiDensity === 'medium' && 'text-base',
+                        uiDensity === 'compact' && 'text-base'
+                    )}>{task.name}</h2>
+                    <p className={cn(
+                        "text-muted-foreground",
+                         uiDensity === 'large' && 'text-sm',
+                         uiDensity === 'medium' && 'text-xs',
+                         uiDensity === 'compact' && 'text-xs'
+                    )}>
                         {format(task.start, 'EEE, MMM d, yyyy')} - {format(task.finish, 'EEE, MMM d, yyyy')} ({task.duration} working days)
                     </p>
                 </div>
@@ -25,14 +41,19 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose }: { ta
                     <span className="sr-only">Close</span>
                 </Button>
             </div>
-            <div className="flex-grow overflow-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={cn(
+                "flex-grow overflow-auto grid grid-cols-1 md:grid-cols-2 gap-4",
+                 uiDensity === 'large' && 'p-4',
+                 uiDensity === 'medium' && 'p-3',
+                 uiDensity === 'compact' && 'p-2'
+            )}>
                  <div className="flex flex-col gap-2">
                     <h3 className="text-md font-semibold">Predecessors</h3>
-                    <PredecessorList predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} />
+                    <PredecessorList predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
                 </div>
                  <div className="flex flex-col gap-2">
                     <h3 className="text-md font-semibold">Successors</h3>
-                    <SuccessorList successorLinks={successors} allTasks={tasks} dispatch={dispatch} />
+                    <SuccessorList successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
                 </div>
             </div>
         </div>

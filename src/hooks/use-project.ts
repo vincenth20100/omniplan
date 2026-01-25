@@ -28,7 +28,7 @@ const initialState: ProjectState = {
   selectedTaskIds: [],
   visibleColumns: initialVisibleColumns,
   columns: initialColumns,
-  uiDensity: 'large',
+  uiDensity: 'compact',
 };
 
 type Action =
