@@ -404,6 +404,24 @@ export function TaskTable({
                 />
             );
         }},
+        cost: { name: 'Cost', render: (task) => {
+            const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            if (task.isSummary) {
+                return <div className="text-right pr-4">{currencyFormatter.format(task.cost || 0)}</div>;
+            }
+            return (
+                 <EditableCell
+                    value={`${task.cost || 0}`}
+                    onSave={(newValue) => {
+                        const newCost = parseFloat(newValue);
+                        if (!isNaN(newCost)) {
+                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, cost: newCost } });
+                        }
+                    }}
+                    className="text-right pr-4"
+                />
+            );
+        }},
     };
 
     const orderedAndVisibleColumns = React.useMemo(() => {

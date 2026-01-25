@@ -18,14 +18,17 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[]): Task[] {
                 if (children.length > 0 && children.every(c => c.start && c.finish)) {
                     const oldStartMs = task.start?.getTime();
                     const oldFinishMs = task.finish?.getTime();
+                    const oldCost = task.cost;
                     
                     const newStart = min(children.map(c => c.start));
                     const newFinish = max(children.map(c => c.finish));
+                    const newCost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
 
-                    if (newStart.getTime() !== oldStartMs || newFinish.getTime() !== oldFinishMs) {
+                    if (newStart.getTime() !== oldStartMs || newFinish.getTime() !== oldFinishMs || newCost !== oldCost) {
                         task.start = newStart;
                         task.finish = newFinish;
                         task.duration = calendarService.getWorkingDaysDuration(newStart, newFinish);
+                        task.cost = newCost;
                         
                         const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
                         const childrenWeightedComplete = children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0);
@@ -35,9 +38,10 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[]): Task[] {
                         changed = true;
                     }
                 } else if (children.length === 0) {
-                    if (task.duration !== 0 || task.percentComplete !== 0) {
+                    if (task.duration !== 0 || task.percentComplete !== 0 || task.cost !== 0) {
                         task.duration = 0;
                         task.percentComplete = 0;
+                        task.cost = 0;
                         taskMap.set(task.id, task);
                         changed = true;
                     }

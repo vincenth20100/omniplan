@@ -17,10 +17,11 @@ const ALL_COLUMNS = [
     { id: 'percentComplete', name: '% Complete', defaultWidth: 80 },
     { id: 'constraintType', name: 'Constraint Type', defaultWidth: 110 },
     { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110 },
+    { id: 'cost', name: 'Cost', defaultWidth: 80 },
 ];
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, width: c.defaultWidth }));
-const initialVisibleColumns = ['wbs', 'name', 'predecessors', 'successors', 'duration', 'start', 'finish'];
+const initialVisibleColumns = ['wbs', 'name', 'predecessors', 'duration', 'start', 'finish', 'cost'];
 
 const initialState: ProjectState = {
   tasks: [],
@@ -316,6 +317,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             finish: new Date(),
             duration: 1,
             percentComplete: 0,
+            cost: 0,
             level: 0,
         };
 
@@ -576,6 +578,7 @@ export function useProject() {
       start: new Date(t.start),
       finish: new Date(t.finish),
       constraintDate: t.constraintDate ? new Date(t.constraintDate) : undefined,
+      cost: t.cost || 0,
     }));
     
     const scheduledTasks = calculateSchedule(tasksWithDates, initialLinks);

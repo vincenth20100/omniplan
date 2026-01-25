@@ -11,6 +11,7 @@ export interface Task {
   finish: Date;
   duration: number; // in working days
   percentComplete: number;
+  cost?: number;
   
   // New properties for hierarchy
   wbs?: string; // Work Breakdown Structure ID
