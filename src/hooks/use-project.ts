@@ -133,10 +133,17 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         const updatedTask = newTasks.find(t => t.id === id);
         if (updatedTask && !updatedTask.isSummary) {
-          if (updates.start && !updates.duration) {
-            updatedTask.duration = calendarService.getWorkingDaysDuration(updatedTask.start, updatedTask.finish);
-          } else if (updates.duration && updatedTask.start) {
+          if (updates.duration !== undefined && updatedTask.start) {
              updatedTask.finish = calendarService.addWorkingDays(updatedTask.start, updatedTask.duration > 0 ? updatedTask.duration - 1: 0);
+          } else if (updates.start !== undefined || updates.finish !== undefined) {
+             if (updatedTask.start > updatedTask.finish) {
+                if (updates.start) { // If start moved past finish
+                    updatedTask.finish = updatedTask.start;
+                } else { // If finish moved before start
+                    updatedTask.start = updatedTask.finish;
+                }
+             }
+             updatedTask.duration = calendarService.getWorkingDaysDuration(updatedTask.start, updatedTask.finish);
           }
         }
         

@@ -8,6 +8,10 @@ import { cn } from '@/lib/utils';
 import { Flame, ChevronRight, ChevronDown } from 'lucide-react';
 import React from 'react';
 import { EditableCell } from './editable-cell';
+import { EditableDateCell } from './editable-date-cell';
+import { EditableSelectCell } from './editable-select-cell';
+import type { ConstraintType } from '@/lib/types';
+
 
 export function TaskTable({ 
     tasks, 
@@ -247,20 +251,82 @@ export function TaskTable({
         start: { name: 'Start', render: (task) => {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             if (task.isSummary && !hasChildren) return '';
-            return format(task.start, 'MMM d, yyyy');
+            if (task.isSummary) return format(task.start, 'MMM d, yyyy');
+
+            return (
+                <EditableDateCell
+                    value={task.start}
+                    onSave={(newDate) => {
+                        if (newDate) {
+                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, start: newDate } });
+                        }
+                    }}
+                />
+            );
         }},
         finish: { name: 'Finish', render: (task) => {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             if (task.isSummary && !hasChildren) return '';
-            return format(task.finish, 'MMM d, yyyy');
+            if (task.isSummary) return format(task.finish, 'MMM d, yyyy');
+
+            return (
+                <EditableDateCell
+                    value={task.finish}
+                    onSave={(newDate) => {
+                        if (newDate) {
+                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, finish: newDate } });
+                        }
+                    }}
+                />
+            );
         }},
         percentComplete: { name: '% Complete', render: (task) => {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             if (task.isSummary && !hasChildren) return '';
-            return `${task.percentComplete}%`;
+            if (task.isSummary) return `${task.percentComplete}%`;
+
+            return (
+                <EditableCell
+                    value={`${task.percentComplete}`}
+                    onSave={(newValue) => {
+                        const newPercent = parseInt(newValue, 10);
+                        if (!isNaN(newPercent) && newPercent >= 0 && newPercent <= 100) {
+                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, percentComplete: newPercent } });
+                        }
+                    }}
+                    className="text-right pr-4"
+                />
+            );
         }},
-        constraintType: { name: 'Constraint Type', render: (task) => task.constraintType },
-        constraintDate: { name: 'Constraint Date', render: (task) => task.constraintDate ? format(task.constraintDate, 'MMM d, yyyy') : '' },
+        constraintType: { name: 'Constraint Type', render: (task) => {
+            if (task.isSummary) return '';
+            const constraintOptions = [
+                { value: 'Start No Earlier Than', label: 'Start No Earlier Than' },
+                { value: 'Must Start On', label: 'Must Start On' },
+            ];
+            return (
+                <EditableSelectCell
+                    value={task.constraintType || null}
+                    onSave={(newValue) => {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintType: newValue as ConstraintType | null } });
+                    }}
+                    options={constraintOptions}
+                    placeholder="None"
+                />
+            );
+        }},
+        constraintDate: { name: 'Constraint Date', render: (task) => {
+            if (task.isSummary || !task.constraintType) return '';
+
+             return (
+                <EditableDateCell
+                    value={task.constraintDate}
+                    onSave={(newDate) => {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintDate: newDate } });
+                    }}
+                />
+            );
+        }},
     };
 
     const orderedAndVisibleColumns = React.useMemo(() => {
