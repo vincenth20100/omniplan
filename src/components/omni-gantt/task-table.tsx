@@ -1,7 +1,8 @@
 'use client';
 import type { Task, ColumnSpec } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
+import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Flame, ChevronRight, ChevronDown } from 'lucide-react';
@@ -13,13 +14,17 @@ export function TaskTable({
     selectedTaskIds, 
     dispatch, 
     visibleColumns = ['wbs', 'name', 'start', 'finish'],
-    columns
+    columns,
+    viewportRef,
+    onScroll
 }: { 
     tasks: Task[], 
     selectedTaskIds: string[], 
     dispatch: any, 
     visibleColumns: string[],
-    columns: ColumnSpec[]
+    columns: ColumnSpec[],
+    viewportRef: React.RefObject<HTMLDivElement>,
+    onScroll: () => void,
 }) {
     
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
@@ -276,76 +281,81 @@ export function TaskTable({
     }, [tasks]);
 
     return (
-        <ScrollArea className="h-full">
-            <Table style={{ tableLayout: 'fixed' }}>
-                <colgroup>
-                    {orderedAndVisibleColumns.map((col) => (
-                        <col key={col.id} style={{ width: `${col.width}px` }} />
-                    ))}
-                </colgroup>
-                <TableHeader className="sticky top-0 bg-card z-10">
-                    <TableRow>
-                        {orderedAndVisibleColumns.map(column => {
-                            const colDef = columnDefinitions[column.id];
-                            if (!colDef) return null;
+        <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
+            <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
+                <Table style={{ tableLayout: 'fixed' }}>
+                    <colgroup>
+                        {orderedAndVisibleColumns.map((col) => (
+                            <col key={col.id} style={{ width: `${col.width}px` }} />
+                        ))}
+                    </colgroup>
+                    <TableHeader className="sticky top-0 bg-card z-10">
+                        <TableRow>
+                            {orderedAndVisibleColumns.map(column => {
+                                const colDef = columnDefinitions[column.id];
+                                if (!colDef) return null;
 
-                            return (
-                                <TableHead 
-                                    key={column.id} 
-                                    draggable
-                                    onDragStart={(e) => handleColDragStart(e, column.id)}
-                                    onDragOver={(e) => handleColDragOver(e, column.id)}
-                                    onDragLeave={handleColDragLeave}
-                                    onDrop={(e) => handleColDrop(e, column.id)}
-                                    onDragEnd={handleColDragEnd}
-                                    className={cn(
-                                        "relative group select-none overflow-hidden",
-                                        draggedColId === column.id && "opacity-50",
-                                        dropColIndicator?.targetId === column.id && "border-l-2 border-primary"
-                                    )}
-                                >
-                                    {colDef.name}
-                                    <div 
-                                        className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-border opacity-0 group-hover:opacity-100"
-                                        onMouseDown={(e) => handleResizeMouseDown(e, column.id)}
-                                    />
-                                </TableHead>
-                            )
-                        })}
-                    </TableRow>
-                </TableHeader>
-                <TableBody onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragLeave}>
-                    {visibleTasks.map((task) => (
-                        <TableRow
-                            key={task.id}
-                            draggable={true}
-                            onDragStart={(e) => handleDragStart(e, task.id)}
-                            onDragOver={(e) => handleDragOver(e, task.id)}
-                            className={cn(
-                                "cursor-pointer", 
-                                "transition-all duration-150",
-                                selectedTaskIds.includes(task.id) && "bg-accent/50 hover:bg-accent/50",
-                                !selectedTaskIds.includes(task.id) && "hover:bg-muted/50",
-                                draggedIds?.includes(task.id) && "opacity-30",
-                                !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && {
-                                    "border-t-2 border-primary": dropIndicator.position === 'top',
-                                    "border-b-2 border-primary": dropIndicator.position === 'bottom',
-                                    "bg-primary/20": dropIndicator.position === 'child',
-                                }
-                            )}
-                            onClick={(e) => handleSelectTask(e, task.id)}
-                        >
-                            {orderedAndVisibleColumns.map(column => (
-                                <TableCell key={column.id} className="font-medium truncate p-0 h-12">
-                                    <div className="flex items-center h-full px-4">
-                                      {columnDefinitions[column.id].render(task)}
-                                    </div>
-                                </TableCell>
-                            ))}
+                                return (
+                                    <TableHead 
+                                        key={column.id} 
+                                        draggable
+                                        onDragStart={(e) => handleColDragStart(e, column.id)}
+                                        onDragOver={(e) => handleColDragOver(e, column.id)}
+                                        onDragLeave={handleColDragLeave}
+                                        onDrop={(e) => handleColDrop(e, column.id)}
+                                        onDragEnd={handleColDragEnd}
+                                        className={cn(
+                                            "relative group select-none overflow-hidden",
+                                            draggedColId === column.id && "opacity-50",
+                                            dropColIndicator?.targetId === column.id && "border-l-2 border-primary"
+                                        )}
+                                    >
+                                        {colDef.name}
+                                        <div 
+                                            className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-border opacity-0 group-hover:opacity-100"
+                                            onMouseDown={(e) => handleResizeMouseDown(e, column.id)}
+                                        />
+                                    </TableHead>
+                                )
+                            })}
                         </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </ScrollArea>
+                    </TableHeader>
+                    <TableBody onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragLeave}>
+                        {visibleTasks.map((task) => (
+                            <TableRow
+                                key={task.id}
+                                draggable={true}
+                                onDragStart={(e) => handleDragStart(e, task.id)}
+                                onDragOver={(e) => handleDragOver(e, task.id)}
+                                className={cn(
+                                    "cursor-pointer", 
+                                    "transition-all duration-150 h-12",
+                                    selectedTaskIds.includes(task.id) && "bg-accent/50 hover:bg-accent/50",
+                                    !selectedTaskIds.includes(task.id) && "hover:bg-muted/50",
+                                    draggedIds?.includes(task.id) && "opacity-30",
+                                    !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && {
+                                        "border-t-2 border-primary": dropIndicator.position === 'top',
+                                        "border-b-2 border-primary": dropIndicator.position === 'bottom',
+                                        "bg-primary/20": dropIndicator.position === 'child',
+                                    }
+                                )}
+                                onClick={(e) => handleSelectTask(e, task.id)}
+                            >
+                                {orderedAndVisibleColumns.map(column => (
+                                    <TableCell key={column.id} className="font-medium truncate p-0 h-12">
+                                        <div className="flex items-center h-full px-4">
+                                          {columnDefinitions[column.id].render(task)}
+                                        </div>
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </ScrollAreaPrimitive.Viewport>
+            <ScrollBar orientation="vertical" />
+            <ScrollBar orientation="horizontal" />
+            <ScrollAreaPrimitive.Corner />
+        </ScrollAreaPrimitive.Root>
     );
 }
