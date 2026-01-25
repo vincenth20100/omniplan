@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { PredecessorList } from './predecessor-list';
 import { SuccessorList } from './successor-list';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { X } from 'lucide-react';
 
 export function TaskDetailsPanel({ task, links, tasks, onClose }: { task: Task, links: Link[], tasks: Task[], onClose: () => void }) {
@@ -26,19 +25,15 @@ export function TaskDetailsPanel({ task, links, tasks, onClose }: { task: Task, 
                     <span className="sr-only">Close</span>
                 </Button>
             </div>
-            <div className="flex-grow overflow-auto p-4">
-                <Tabs defaultValue="predecessors" className="flex-grow flex flex-col h-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="predecessors">Predecessors</TabsTrigger>
-                        <TabsTrigger value="successors">Successors</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="predecessors" className="flex-grow overflow-auto mt-2">
-                        <PredecessorList predecessorLinks={predecessors} allTasks={tasks} />
-                    </TabsContent>
-                    <TabsContent value="successors" className="flex-grow overflow-auto mt-2">
-                        <SuccessorList successorLinks={successors} allTasks={tasks} />
-                    </TabsContent>
-                </Tabs>
+            <div className="flex-grow overflow-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="flex flex-col gap-2">
+                    <h3 className="text-md font-semibold">Predecessors</h3>
+                    <PredecessorList predecessorLinks={predecessors} allTasks={tasks} />
+                </div>
+                 <div className="flex flex-col gap-2">
+                    <h3 className="text-md font-semibold">Successors</h3>
+                    <SuccessorList successorLinks={successors} allTasks={tasks} />
+                </div>
             </div>
         </div>
     );

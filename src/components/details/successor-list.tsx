@@ -2,22 +2,25 @@ import type { Link, Task } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function SuccessorList({ successorLinks, allTasks }: { successorLinks: Link[], allTasks: Task[] }) {
     if (successorLinks.length === 0) {
-        return <p className="text-sm text-muted-foreground p-4 text-center">This task has no successors.</p>;
+        return <div className="border rounded-md h-full flex items-center justify-center"><p className="text-sm text-muted-foreground">This task has no successors.</p></div>;
     }
 
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
 
     return (
-        <div className="border rounded-md">
+        <ScrollArea className="border rounded-md h-full">
             <Table>
                 <TableHeader>
                     <TableRow>
+                        <TableHead className="w-[50px]">ID</TableHead>
                         <TableHead>Task</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Lag</TableHead>
+                        <TableHead className="w-[60px]">Type</TableHead>
+                        <TableHead className="w-[90px]">Start Date</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -25,16 +28,17 @@ export function SuccessorList({ successorLinks, allTasks }: { successorLinks: Li
                         const targetTask = taskMap.get(link.target);
                         return (
                             <TableRow key={link.id}>
-                                <TableCell className="font-medium">{targetTask?.name || 'Unknown Task'}</TableCell>
+                                <TableCell>{targetTask?.wbs || 'N/A'}</TableCell>
+                                <TableCell className="font-medium truncate" title={targetTask?.name}>{targetTask?.name || 'Unknown Task'}</TableCell>
                                 <TableCell>
                                     <Badge variant="secondary">{link.type}</Badge>
                                 </TableCell>
-                                <TableCell>{link.lag} days</TableCell>
+                                <TableCell>{targetTask ? format(targetTask.start, 'MMM d, yy') : 'N/A'}</TableCell>
                             </TableRow>
                         );
                     })}
                 </TableBody>
             </Table>
-        </div>
+        </ScrollArea>
     );
 }
