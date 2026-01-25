@@ -10,7 +10,7 @@ import { EditableCell } from './editable-cell';
 
 export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = ['wbs', 'name', 'start', 'finish'] }: { tasks: Task[], selectedTaskIds: string[], dispatch: any, visibleColumns: string[] }) {
     
-    const [draggedId, setDraggedId] = React.useState<string | null>(null);
+    const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
     const [dragOverId, setDragOverId] = React.useState<string | null>(null);
 
     const childrenMap = React.useMemo(() => {
@@ -36,18 +36,25 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
     }
 
     const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, taskId: string) => {
-        if (!selectedTaskIds.includes(taskId)) {
+        let sourceIds = [...selectedTaskIds];
+        if (!sourceIds.includes(taskId)) {
+            sourceIds = [taskId];
+            // Immediately dispatching might not update the parent's state in time for this render cycle
+            // but the logic relies on `sourceIds` which we've just set locally.
             dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: false, shiftKey: false }});
         }
-        e.dataTransfer.setData('text/plain', taskId);
-        setTimeout(() => setDraggedId(taskId), 0);
+        
+        e.dataTransfer.setData('application/json', JSON.stringify(sourceIds));
+        e.dataTransfer.effectAllowed = 'move';
+        
+        // Use a timeout to ensure the state update for selection has a chance to be processed
+        // before we start showing the dragged visual state.
+        setTimeout(() => setDraggedIds(sourceIds), 0);
     };
 
     const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>, taskId: string) => {
         e.preventDefault();
-        if (taskId !== draggedId) {
-            setDragOverId(taskId);
-        }
+        setDragOverId(taskId);
     };
     
     const handleDragLeave = () => {
@@ -56,18 +63,24 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
 
     const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetId: string) => {
         e.preventDefault();
-        const sourceId = e.dataTransfer.getData('text/plain');
-        if (sourceId && sourceId !== targetId) {
-            // For now, drag-and-drop only supports single-task reordering.
-            // Complex multi-task reordering is a future enhancement.
-            dispatch({ type: 'REORDER_TASK', payload: { sourceId, targetId } });
+        try {
+            const sourceIdsJSON = e.dataTransfer.getData('application/json');
+            if (sourceIdsJSON) {
+                const sourceIds = JSON.parse(sourceIdsJSON);
+                if (sourceIds && sourceIds.length > 0 && sourceIds.every((id: any) => typeof id === 'string')) {
+                    dispatch({ type: 'REORDER_TASKS', payload: { sourceIds, targetId } });
+                }
+            }
+        } catch (error) {
+            console.error("Drag and drop failed:", error);
         }
-        setDraggedId(null);
+        
+        setDraggedIds(null);
         setDragOverId(null);
     };
 
     const handleDragEnd = () => {
-        setDraggedId(null);
+        setDraggedIds(null);
         setDragOverId(null);
     };
 
@@ -190,8 +203,8 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
                                 "cursor-pointer", 
                                 "transition-all duration-150",
                                 selectedTaskIds.includes(task.id) && "bg-accent/50 hover:bg-accent/50",
-                                draggedId === task.id && "opacity-30",
-                                dragOverId === task.id && "border-t-2 border-primary"
+                                draggedIds?.includes(task.id) && "opacity-30",
+                                dragOverId === task.id && !draggedIds?.includes(task.id) && "border-t-2 border-primary"
                             )}
                             onClick={(e) => handleSelectTask(e, task.id)}
                         >

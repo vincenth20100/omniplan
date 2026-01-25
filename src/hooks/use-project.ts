@@ -30,7 +30,7 @@ type Action =
   | { type: 'OUTDENT_TASK' }
   | { type: 'ADD_TASK' }
   | { type: 'REMOVE_TASK' }
-  | { type: 'REORDER_TASK'; payload: { sourceId: string; targetId: string } };
+  | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string } };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -311,31 +311,32 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         return { ...state, tasks: reScheduledTasks, links: newLinks, selectedTaskIds: [] };
       }
-      case 'REORDER_TASK': {
-        const { sourceId, targetId } = action.payload;
-        if (sourceId === targetId) return state;
+      case 'REORDER_TASKS': {
+        const { sourceIds, targetId } = action.payload;
+        if (sourceIds.includes(targetId)) return state;
 
-        let tasks = [...state.tasks];
-        const sourceIndex = tasks.findIndex(t => t.id === sourceId);
-        const targetIndex = tasks.findIndex(t => t.id === targetId);
-
-        if (sourceIndex === -1 || targetIndex === -1) return state;
+        const tasks = [...state.tasks];
         
-        const sourceTask = tasks[sourceIndex];
-        const targetTask = tasks[targetIndex];
-        
-        // Update parentId to match new sibling context
-        sourceTask.parentId = targetTask.parentId;
+        // Preserve original order of tasks to be moved
+        const tasksToMove = tasks.filter(t => sourceIds.includes(t.id));
+        if (tasksToMove.length === 0) return state;
 
-        // Reorder array
-        const [removed] = tasks.splice(sourceIndex, 1);
-        
-        // After splice, the target index might shift if source was before it
-        const newTargetIndex = tasks.findIndex(t => t.id === targetId);
-        tasks.splice(newTargetIndex, 0, removed);
+        const remainingTasks = tasks.filter(t => !sourceIds.includes(t.id));
 
-        const hierarchicalTasks = updateHierarchyAndSort(tasks);
+        const targetIndex = remainingTasks.findIndex(t => t.id === targetId);
+        if (targetIndex === -1) return state;
+
+        const targetTask = remainingTasks[targetIndex];
+        
+        tasksToMove.forEach(task => {
+            task.parentId = targetTask.parentId;
+        });
+
+        remainingTasks.splice(targetIndex, 0, ...tasksToMove);
+
+        const hierarchicalTasks = updateHierarchyAndSort(remainingTasks);
         const reScheduledTasks = runScheduler(hierarchicalTasks, state.links);
+        
         return { ...state, tasks: reScheduledTasks };
       }
       default:
