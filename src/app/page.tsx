@@ -6,9 +6,8 @@ import { TaskDetailsPanel } from '@/components/details/task-details-panel';
 import { useProject } from '@/hooks/use-project';
 import { FileExplorer } from '@/components/file-management/file-explorer';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { Button } from '@/components/ui/button';
-import { Layers, Filter } from 'lucide-react';
-import { ColumnSelector } from '@/components/layout/column-selector';
+import { ViewOptions } from '@/components/view-options/view-options';
+import { Separator } from '@/components/ui/separator';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
@@ -16,33 +15,18 @@ export default function Home() {
   const selectedTask = state.tasks.find(t => t.id === state.selectedTaskId);
 
   const sidebarContent = (
-    <FileExplorer />
-  );
-
-  const headerLeftActions = (
     <>
-      {isLoaded && state.visibleColumns && <ColumnSelector visibleColumns={state.visibleColumns} dispatch={dispatch} />}
-    </>
-  );
-
-  const headerRightActions = (
-    <>
-      <Button variant="outline" size="sm" disabled>
-        <Filter className="mr-2 h-4 w-4" />
-        Filter
-      </Button>
-      <Button variant="outline" size="sm" disabled>
-        <Layers className="mr-2 h-4 w-4" />
-        Group
-      </Button>
+      <FileExplorer />
+      <Separator className="my-2" />
+      {isLoaded && state.visibleColumns && (
+        <ViewOptions visibleColumns={state.visibleColumns} dispatch={dispatch} />
+      )}
     </>
   );
 
   return (
     <MainLayout 
       sidebarContent={sidebarContent} 
-      headerLeftActions={headerLeftActions}
-      headerRightActions={headerRightActions}
     >
       <div className="flex flex-col h-[calc(100vh-120px)] w-full">
         {isLoaded ? (

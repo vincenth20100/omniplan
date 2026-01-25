@@ -39,8 +39,8 @@ export function ColumnSelector({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                    <Columns3 className="mr-2 h-4 w-4" />
+                <Button variant="ghost" className="w-full justify-start gap-2">
+                    <Columns3 className="h-4 w-4" />
                     Columns
                 </Button>
             </DropdownMenuTrigger>
