@@ -6,7 +6,7 @@ import { PredecessorList } from './predecessor-list';
 import { SuccessorList } from './successor-list';
 import { X } from 'lucide-react';
 
-export function TaskDetailsPanel({ task, links, tasks, onClose }: { task: Task, links: Link[], tasks: Task[], onClose: () => void }) {
+export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void }) {
 
     const predecessors = links.filter(l => l.target === task.id);
     const successors = links.filter(l => l.source === task.id);
@@ -28,11 +28,11 @@ export function TaskDetailsPanel({ task, links, tasks, onClose }: { task: Task, 
             <div className="flex-grow overflow-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="flex flex-col gap-2">
                     <h3 className="text-md font-semibold">Predecessors</h3>
-                    <PredecessorList predecessorLinks={predecessors} allTasks={tasks} />
+                    <PredecessorList predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} />
                 </div>
                  <div className="flex flex-col gap-2">
                     <h3 className="text-md font-semibold">Successors</h3>
-                    <SuccessorList successorLinks={successors} allTasks={tasks} />
+                    <SuccessorList successorLinks={successors} allTasks={tasks} dispatch={dispatch} />
                 </div>
             </div>
         </div>

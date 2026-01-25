@@ -104,16 +104,42 @@ export function calculateSchedule(tasks: Task[], links: Link[]): Task[] {
     let drivingLinkSource: string | null = null;
 
     predecessors.forEach(link => {
-      const sourceTask = taskMap.get(link.source);
+      const sourceTask = allTasksMap.get(link.source);
       if(!sourceTask) return;
 
-      if (link.type === 'FS') {
-        const potentialStartDate = calendarService.addWorkingDays(sourceTask.finish, (link.lag || 0) + 1);
+      // If the source is a summary task, we need to use its finish date from the map.
+      const resolvedSourceTask = taskMap.has(link.source) ? taskMap.get(link.source)! : allTasksMap.get(link.source)!;
+
+      let potentialStartDate: Date;
+
+      switch (link.type) {
+        case 'SS':
+          potentialStartDate = calendarService.addWorkingDays(resolvedSourceTask.start, link.lag || 0);
+          break;
+        case 'FF':
+          {
+            const successorDuration = currentTask.duration > 0 ? currentTask.duration - 1 : 0;
+            const targetFinish = calendarService.addWorkingDays(resolvedSourceTask.finish, link.lag || 0);
+            potentialStartDate = calendarService.addWorkingDays(targetFinish, -successorDuration);
+          }
+          break;
+        case 'SF':
+          {
+            const successorDuration = currentTask.duration > 0 ? currentTask.duration - 1 : 0;
+            const targetFinish = calendarService.addWorkingDays(resolvedSourceTask.start, link.lag || 0);
+            potentialStartDate = calendarService.addWorkingDays(targetFinish, -successorDuration);
+          }
+          break;
+        case 'FS':
+        default:
+          potentialStartDate = calendarService.addWorkingDays(resolvedSourceTask.finish, (link.lag || 0) + 1);
+          break;
+      }
+        
         if (potentialStartDate > newStartDate) {
           newStartDate = potentialStartDate;
-          drivingLinkSource = sourceTask.id;
+          drivingLinkSource = resolvedSourceTask.id;
         }
-      }
     });
 
     links.forEach(link => {
@@ -154,7 +180,6 @@ export function calculateSchedule(tasks: Task[], links: Link[]): Task[] {
 
   if (count !== nonSummaryTasks.length) {
     console.error("Cycle detected in graph or error in scheduling. Scheduled " + count + " of " + nonSummaryTasks.length);
-    // return tasks;
   }
 
   for(const task of taskMap.values()) {

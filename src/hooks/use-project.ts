@@ -8,7 +8,7 @@ import { calendarService } from '@/lib/calendar';
 
 const ALL_COLUMNS = [
     { id: 'wbs', name: 'WBS', defaultWidth: 70 },
-    { id: 'name', name: 'Task Name', defaultWidth: 250 },
+    { id: 'name', name: 'Task Name', defaultWidth: 200 },
     { id: 'duration', name: 'Duration', defaultWidth: 80 },
     { id: 'start', name: 'Start', defaultWidth: 100 },
     { id: 'finish', name: 'Finish', defaultWidth: 100 },
@@ -34,6 +34,7 @@ type Action =
   | { type: 'INIT_STATE'; payload: ProjectState }
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
+  | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
   | { type: 'SELECT_TASK'; payload: { taskId: string | null, ctrlKey?: boolean, shiftKey?: boolean } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
@@ -149,6 +150,14 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         const reScheduledTasks = runScheduler(newTasks, state.links);
         return { ...state, tasks: reScheduledTasks };
+      }
+      case 'UPDATE_LINK': {
+        const { id, ...updates } = action.payload;
+        const newLinks = state.links.map(link =>
+          link.id === id ? { ...link, ...updates } : link
+        );
+        const reScheduledTasks = runScheduler(state.tasks, newLinks);
+        return { ...state, tasks: reScheduledTasks, links: newLinks };
       }
       case 'SELECT_TASK': {
         const { taskId, ctrlKey, shiftKey } = action.payload;

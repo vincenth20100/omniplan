@@ -33,26 +33,42 @@ export const DependencyLines = React.memo(({ tasks, links, taskBarElements }: {
         const sourceY = sourceIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
         const targetY = targetIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
 
-        let x1, x2, y1, y2, isDriving;
+        let x1: number, x2: number;
+        const sourceOffsetLeft = sourceEl.offsetLeft;
+        const sourceWidth = sourceEl.offsetWidth;
+        const targetOffsetLeft = targetEl.offsetLeft;
+        const targetWidth = targetEl.offsetWidth;
 
-        y1 = sourceY;
-        y2 = targetY;
+        switch(link.type) {
+            case 'SS':
+                x1 = sourceOffsetLeft;
+                x2 = targetOffsetLeft;
+                break;
+            case 'FF':
+                x1 = sourceOffsetLeft + sourceWidth;
+                x2 = targetOffsetLeft + targetWidth;
+                break;
+            case 'SF':
+                x1 = sourceOffsetLeft;
+                x2 = targetOffsetLeft + targetWidth;
+                break;
+            case 'FS':
+            default:
+                x1 = sourceOffsetLeft + sourceWidth;
+                x2 = targetOffsetLeft;
+                break;
+        }
 
+        const isDriving = link.isDriving || false;
         const turnRadius = 10;
-        const arrowSize = 5;
-
-        // FS link
-        x1 = sourceEl.offsetLeft + sourceEl.offsetWidth;
-        x2 = targetEl.offsetLeft;
-        isDriving = link.isDriving || false;
         
-        const midX = x2 - 20;
-
         let path;
         if (x2 > x1 + 20) {
-             path = `M ${x1} ${y1} L ${midX} ${y1} C ${midX + turnRadius} ${y1}, ${midX + turnRadius} ${y2}, ${midX} ${y2} L ${x2} ${y2}`;
+             const midX = x2 - 20;
+             path = `M ${x1} ${sourceY} L ${midX} ${sourceY} C ${midX + turnRadius} ${sourceY}, ${midX + turnRadius} ${targetY}, ${midX} ${targetY} L ${x2} ${targetY}`;
         } else {
-             path = `M ${x1} ${y1} L ${x1+10} ${y1} L ${x1+10} ${y1 + ROW_HEIGHT/2} L ${x2-10} ${y1 + ROW_HEIGHT/2} L ${x2-10} ${y2} L ${x2} ${y2}`;
+             const verticalMidpoint = sourceY + (targetY - sourceY) / 2;
+             path = `M ${x1} ${sourceY} L ${x1+10} ${sourceY} L ${x1+10} ${verticalMidpoint} L ${x2-10} ${verticalMidpoint} L ${x2-10} ${targetY} L ${x2} ${targetY}`;
         }
 
 

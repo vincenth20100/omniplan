@@ -66,10 +66,9 @@ const prompt = ai.definePrompt({
   {{/each}}
 
   A scheduling conflict occurs when a task's start or finish date violates its constraint, typically a "Must Start On" constraint, due to dependencies pushing it past the allowed date.
+  Each link dependency type is one of Finish-to-Start (FS), Start-to-Start (SS), Finish-to-Finish (FF), Start-to-Finish (SF).
 
   Identify all such conflicts and return an array of objects, each containing the taskId and a description of the conflict. If no conflicts exist, return an empty array.
-  Each link dependency type is one of Finish-to-Start (FS), Start-to-Start (SS), Finish-to-Finish (FF), Start-to-Finish (SF).
-  Consider only Finish-to-Start dependencies when identifying conflicts.
   Only consider the 'Must Start On' constraint type for conflict analysis.
 
   Format your output as a JSON array of objects, each with 'taskId' and 'conflictDescription' fields.

@@ -76,6 +76,7 @@ export default function Home() {
                     task={selectedTask} 
                     links={state.links} 
                     tasks={state.tasks}
+                    dispatch={dispatch}
                     onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
                   />
                 </ResizablePanel>
