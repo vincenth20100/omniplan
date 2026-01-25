@@ -8,7 +8,7 @@ import { EditableCell } from '@/components/omni-gantt/editable-cell';
 
 export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensity }: { predecessorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
     if (predecessorLinks.length === 0) {
-        return <div className="border rounded-md h-full flex items-center justify-center"><p className="text-sm text-muted-foreground">This task has no predecessors.</p></div>;
+        return <div className="border rounded-md min-h-[120px] flex items-center justify-center"><p className="text-sm text-muted-foreground">This task has no predecessors.</p></div>;
     }
 
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
@@ -28,7 +28,7 @@ export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensit
     );
 
     return (
-        <ScrollArea className="border rounded-md h-full">
+        <ScrollArea className="border rounded-md">
             <Table>
                 <TableHeader>
                     <TableRow 

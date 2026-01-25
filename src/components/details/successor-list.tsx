@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 export function SuccessorList({ successorLinks, allTasks, dispatch, uiDensity }: { successorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
     if (successorLinks.length === 0) {
-        return <div className="border rounded-md h-full flex items-center justify-center"><p className="text-sm text-muted-foreground">This task has no successors.</p></div>;
+        return <div className="border rounded-md min-h-[120px] flex items-center justify-center"><p className="text-sm text-muted-foreground">This task has no successors.</p></div>;
     }
 
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
@@ -28,7 +28,7 @@ export function SuccessorList({ successorLinks, allTasks, dispatch, uiDensity }:
     );
 
     return (
-        <ScrollArea className="border rounded-md h-full">
+        <ScrollArea className="border rounded-md">
             <Table>
                 <TableHeader>
                     <TableRow 
