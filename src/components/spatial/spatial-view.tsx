@@ -11,9 +11,8 @@ export function SpatialView({ projectState }: { projectState: ProjectState }) {
             <div className="p-4 border rounded-lg bg-muted/20 text-center">
                  <Map className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">
-                    4D Map view is in development.
+                    Spatial view coming soon.
                 </p>
-                <p className="text-xs text-muted-foreground/70 mt-1">Requires Google Maps API Key.</p>
             </div>
         </div>
     );
