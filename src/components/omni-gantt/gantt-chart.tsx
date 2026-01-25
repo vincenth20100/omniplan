@@ -1,11 +1,11 @@
 'use client';
-import type { ProjectState } from '@/lib/types';
+import type { ProjectState, UiDensity } from '@/lib/types';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { TaskTable } from './task-table';
 import { Timeline } from './timeline';
 import React, { useRef, useCallback } from 'react';
 
-export function GanttChart({ projectState, dispatch }: { projectState: ProjectState, dispatch: any }) {
+export function GanttChart({ projectState, dispatch, uiDensity }: { projectState: ProjectState, dispatch: any, uiDensity: UiDensity }) {
     const tableViewportRef = useRef<HTMLDivElement>(null);
     const timelineViewportRef = useRef<HTMLDivElement>(null);
     const isSyncingVerticalScroll = useRef(false);
@@ -36,6 +36,7 @@ export function GanttChart({ projectState, dispatch }: { projectState: ProjectSt
                         columns={projectState.columns}
                         viewportRef={tableViewportRef}
                         onScroll={() => handleVerticalScroll('table')}
+                        uiDensity={uiDensity}
                     />
                 </ResizablePanel>
                 <ResizableHandle withHandle />
@@ -47,6 +48,7 @@ export function GanttChart({ projectState, dispatch }: { projectState: ProjectSt
                         selectedTaskIds={projectState.selectedTaskIds}
                         viewportRef={timelineViewportRef}
                         onScroll={() => handleVerticalScroll('timeline')}
+                        uiDensity={uiDensity}
                     />
                 </ResizablePanel>
             </ResizablePanelGroup>

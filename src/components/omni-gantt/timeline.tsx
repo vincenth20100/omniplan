@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import type { Task, Link } from '@/lib/types';
+import type { Task, Link, UiDensity } from '@/lib/types';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { TimelineHeader } from './timeline-header';
@@ -10,6 +10,7 @@ import { DependencyLines } from './dependency-lines';
 import { addDays, differenceInDays, min, max, startOfDay } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
+import { DENSITY_SETTINGS } from '@/lib/settings';
 
 const VIEW_PADDING_DAYS = 30;
 
@@ -19,18 +20,22 @@ export function Timeline({
     dispatch, 
     selectedTaskIds,
     viewportRef,
-    onScroll
+    onScroll,
+    uiDensity
 }: { 
     tasks: Task[], 
     links: Link[], 
     dispatch: any, 
     selectedTaskIds: string[],
     viewportRef: React.RefObject<HTMLDivElement>,
-    onScroll: () => void
+    onScroll: () => void,
+    uiDensity: UiDensity
 }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
   const [scale, setScale] = useState(35); // pixels per day
+
+  const { rowHeight } = DENSITY_SETTINGS[uiDensity];
 
   React.useEffect(() => {
       // This will only run on the client, preventing hydration mismatch
@@ -88,6 +93,8 @@ export function Timeline({
   if (tasks.length === 0 && !defaultDateRange) {
     return <div className="flex h-full w-full items-center justify-center"><p>Loading timeline...</p></div>
   }
+  
+  const totalHeight = visibleTasks.length * rowHeight;
 
   return (
     <div className="h-full w-full relative">
@@ -103,7 +110,7 @@ export function Timeline({
         <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
           <div style={{ width: totalWidth, minHeight: '100%' }} className="relative">
             <TimelineHeader startDate={viewStartDate} endDate={viewEndDate} scale={scale} />
-            <div className="relative h-full" style={{height: `${visibleTasks.length * 48}px`}}>
+            <div className="relative h-full" style={{height: `${totalHeight}px`}}>
               {visibleTasks.map((task, index) => (
                 <TaskBar
                   key={task.id}
@@ -115,6 +122,7 @@ export function Timeline({
                   isSelected={selectedTaskIds.includes(task.id)}
                   onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
                   registerBarElement={registerBarElement}
+                  uiDensity={uiDensity}
                 />
               ))}
               <DependencyLines 

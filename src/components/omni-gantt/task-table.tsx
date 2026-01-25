@@ -1,5 +1,5 @@
 'use client';
-import type { Task, ColumnSpec } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -20,7 +20,8 @@ export function TaskTable({
     visibleColumns = ['wbs', 'name', 'start', 'finish'],
     columns,
     viewportRef,
-    onScroll
+    onScroll,
+    uiDensity
 }: { 
     tasks: Task[], 
     selectedTaskIds: string[], 
@@ -29,6 +30,7 @@ export function TaskTable({
     columns: ColumnSpec[],
     viewportRef: React.RefObject<HTMLDivElement>,
     onScroll: () => void,
+    uiDensity: UiDensity
 }) {
     
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
@@ -417,9 +419,11 @@ export function TaskTable({
                                 draggable={true}
                                 onDragStart={(e) => handleDragStart(e, task.id)}
                                 onDragOver={(e) => handleDragOver(e, task.id)}
+                                data-density={uiDensity}
                                 className={cn(
                                     "cursor-pointer", 
-                                    "transition-all duration-150 h-12",
+                                    "transition-all duration-150",
+                                    "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
                                     selectedTaskIds.includes(task.id) && "bg-accent/50 hover:bg-accent/50",
                                     !selectedTaskIds.includes(task.id) && "hover:bg-muted/50",
                                     draggedIds?.includes(task.id) && "opacity-30",
@@ -432,8 +436,23 @@ export function TaskTable({
                                 onClick={(e) => handleSelectTask(e, task.id)}
                             >
                                 {orderedAndVisibleColumns.map(column => (
-                                    <TableCell key={column.id} className="font-medium truncate p-0 h-12">
-                                        <div className="flex items-center h-full px-4">
+                                    <TableCell 
+                                        key={column.id} 
+                                        data-density={uiDensity}
+                                        className={cn(
+                                            "font-medium truncate p-0",
+                                            "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8"
+                                        )}
+                                    >
+                                        <div 
+                                            className={cn(
+                                                "flex items-center h-full",
+                                                "data-[density=large]:px-4 data-[density=large]:text-sm",
+                                                "data-[density=medium]:px-3 data-[density=medium]:text-sm",
+                                                "data-[density=compact]:px-2 data-[density=compact]:text-xs",
+                                            )}
+                                            data-density={uiDensity}
+                                        >
                                           {columnDefinitions[column.id].render(task)}
                                         </div>
                                     </TableCell>

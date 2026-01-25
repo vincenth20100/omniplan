@@ -35,7 +35,11 @@ export default function Home() {
       <FileExplorer />
       <Separator className="my-2" />
       {isLoaded && state.visibleColumns && (
-        <ViewOptions visibleColumns={state.visibleColumns} dispatch={dispatch} />
+        <ViewOptions 
+            visibleColumns={state.visibleColumns} 
+            dispatch={dispatch}
+            uiDensity={state.uiDensity}
+        />
       )}
        <Separator className="my-2" />
       <ConflictDetector projectState={state} dispatch={dispatch} />
@@ -66,7 +70,7 @@ export default function Home() {
         {isLoaded ? (
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>
-              <GanttChart projectState={state} dispatch={dispatch} />
+              <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />
             </ResizablePanel>
             {selectedTask && (
               <>

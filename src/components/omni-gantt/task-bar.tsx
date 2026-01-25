@@ -1,18 +1,15 @@
 'use client';
 import React, { useRef, useEffect } from 'react';
 import { differenceInDays, addDays } from 'date-fns';
-import type { Task } from '@/lib/types';
+import type { Task, UiDensity } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
 import { Flame } from 'lucide-react';
-
-const ROW_HEIGHT = 48; // Corresponds to h-12 in tailwind
-const BAR_HEIGHT = 28;
-const SUMMARY_BAR_HEIGHT = 14;
+import { DENSITY_SETTINGS } from '@/lib/settings';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
@@ -21,9 +18,12 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     isSelected: boolean;
     onSelect: (event: React.MouseEvent) => void;
     registerBarElement: (taskId: string, element: HTMLDivElement | null) => void;
+    uiDensity: UiDensity;
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
     const isSummary = task.isSummary;
+
+    const { rowHeight, barHeight, summaryBarHeight } = DENSITY_SETTINGS[uiDensity];
 
     useEffect(() => {
         registerBarElement(task.id, barRef.current);
@@ -33,7 +33,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     const offsetDays = differenceInDays(task.start, ganttStartDate);
     const left = offsetDays * scale;
     const width = task.duration * scale;
-    const top = row * ROW_HEIGHT + (ROW_HEIGHT - (isSummary ? SUMMARY_BAR_HEIGHT : BAR_HEIGHT)) / 2;
+    const top = row * rowHeight + (rowHeight - (isSummary ? summaryBarHeight : barHeight)) / 2;
 
     const dragStartInfo = useRef<{
         startX: number;
@@ -128,7 +128,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 top: `${top}px`,
                 left: `${left}px`,
                 width: `${width}px`,
-                height: `${isSummary ? SUMMARY_BAR_HEIGHT : BAR_HEIGHT}px`
+                height: `${isSummary ? summaryBarHeight : barHeight}px`
             }}
             onMouseDown={(e) => handleMouseDown(e, 'move')}
             onTouchStart={(e) => handleTouchStart(e, 'move')}

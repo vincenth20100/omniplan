@@ -2,6 +2,8 @@ export type LinkType = "FS" | "SS" | "FF" | "SF";
 
 export type ConstraintType = "Start No Earlier Than" | "Must Start On";
 
+export type UiDensity = 'compact' | 'medium' | 'large';
+
 export interface Task {
   id: string;
   name: string;
@@ -56,4 +58,5 @@ export interface ProjectState {
     selectedTaskIds: string[];
     visibleColumns: string[];
     columns: ColumnSpec[];
+    uiDensity: UiDensity;
 }

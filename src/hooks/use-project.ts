@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity } from '@/lib/types';
 import { initialTasks, initialLinks } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
@@ -28,6 +28,7 @@ const initialState: ProjectState = {
   selectedTaskIds: [],
   visibleColumns: initialVisibleColumns,
   columns: initialColumns,
+  uiDensity: 'large',
 };
 
 type Action =
@@ -47,7 +48,8 @@ type Action =
   | { type: 'ADD_TASK' }
   | { type: 'REMOVE_TASK' }
   | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string; position: 'top' | 'bottom' } }
-  | { type: 'NEST_TASKS', payload: { sourceIds: string[], parentId: string }};
+  | { type: 'NEST_TASKS', payload: { sourceIds: string[], parentId: string }}
+  | { type: 'SET_UI_DENSITY', payload: UiDensity };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -451,6 +453,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const reScheduledTasks = runScheduler(hierarchicalTasks, state.links);
         
         return { ...state, tasks: reScheduledTasks };
+      }
+      case 'SET_UI_DENSITY': {
+        return { ...state, uiDensity: action.payload };
       }
       default:
         return state;

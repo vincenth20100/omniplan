@@ -3,19 +3,23 @@
 import { Button } from "@/components/ui/button";
 import { Layers, Filter } from "lucide-react";
 import { ColumnSelector } from '@/components/layout/column-selector';
-import type { ProjectState } from "@/lib/types";
+import type { ProjectState, UiDensity } from "@/lib/types";
+import { Separator } from "../ui/separator";
+import { DensitySelector } from "./density-selector";
 
 export function ViewOptions({
     visibleColumns,
     dispatch,
+    uiDensity,
 }: {
     visibleColumns: string[];
     dispatch: any;
+    uiDensity: UiDensity;
 }) {
     return (
         <div className="p-2">
             <h3 className="text-sm font-semibold mb-2 px-2 text-muted-foreground">VIEW</h3>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2">
                 <ColumnSelector visibleColumns={visibleColumns} dispatch={dispatch} />
                 <Button variant="ghost" className="w-full justify-start gap-2" disabled>
                     <Filter className="h-4 w-4" />
@@ -25,6 +29,8 @@ export function ViewOptions({
                     <Layers className="h-4 w-4" />
                     Group
                 </Button>
+                <Separator className="my-1" />
+                <DensitySelector density={uiDensity} dispatch={dispatch} />
             </div>
         </div>
     );
