@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
+import { ResourceView } from '@/components/resources/resource-view';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
@@ -41,6 +42,8 @@ export default function Home() {
             uiDensity={state.uiDensity}
         />
       )}
+       <Separator className="my-2" />
+      <ResourceView projectState={state} />
        <Separator className="my-2" />
       <ConflictDetector projectState={state} dispatch={dispatch} />
        <Separator className="my-2" />

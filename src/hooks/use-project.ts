@@ -1,14 +1,15 @@
 'use client';
 
 import { useReducer, useEffect, useState } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType } from '@/lib/types';
-import { initialTasks, initialLinks } from '@/lib/mock-data';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment } from '@/lib/types';
+import { initialTasks, initialLinks, initialResources, initialAssignments } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 
 const ALL_COLUMNS = [
     { id: 'wbs', name: 'WBS', defaultWidth: 50 },
     { id: 'name', name: 'Task Name', defaultWidth: 150 },
+    { id: 'resourceNames', name: 'Resource Names', defaultWidth: 120 },
     { id: 'predecessors', name: 'Predecessors', defaultWidth: 100 },
     { id: 'successors', name: 'Successors', defaultWidth: 100 },
     { id: 'duration', name: 'Duration', defaultWidth: 60 },
@@ -21,11 +22,13 @@ const ALL_COLUMNS = [
 ];
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, width: c.defaultWidth }));
-const initialVisibleColumns = ['wbs', 'name', 'predecessors', 'successors', 'duration', 'start', 'finish', 'cost'];
+const initialVisibleColumns = ['wbs', 'name', 'resourceNames', 'duration', 'start', 'finish', 'cost', 'predecessors', 'successors'];
 
 const initialState: ProjectState = {
   tasks: [],
-  links: initialLinks,
+  links: [],
+  resources: [],
+  assignments: [],
   zones: [],
   historyLog: [],
   selectedTaskIds: [],
@@ -589,7 +592,7 @@ export function useProject() {
     }));
     
     const scheduledTasks = calculateSchedule(tasksWithDates, initialLinks);
-    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, columns: initialColumns, visibleColumns: initialVisibleColumns } });
+    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, resources: initialResources, assignments: initialAssignments, columns: initialColumns, visibleColumns: initialVisibleColumns } });
     setIsLoaded(true);
   }, []);
 

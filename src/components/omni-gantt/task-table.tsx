@@ -1,5 +1,5 @@
 'use client';
-import type { Task, ColumnSpec, UiDensity, Link } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -16,6 +16,8 @@ import type { ConstraintType } from '@/lib/types';
 export function TaskTable({ 
     tasks, 
     links,
+    resources,
+    assignments,
     selectedTaskIds, 
     dispatch, 
     visibleColumns = ['wbs', 'name', 'start', 'finish'],
@@ -26,6 +28,8 @@ export function TaskTable({
 }: { 
     tasks: Task[], 
     links: Link[],
+    resources: Resource[],
+    assignments: Assignment[],
     selectedTaskIds: string[], 
     dispatch: any, 
     visibleColumns: string[],
@@ -251,6 +255,17 @@ export function TaskTable({
                         </div>
                     </div>
                 )
+            }
+        },
+        resourceNames: { 
+            name: 'Resource Names', 
+            render: (task) => {
+                if (task.isSummary) return '';
+                const resourceMap = new Map(resources.map(r => [r.id, r.name]));
+                const taskAssignments = assignments.filter(a => a.taskId === task.id);
+                const resourceNames = taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
+                
+                return <div className="truncate">{resourceNames}</div>;
             }
         },
         predecessors: { 

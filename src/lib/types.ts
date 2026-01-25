@@ -46,6 +46,17 @@ export interface Zone {
     coordinates: Array<{ lat: number; lng: number }>;
 }
 
+export interface Resource {
+  id: string;
+  name: string;
+}
+
+export interface Assignment {
+  id: string;
+  taskId: string;
+  resourceId: string;
+}
+
 export interface ColumnSpec {
   id: string;
   width: number;
@@ -54,6 +65,8 @@ export interface ColumnSpec {
 export interface ProjectState {
     tasks: Task[];
     links: Link[];
+    resources: Resource[];
+    assignments: Assignment[];
     zones: Zone[];
     historyLog: any[];
     selectedTaskIds: string[];

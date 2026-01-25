@@ -1,4 +1,4 @@
-import type { Task, Link } from './types';
+import type { Task, Link, Resource, Assignment } from './types';
 import { addDays } from 'date-fns';
 
 const today = new Date('2024-08-01T00:00:00.000Z');
@@ -25,4 +25,25 @@ export const initialLinks: Link[] = [
   { id: 'l3', source: '4.1', target: '5', type: 'FS', lag: 0 },
   { id: 'l4', source: '4.2', target: '5', type: 'FS', lag: 0 },
   { id: 'l5', source: '5', target: '6', type: 'FS', lag: 0 },
+];
+
+export const initialResources: Resource[] = [
+    { id: 'r1', name: 'Project Manager' },
+    { id: 'r2', name: 'Business Analyst' },
+    { id: 'r3', name: 'Lead Designer' },
+    { id: 'r4', name: 'Lead Engineer' },
+    { id: 'r5', name: 'QA Engineer' },
+    { id: 'r6', name: 'DevOps Engineer' },
+    { id: 'r7', name: 'Steel Beams' },
+];
+
+export const initialAssignments: Assignment[] = [
+    { id: 'a1', taskId: '1', resourceId: 'r1' },
+    { id: 'a2', taskId: '2', resourceId: 'r2' },
+    { id: 'a3', taskId: '3', resourceId: 'r3' },
+    { id: 'a4', taskId: '4.1', resourceId: 'r4' },
+    { id: 'a5', taskId: '4.1', resourceId: 'r7' },
+    { id: 'a6', taskId: '4.2', resourceId: 'r4' },
+    { id: 'a7', taskId: '5', resourceId: 'r5' },
+    { id: 'a8', taskId: '6', resourceId: 'r6' },
 ];

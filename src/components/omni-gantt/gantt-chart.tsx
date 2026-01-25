@@ -31,6 +31,8 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
                     <TaskTable 
                         tasks={projectState.tasks}
                         links={projectState.links}
+                        resources={projectState.resources}
+                        assignments={projectState.assignments}
                         selectedTaskIds={projectState.selectedTaskIds} 
                         dispatch={dispatch} 
                         visibleColumns={projectState.visibleColumns}
