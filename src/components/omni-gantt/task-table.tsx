@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Flame, ChevronRight, ChevronDown } from 'lucide-react';
 import React from 'react';
+import { EditableCell } from './editable-cell';
 
 export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['wbs', 'name', 'start', 'finish'] }: { tasks: Task[], selectedTaskId: string | null, dispatch: any, visibleColumns: string[] }) {
     
@@ -48,7 +49,21 @@ export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['
                             <div className="w-5" style={{ marginLeft: '-1.75rem', marginRight: '0.5rem' }}></div>
                         )}
                         {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
-                        <span className="truncate">{task.name}</span>
+                        <div className="flex-grow">
+                             {task.isSummary ? (
+                                <span className="truncate">{task.name}</span>
+                             ) : (
+                                <EditableCell
+                                    value={task.name}
+                                    onSave={(newValue) => {
+                                        if (newValue.trim()) {
+                                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, name: newValue } })
+                                        }
+                                    }}
+                                    className="truncate"
+                                />
+                             )}
+                        </div>
                     </div>
                 )
             }
@@ -56,7 +71,24 @@ export function TaskTable({ tasks, selectedTaskId, dispatch, visibleColumns = ['
         duration: { name: 'Duration', render: (task) => {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             if (task.isSummary && !hasChildren) return '';
-            return task.duration ? `${task.duration}d` : '';
+            
+            const displayValue = task.duration ? `${task.duration}d` : '';
+            if (task.isSummary) {
+                return <div className="text-right pr-4">{displayValue}</div>;
+            }
+
+            return (
+                 <EditableCell
+                    value={`${task.duration}`}
+                    onSave={(newValue) => {
+                        const newDuration = parseInt(newValue, 10);
+                        if (!isNaN(newDuration) && newDuration > 0) {
+                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, duration: newDuration } });
+                        }
+                    }}
+                    className="text-right pr-4"
+                />
+            );
         }, className: "w-[100px]" },
         start: { name: 'Start', render: (task) => {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;

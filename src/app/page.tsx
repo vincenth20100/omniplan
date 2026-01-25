@@ -8,11 +8,24 @@ import { FileExplorer } from '@/components/file-management/file-explorer';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Plus, Trash2 } from 'lucide-react';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
 
   const selectedTask = state.tasks.find(t => t.id === state.selectedTaskId);
+
+  const handleAddTask = () => {
+    dispatch({ type: 'ADD_TASK' });
+  };
+
+  const handleRemoveTask = () => {
+    if (state.selectedTaskId) {
+      // TODO: Add a confirmation dialog
+      dispatch({ type: 'REMOVE_TASK' });
+    }
+  };
 
   const sidebarContent = (
     <>
@@ -24,9 +37,23 @@ export default function Home() {
     </>
   );
 
+  const headerLeftActions = (
+    <div className='flex items-center gap-2'>
+        <Button variant="outline" size="sm" onClick={handleAddTask}>
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline ml-2">Add Task</span>
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleRemoveTask} disabled={!state.selectedTaskId}>
+            <Trash2 className="h-4 w-4" />
+             <span className="hidden sm:inline ml-2">Remove Task</span>
+        </Button>
+    </div>
+  );
+
   return (
     <MainLayout 
       sidebarContent={sidebarContent} 
+      headerLeftActions={headerLeftActions}
     >
       <div className="flex flex-col h-[calc(100vh-120px)] w-full">
         {isLoaded ? (

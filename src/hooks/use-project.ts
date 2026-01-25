@@ -27,7 +27,9 @@ type Action =
   | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } }
   | { type: 'SET_COLUMNS'; payload: string[] }
   | { type: 'INDENT_TASK' }
-  | { type: 'OUTDENT_TASK' };
+  | { type: 'OUTDENT_TASK' }
+  | { type: 'ADD_TASK' }
+  | { type: 'REMOVE_TASK' };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -204,6 +206,69 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         newTasks = updateHierarchyAndSort(newTasks);
         const reScheduledTasks = runScheduler(newTasks, state.links);
         return { ...state, tasks: reScheduledTasks };
+      }
+       case 'ADD_TASK': {
+        const newTask: Task = {
+            id: `T-${Date.now()}`,
+            name: "New Task",
+            start: new Date(),
+            finish: new Date(),
+            duration: 1,
+            percentComplete: 0,
+            level: 0,
+        };
+
+        let newTasks = [...state.tasks];
+        let newSelectedId = newTask.id;
+
+        if (state.selectedTaskId) {
+            const selectedIndex = newTasks.findIndex(t => t.id === state.selectedTaskId);
+            const selectedTask = newTasks[selectedIndex];
+            if (selectedTask) {
+              newTask.parentId = selectedTask.parentId;
+              newTask.level = selectedTask.level;
+            }
+            if (selectedIndex !== -1) {
+                newTasks.splice(selectedIndex + 1, 0, newTask);
+            } else {
+                newTasks.push(newTask);
+            }
+        } else {
+            newTasks.push(newTask);
+        }
+
+        const hierarchicalTasks = updateHierarchyAndSort(newTasks);
+        const reScheduledTasks = runScheduler(hierarchicalTasks, state.links);
+        return { ...state, tasks: reScheduledTasks, selectedTaskId: newSelectedId };
+      }
+      case 'REMOVE_TASK': {
+        if (!state.selectedTaskId) return state;
+
+        const taskToRemoveId = state.selectedTaskId;
+        const taskMap = new Map(state.tasks.map(t => [t.id, t]));
+        
+        const idsToRemove = new Set<string>();
+        const queue = [taskToRemoveId];
+        
+        while(queue.length > 0) {
+            const currentId = queue.shift()!;
+            if (!idsToRemove.has(currentId)) {
+                idsToRemove.add(currentId);
+                 state.tasks.forEach(t => {
+                    if(t.parentId === currentId) {
+                        queue.push(t.id);
+                    }
+                });
+            }
+        }
+        
+        const newTasks = state.tasks.filter(t => !idsToRemove.has(t.id));
+        const newLinks = state.links.filter(l => !idsToRemove.has(l.source) && !idsToRemove.has(l.target));
+        
+        const hierarchicalTasks = updateHierarchyAndSort(newTasks);
+        const reScheduledTasks = runScheduler(hierarchicalTasks, newLinks);
+        
+        return { ...state, tasks: reScheduledTasks, links: newLinks, selectedTaskId: null };
       }
       default:
         return state;
