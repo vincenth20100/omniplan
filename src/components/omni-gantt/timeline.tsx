@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import type { Task, Link } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TimelineHeader } from './timeline-header';
@@ -48,9 +48,9 @@ export function Timeline({ tasks, links, dispatch, selectedTaskId }: { tasks: Ta
     return (differenceInDays(viewEndDate, viewStartDate) + 1) * DAY_SCALE;
   }, [viewStartDate, viewEndDate]);
 
-  const registerBarElement = (taskId: string, element: HTMLDivElement | null) => {
+  const registerBarElement = useCallback((taskId: string, element: HTMLDivElement | null) => {
     setTaskBarElements(prev => ({ ...prev, [taskId]: element }));
-  };
+  }, []);
   
   if (tasks.length === 0 && !defaultDateRange) {
     return <div className="flex h-full w-full items-center justify-center"><p>Loading timeline...</p></div>
