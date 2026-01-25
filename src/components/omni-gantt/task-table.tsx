@@ -181,7 +181,7 @@ export function TaskTable({
         
         const handleMouseMove = (mouseMoveEvent: MouseEvent) => {
             const newWidth = startWidth + (mouseMoveEvent.clientX - startX);
-            if (newWidth > 50) { // min width
+            if (newWidth > 30) { // min width
                  dispatch({ type: 'RESIZE_COLUMN', payload: { columnId, width: newWidth } });
             }
         };
@@ -204,7 +204,7 @@ export function TaskTable({
         const handleTouchMove = (touchMoveEvent: TouchEvent) => {
             if (touchMoveEvent.cancelable) touchMoveEvent.preventDefault();
             const newWidth = startWidth + (touchMoveEvent.touches[0].clientX - startX);
-            if (newWidth > 50) { // min width
+            if (newWidth > 30) { // min width
                  dispatch({ type: 'RESIZE_COLUMN', payload: { columnId, width: newWidth } });
             }
         };
@@ -426,7 +426,7 @@ export function TaskTable({
     return (
         <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
             <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
-                <Table style={{ tableLayout: 'fixed' }}>
+                <Table style={{ tableLayout: 'fixed' }} className="w-auto">
                     <colgroup>
                         {orderedAndVisibleColumns.map((col) => (
                             <col key={col.id} style={{ width: `${col.width}px` }} />
