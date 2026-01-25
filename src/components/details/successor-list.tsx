@@ -30,7 +30,7 @@ export function SuccessorList({ successorLinks, allTasks, dispatch }: { successo
                         return (
                             <TableRow key={link.id}>
                                 <TableCell>{targetTask?.wbs || 'N/A'}</TableCell>
-                                <TableCell className="font-medium truncate" title={targetTask?.name}>{targetTask?.name || 'Unknown Task'}</TableCell>
+                                <TableCell className="font-medium truncate max-w-[20ch]" title={targetTask?.name}>{targetTask?.name || 'Unknown Task'}</TableCell>
                                 <TableCell>
                                     <Badge variant="secondary">{link.type}</Badge>
                                 </TableCell>

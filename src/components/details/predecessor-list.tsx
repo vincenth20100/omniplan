@@ -31,7 +31,7 @@ export function PredecessorList({ predecessorLinks, allTasks, dispatch }: { pred
                         return (
                             <TableRow key={link.id} className={cn(link.isDriving && "bg-destructive/10")}>
                                 <TableCell>{sourceTask?.wbs || 'N/A'}</TableCell>
-                                <TableCell className="font-medium truncate" title={sourceTask?.name}>{sourceTask?.name || 'Unknown Task'}</TableCell>
+                                <TableCell className="font-medium truncate max-w-[20ch]" title={sourceTask?.name}>{sourceTask?.name || 'Unknown Task'}</TableCell>
                                 <TableCell>
                                     <Badge variant="secondary">{link.type}</Badge>
                                 </TableCell>
