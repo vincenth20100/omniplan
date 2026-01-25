@@ -11,7 +11,7 @@ import { EditableCell } from './editable-cell';
 export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = ['wbs', 'name', 'start', 'finish'] }: { tasks: Task[], selectedTaskIds: string[], dispatch: any, visibleColumns: string[] }) {
     
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
-    const [dragOverId, setDragOverId] = React.useState<string | null>(null);
+    const [dropIndicator, setDropIndicator] = React.useState<{ targetId: string; position: 'top' | 'bottom' | 'child' } | null>(null);
 
     const childrenMap = React.useMemo(() => {
         const map = new Map<string, Task[]>();
@@ -39,49 +39,75 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
         let sourceIds = [...selectedTaskIds];
         if (!sourceIds.includes(taskId)) {
             sourceIds = [taskId];
-            // Immediately dispatching might not update the parent's state in time for this render cycle
-            // but the logic relies on `sourceIds` which we've just set locally.
             dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: false, shiftKey: false }});
         }
         
         e.dataTransfer.setData('application/json', JSON.stringify(sourceIds));
         e.dataTransfer.effectAllowed = 'move';
         
-        // Use a timeout to ensure the state update for selection has a chance to be processed
-        // before we start showing the dragged visual state.
         setTimeout(() => setDraggedIds(sourceIds), 0);
     };
 
     const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>, taskId: string) => {
         e.preventDefault();
-        setDragOverId(taskId);
+
+        if (!draggedIds || draggedIds.includes(taskId)) {
+            setDropIndicator(null);
+            return;
+        }
+
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        for (const sourceId of draggedIds) {
+            let p: Task | undefined | null = taskMap.get(taskId);
+            while (p) {
+                if (p.id === sourceId) {
+                    setDropIndicator(null);
+                    return; // Prevent nesting a task under its own descendant
+                }
+                p = p.parentId ? taskMap.get(p.parentId) : null;
+            }
+        }
+        
+        const rect = e.currentTarget.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const x = e.clientX - rect.left;
+        const indentThreshold = 50;
+
+        if (x > indentThreshold) {
+            setDropIndicator({ targetId: taskId, position: 'child' });
+        } else {
+            if (y < rect.height / 2) {
+                setDropIndicator({ targetId: taskId, position: 'top' });
+            } else {
+                setDropIndicator({ targetId: taskId, position: 'bottom' });
+            }
+        }
     };
     
     const handleDragLeave = () => {
-        setDragOverId(null);
+        setDropIndicator(null);
     };
 
-    const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetId: string) => {
+    const handleDrop = (e: React.DragEvent<HTMLTableRowElement>) => {
         e.preventDefault();
-        try {
-            const sourceIdsJSON = e.dataTransfer.getData('application/json');
-            if (sourceIdsJSON) {
-                const sourceIds = JSON.parse(sourceIdsJSON);
-                if (sourceIds && sourceIds.length > 0 && sourceIds.every((id: any) => typeof id === 'string')) {
-                    dispatch({ type: 'REORDER_TASKS', payload: { sourceIds, targetId } });
-                }
-            }
-        } catch (error) {
-            console.error("Drag and drop failed:", error);
-        }
         
+        if (!dropIndicator || !draggedIds) return;
+
+        const { targetId, position } = dropIndicator;
+        
+        if (position === 'child') {
+             dispatch({ type: 'NEST_TASKS', payload: { sourceIds: draggedIds, parentId: targetId } });
+        } else {
+            dispatch({ type: 'REORDER_TASKS', payload: { sourceIds: draggedIds, targetId, position } });
+        }
+
         setDraggedIds(null);
-        setDragOverId(null);
+        setDropIndicator(null);
     };
 
     const handleDragEnd = () => {
         setDraggedIds(null);
-        setDragOverId(null);
+        setDropIndicator(null);
     };
 
 
@@ -179,7 +205,7 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
 
     return (
         <ScrollArea className="h-full">
-            <Table>
+            <Table onDrop={handleDrop} onDragEnd={handleDragEnd}>
                 <TableHeader className="sticky top-0 bg-card z-10">
                     <TableRow>
                         {orderedVisibleColumns.map(columnId => (
@@ -195,16 +221,19 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
                             key={task.id}
                             draggable={true}
                             onDragStart={(e) => handleDragStart(e, task.id)}
-                            onDrop={(e) => handleDrop(e, task.id)}
                             onDragOver={(e) => handleDragOver(e, task.id)}
                             onDragLeave={handleDragLeave}
-                            onDragEnd={handleDragEnd}
                             className={cn(
                                 "cursor-pointer", 
                                 "transition-all duration-150",
                                 selectedTaskIds.includes(task.id) && "bg-accent/50 hover:bg-accent/50",
+                                !selectedTaskIds.includes(task.id) && "hover:bg-muted/50",
                                 draggedIds?.includes(task.id) && "opacity-30",
-                                dragOverId === task.id && !draggedIds?.includes(task.id) && "border-t-2 border-primary"
+                                !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && {
+                                    "border-t-2 border-primary": dropIndicator.position === 'top',
+                                    "border-b-2 border-primary": dropIndicator.position === 'bottom',
+                                    "bg-primary/20": dropIndicator.position === 'child',
+                                }
                             )}
                             onClick={(e) => handleSelectTask(e, task.id)}
                         >

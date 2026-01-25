@@ -30,7 +30,8 @@ type Action =
   | { type: 'OUTDENT_TASK' }
   | { type: 'ADD_TASK' }
   | { type: 'REMOVE_TASK' }
-  | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string } };
+  | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string; position: 'top' | 'bottom' } }
+  | { type: 'NEST_TASKS', payload: { sourceIds: string[], parentId: string }};
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -135,7 +136,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
 
         const visibleTasks = getVisibleTasks(state.tasks);
-        const currentSelection = new Set(state.selectedTaskIds);
         
         if (shiftKey && state.selectedTaskIds.length > 0) {
             const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
@@ -147,13 +147,13 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 const end = Math.max(lastSelectedIndex, currentSelectedIndex);
                 const rangeIds = visibleTasks.slice(start, end + 1).map(t => t.id);
                 
-                // For shift-click, we typically replace the selection with the new range from the anchor
-                // A more complex implementation could add to it, but this is a common behavior.
-                return { ...state, selectedTaskIds: rangeIds };
+                const uniqueIds = Array.from(new Set([...state.selectedTaskIds, ...rangeIds]));
+                return { ...state, selectedTaskIds: uniqueIds };
             }
         }
 
         if (ctrlKey) {
+            const currentSelection = new Set(state.selectedTaskIds);
             if (currentSelection.has(taskId)) {
                 currentSelection.delete(taskId);
             } else {
@@ -312,31 +312,59 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, tasks: reScheduledTasks, links: newLinks, selectedTaskIds: [] };
       }
       case 'REORDER_TASKS': {
-        const { sourceIds, targetId } = action.payload;
+        const { sourceIds, targetId, position } = action.payload;
         if (sourceIds.includes(targetId)) return state;
 
         const tasks = [...state.tasks];
         
-        // Preserve original order of tasks to be moved
-        const tasksToMove = tasks.filter(t => sourceIds.includes(t.id));
-        if (tasksToMove.length === 0) return state;
+        const sourceTasks = sourceIds.map(id => tasks.find(t => t.id === id)).filter(Boolean) as Task[];
+        if (sourceTasks.length !== sourceIds.length) return state;
 
         const remainingTasks = tasks.filter(t => !sourceIds.includes(t.id));
 
-        const targetIndex = remainingTasks.findIndex(t => t.id === targetId);
+        let targetIndex = remainingTasks.findIndex(t => t.id === targetId);
         if (targetIndex === -1) return state;
 
         const targetTask = remainingTasks[targetIndex];
         
-        tasksToMove.forEach(task => {
+        sourceTasks.forEach(task => {
             task.parentId = targetTask.parentId;
         });
 
-        remainingTasks.splice(targetIndex, 0, ...tasksToMove);
+        if (position === 'bottom') {
+            targetIndex++;
+        }
+
+        remainingTasks.splice(targetIndex, 0, ...sourceTasks);
 
         const hierarchicalTasks = updateHierarchyAndSort(remainingTasks);
         const reScheduledTasks = runScheduler(hierarchicalTasks, state.links);
         
+        return { ...state, tasks: reScheduledTasks };
+      }
+      case 'NEST_TASKS': {
+        const { sourceIds, parentId } = action.payload;
+        if (sourceIds.includes(parentId)) return state;
+
+        const taskMap = new Map(state.tasks.map(t => [t.id, {...t}]));
+        const parentTask = taskMap.get(parentId);
+        if (!parentTask) return state;
+
+        for (const sourceId of sourceIds) {
+            let p = parentTask;
+            while(p) {
+                if (p.id === sourceId) return state; // Prevent nesting under a child
+                p = p.parentId ? taskMap.get(p.parentId)! : null!;
+            }
+
+            const taskToUpdate = taskMap.get(sourceId);
+            if (taskToUpdate) {
+                taskToUpdate.parentId = parentId;
+            }
+        }
+
+        const newTasks = updateHierarchyAndSort(Array.from(taskMap.values()));
+        const reScheduledTasks = runScheduler(newTasks, state.links);
         return { ...state, tasks: reScheduledTasks };
       }
       default:
