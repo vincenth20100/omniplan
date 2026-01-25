@@ -189,7 +189,7 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
                             className={cn(
                                 "cursor-pointer", 
                                 "transition-all duration-150",
-                                selectedTaskIds.includes(task.id) && "bg-accent/50",
+                                selectedTaskIds.includes(task.id) && "bg-accent/50 hover:bg-accent/50",
                                 draggedId === task.id && "opacity-30",
                                 dragOverId === task.id && "border-t-2 border-primary"
                             )}
