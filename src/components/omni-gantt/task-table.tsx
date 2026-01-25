@@ -191,6 +191,29 @@ export function TaskTable({
         document.addEventListener('mouseup', handleMouseUp);
     };
 
+    const handleResizeTouchStart = (e: React.TouchEvent<HTMLDivElement>, columnId: string) => {
+        e.stopPropagation();
+
+        const startX = e.touches[0].clientX;
+        const startWidth = columns.find(c => c.id === columnId)?.width ?? 0;
+        
+        const handleTouchMove = (touchMoveEvent: TouchEvent) => {
+            if (touchMoveEvent.cancelable) touchMoveEvent.preventDefault();
+            const newWidth = startWidth + (touchMoveEvent.touches[0].clientX - startX);
+            if (newWidth > 50) { // min width
+                 dispatch({ type: 'RESIZE_COLUMN', payload: { columnId, width: newWidth } });
+            }
+        };
+
+        const handleTouchEnd = () => {
+            document.removeEventListener('touchmove', handleTouchMove);
+            document.removeEventListener('touchend', handleTouchEnd);
+        };
+
+        document.addEventListener('touchmove', handleTouchMove, { passive: false });
+        document.addEventListener('touchend', handleTouchEnd);
+    };
+
     const columnDefinitions: Record<string, { name: string, render: (task: Task) => React.ReactNode }> = {
         wbs: { name: 'WBS', render: (task) => task.wbs },
         name: { 
@@ -380,6 +403,7 @@ export function TaskTable({
                                         <div 
                                             className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-border opacity-0 group-hover:opacity-100"
                                             onMouseDown={(e) => handleResizeMouseDown(e, column.id)}
+                                            onTouchStart={(e) => handleResizeTouchStart(e, column.id)}
                                         />
                                     </TableHead>
                                 )

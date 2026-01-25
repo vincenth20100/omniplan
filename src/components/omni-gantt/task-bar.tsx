@@ -59,9 +59,27 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         document.addEventListener('mouseup', handleMouseUp);
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, mode: DragMode) => {
+        if (isSummary || !mode) return;
+        e.stopPropagation();
+        
+        // Select the task for touch, assuming no multi-select modifiers
+        dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: false, shiftKey: false } });
+
+        dragStartInfo.current = {
+            startX: e.touches[0].clientX,
+            originalStart: task.start,
+            originalDuration: task.duration,
+            mode: mode,
+        };
+        
+        document.addEventListener('touchmove', handleTouchMove, { passive: false });
+        document.addEventListener('touchend', handleTouchEnd);
+    };
+
+    const handleDragMove = (clientX: number) => {
         if (!dragStartInfo.current) return;
-        const dx = e.clientX - dragStartInfo.current.startX;
+        const dx = clientX - dragStartInfo.current.startX;
         const dayDelta = Math.round(dx / scale);
 
         if (dragStartInfo.current.mode === 'move') {
@@ -75,10 +93,25 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         }
     };
 
+    const handleMouseMove = (e: MouseEvent) => {
+        handleDragMove(e.clientX);
+    };
+    
+    const handleTouchMove = (e: TouchEvent) => {
+        if (e.cancelable) e.preventDefault();
+        handleDragMove(e.touches[0].clientX);
+    };
+
     const handleMouseUp = () => {
         dragStartInfo.current = null;
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    const handleTouchEnd = () => {
+        dragStartInfo.current = null;
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
     };
 
     return (
@@ -98,6 +131,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 height: `${isSummary ? SUMMARY_BAR_HEIGHT : BAR_HEIGHT}px`
             }}
             onMouseDown={(e) => handleMouseDown(e, 'move')}
+            onTouchStart={(e) => handleTouchStart(e, 'move')}
             onClick={onSelect}
         >
             {!isSummary && ( 
@@ -117,6 +151,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 <div 
                     className="absolute right-0 top-0 w-2 h-full cursor-ew-resize"
                     onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
+                    onTouchStart={(e) => handleTouchStart(e, 'resize-end')}
                 />
             )}
             {isSummary && (
