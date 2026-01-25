@@ -14,6 +14,7 @@ export function GanttChart({ projectState, dispatch }: { projectState: ProjectSt
                         selectedTaskIds={projectState.selectedTaskIds} 
                         dispatch={dispatch} 
                         visibleColumns={projectState.visibleColumns}
+                        columns={projectState.columns}
                     />
                 </ResizablePanel>
                 <ResizableHandle withHandle />

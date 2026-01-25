@@ -1,11 +1,23 @@
 'use client';
 
 import { useReducer, useEffect, useState } from 'react';
-import type { ProjectState, Task, Link } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec } from '@/lib/types';
 import { initialTasks, initialLinks } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 
+const ALL_COLUMNS = [
+    { id: 'wbs', name: 'WBS', defaultWidth: 70 },
+    { id: 'name', name: 'Task Name', defaultWidth: 250 },
+    { id: 'duration', name: 'Duration', defaultWidth: 80 },
+    { id: 'start', name: 'Start', defaultWidth: 100 },
+    { id: 'finish', name: 'Finish', defaultWidth: 100 },
+    { id: 'percentComplete', name: '% Complete', defaultWidth: 100 },
+    { id: 'constraintType', name: 'Constraint Type', defaultWidth: 120 },
+    { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 120 },
+];
+
+const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, width: c.defaultWidth }));
 const initialVisibleColumns = ['wbs', 'name', 'start', 'finish'];
 
 const initialState: ProjectState = {
@@ -15,6 +27,7 @@ const initialState: ProjectState = {
   historyLog: [],
   selectedTaskIds: [],
   visibleColumns: initialVisibleColumns,
+  columns: initialColumns,
 };
 
 type Action =
@@ -26,6 +39,8 @@ type Action =
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
   | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } }
   | { type: 'SET_COLUMNS'; payload: string[] }
+  | { type: 'RESIZE_COLUMN'; payload: { columnId: string, width: number } }
+  | { type: 'REORDER_COLUMNS'; payload: { sourceId: string, targetId: string } }
   | { type: 'INDENT_TASK' }
   | { type: 'OUTDENT_TASK' }
   | { type: 'ADD_TASK' }
@@ -198,6 +213,26 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       }
       case 'SET_COLUMNS': {
         return { ...state, visibleColumns: action.payload };
+      }
+       case 'RESIZE_COLUMN': {
+        const { columnId, width } = action.payload;
+        const newColumns = state.columns.map(c =>
+          c.id === columnId ? { ...c, width } : c
+        );
+        return { ...state, columns: newColumns };
+      }
+      case 'REORDER_COLUMNS': {
+        const { sourceId, targetId } = action.payload;
+        const columns = [...state.columns];
+        const sourceIndex = columns.findIndex(c => c.id === sourceId);
+        const targetIndex = columns.findIndex(c => c.id === targetId);
+    
+        if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return state;
+    
+        const [removed] = columns.splice(sourceIndex, 1);
+        columns.splice(targetIndex, 0, removed);
+        
+        return { ...state, columns };
       }
       case 'INDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
@@ -464,7 +499,7 @@ export function useProject() {
     }));
     
     const scheduledTasks = calculateSchedule(tasksWithDates, initialLinks);
-    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, visibleColumns: initialVisibleColumns } });
+    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, columns: initialColumns, visibleColumns: initialVisibleColumns } });
     setIsLoaded(true);
   }, []);
 

@@ -43,6 +43,11 @@ export interface Zone {
     coordinates: Array<{ lat: number; lng: number }>;
 }
 
+export interface ColumnSpec {
+  id: string;
+  width: number;
+}
+
 export interface ProjectState {
     tasks: Task[];
     links: Link[];
@@ -50,4 +55,5 @@ export interface ProjectState {
     historyLog: any[];
     selectedTaskIds: string[];
     visibleColumns: string[];
+    columns: ColumnSpec[];
 }

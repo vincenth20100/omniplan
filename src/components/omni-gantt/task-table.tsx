@@ -1,5 +1,5 @@
 'use client';
-import type { Task } from '@/lib/types';
+import type { Task, ColumnSpec } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
@@ -8,10 +8,26 @@ import { Flame, ChevronRight, ChevronDown } from 'lucide-react';
 import React from 'react';
 import { EditableCell } from './editable-cell';
 
-export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = ['wbs', 'name', 'start', 'finish'] }: { tasks: Task[], selectedTaskIds: string[], dispatch: any, visibleColumns: string[] }) {
+export function TaskTable({ 
+    tasks, 
+    selectedTaskIds, 
+    dispatch, 
+    visibleColumns = ['wbs', 'name', 'start', 'finish'],
+    columns
+}: { 
+    tasks: Task[], 
+    selectedTaskIds: string[], 
+    dispatch: any, 
+    visibleColumns: string[],
+    columns: ColumnSpec[]
+}) {
     
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
     const [dropIndicator, setDropIndicator] = React.useState<{ targetId: string; position: 'top' | 'bottom' | 'child' } | null>(null);
+
+    const [draggedColId, setDraggedColId] = React.useState<string | null>(null);
+    const [dropColIndicator, setDropColIndicator] = React.useState<{ targetId: string } | null>(null);
+
 
     const childrenMap = React.useMemo(() => {
         const map = new Map<string, Task[]>();
@@ -35,6 +51,7 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
       dispatch({ type: 'TOGGLE_TASK_COLLAPSE', payload: { taskId } });
     }
 
+    // Row Drag & Drop
     const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, taskId: string) => {
         let sourceIds = [...selectedTaskIds];
         if (!sourceIds.includes(taskId)) {
@@ -110,12 +127,65 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
         setDropIndicator(null);
     };
 
+    // Column Drag & Drop and Resize
+    const handleColDragStart = (e: React.DragEvent<HTMLTableCellElement>, columnId: string) => {
+        e.dataTransfer.setData('text/plain', columnId);
+        setDraggedColId(columnId);
+    };
 
-    const columnDefinitions: Record<string, { name: string, render: (task: Task) => React.ReactNode, className?: string }> = {
-        wbs: { name: 'WBS', render: (task) => task.wbs, className: "w-[10%]" },
+    const handleColDragOver = (e: React.DragEvent<HTMLTableCellElement>, targetId: string) => {
+        e.preventDefault();
+        if (draggedColId && draggedColId !== targetId) {
+            setDropColIndicator({ targetId });
+        }
+    };
+    
+    const handleColDragLeave = (e: React.DragEvent<HTMLTableCellElement>) => {
+        setDropColIndicator(null);
+    }
+
+    const handleColDrop = (e: React.DragEvent<HTMLTableCellElement>, targetId: string) => {
+        e.preventDefault();
+        const sourceId = e.dataTransfer.getData('text/plain');
+        if (sourceId && sourceId !== targetId) {
+            dispatch({ type: 'REORDER_COLUMNS', payload: { sourceId, targetId } });
+        }
+        setDraggedColId(null);
+        setDropColIndicator(null);
+    };
+
+    const handleColDragEnd = () => {
+        setDraggedColId(null);
+        setDropColIndicator(null);
+    };
+
+    const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>, columnId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const startX = e.clientX;
+        const startWidth = columns.find(c => c.id === columnId)?.width ?? 0;
+        
+        const handleMouseMove = (mouseMoveEvent: MouseEvent) => {
+            const newWidth = startWidth + (mouseMoveEvent.clientX - startX);
+            if (newWidth > 50) { // min width
+                 dispatch({ type: 'RESIZE_COLUMN', payload: { columnId, width: newWidth } });
+            }
+        };
+
+        const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    };
+
+    const columnDefinitions: Record<string, { name: string, render: (task: Task) => React.ReactNode }> = {
+        wbs: { name: 'WBS', render: (task) => task.wbs },
         name: { 
             name: 'Task Name', 
-            className: "w-auto",
             render: (task) => {
                 const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
                 return (
@@ -168,27 +238,29 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
                     className="text-right pr-4"
                 />
             );
-        }, className: "w-[100px]" },
+        }},
         start: { name: 'Start', render: (task) => {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             if (task.isSummary && !hasChildren) return '';
             return format(task.start, 'MMM d, yyyy');
-        }, className: "w-[120px]" },
+        }},
         finish: { name: 'Finish', render: (task) => {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             if (task.isSummary && !hasChildren) return '';
             return format(task.finish, 'MMM d, yyyy');
-        }, className: "w-[120px]" },
+        }},
         percentComplete: { name: '% Complete', render: (task) => {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             if (task.isSummary && !hasChildren) return '';
             return `${task.percentComplete}%`;
-        }, className: "w-[100px]" },
-        constraintType: { name: 'Constraint Type', render: (task) => task.constraintType, className: "w-[150px]" },
-        constraintDate: { name: 'Constraint Date', render: (task) => task.constraintDate ? format(task.constraintDate, 'MMM d, yyyy') : '', className: "w-[120px]" },
+        }},
+        constraintType: { name: 'Constraint Type', render: (task) => task.constraintType },
+        constraintDate: { name: 'Constraint Date', render: (task) => task.constraintDate ? format(task.constraintDate, 'MMM d, yyyy') : '' },
     };
 
-    const orderedVisibleColumns = Object.keys(columnDefinitions).filter(id => visibleColumns.includes(id));
+    const orderedAndVisibleColumns = React.useMemo(() => {
+        return columns.filter(c => visibleColumns.includes(c.id));
+    }, [columns, visibleColumns]);
 
     const visibleTasks = React.useMemo(() => {
         const taskMap = new Map(tasks.map(t => [t.id, t]));
@@ -205,24 +277,50 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
 
     return (
         <ScrollArea className="h-full">
-            <Table onDrop={handleDrop} onDragEnd={handleDragEnd}>
+            <Table style={{ tableLayout: 'fixed' }}>
+                <colgroup>
+                    {orderedAndVisibleColumns.map((col) => (
+                        <col key={col.id} style={{ width: `${col.width}px` }} />
+                    ))}
+                </colgroup>
                 <TableHeader className="sticky top-0 bg-card z-10">
                     <TableRow>
-                        {orderedVisibleColumns.map(columnId => (
-                            <TableHead key={columnId} className={columnDefinitions[columnId].className}>
-                                {columnDefinitions[columnId].name}
-                            </TableHead>
-                        ))}
+                        {orderedAndVisibleColumns.map(column => {
+                            const colDef = columnDefinitions[column.id];
+                            if (!colDef) return null;
+
+                            return (
+                                <TableHead 
+                                    key={column.id} 
+                                    draggable
+                                    onDragStart={(e) => handleColDragStart(e, column.id)}
+                                    onDragOver={(e) => handleColDragOver(e, column.id)}
+                                    onDragLeave={handleColDragLeave}
+                                    onDrop={(e) => handleColDrop(e, column.id)}
+                                    onDragEnd={handleColDragEnd}
+                                    className={cn(
+                                        "relative group select-none overflow-hidden",
+                                        draggedColId === column.id && "opacity-50",
+                                        dropColIndicator?.targetId === column.id && "border-l-2 border-primary"
+                                    )}
+                                >
+                                    {colDef.name}
+                                    <div 
+                                        className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-border opacity-0 group-hover:opacity-100"
+                                        onMouseDown={(e) => handleResizeMouseDown(e, column.id)}
+                                    />
+                                </TableHead>
+                            )
+                        })}
                     </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragLeave}>
                     {visibleTasks.map((task) => (
                         <TableRow
                             key={task.id}
                             draggable={true}
                             onDragStart={(e) => handleDragStart(e, task.id)}
                             onDragOver={(e) => handleDragOver(e, task.id)}
-                            onDragLeave={handleDragLeave}
                             className={cn(
                                 "cursor-pointer", 
                                 "transition-all duration-150",
@@ -237,9 +335,11 @@ export function TaskTable({ tasks, selectedTaskIds, dispatch, visibleColumns = [
                             )}
                             onClick={(e) => handleSelectTask(e, task.id)}
                         >
-                            {orderedVisibleColumns.map(columnId => (
-                                <TableCell key={columnId} className="font-medium">
-                                    {columnDefinitions[columnId].render(task)}
+                            {orderedAndVisibleColumns.map(column => (
+                                <TableCell key={column.id} className="font-medium truncate p-0 h-12">
+                                    <div className="flex items-center h-full px-4">
+                                      {columnDefinitions[column.id].render(task)}
+                                    </div>
                                 </TableCell>
                             ))}
                         </TableRow>
