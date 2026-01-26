@@ -8,6 +8,7 @@ import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NotesSection } from './notes-section';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
 export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDensity }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void, uiDensity: UiDensity }) {
 
@@ -43,7 +44,7 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                     <span className="sr-only">Close</span>
                 </Button>
             </div>
-             <Tabs defaultValue="predecessors" className="flex-grow flex flex-col overflow-hidden">
+             <Tabs defaultValue="links" className="flex-grow flex flex-col overflow-hidden">
                 <div className={cn(
                     "shrink-0 border-b",
                     uiDensity === 'large' && 'px-4',
@@ -51,31 +52,34 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                     uiDensity === 'compact' && 'px-2'
                 )}>
                     <TabsList className="bg-transparent p-0">
-                        <TabsTrigger value="predecessors" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Predecessors</TabsTrigger>
-                        <TabsTrigger value="successors" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Successors</TabsTrigger>
+                        <TabsTrigger value="links" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Links</TabsTrigger>
                         <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Notes</TabsTrigger>
                     </TabsList>
                 </div>
                 
                 <div className="flex-grow overflow-auto">
-                    <TabsContent value="predecessors" className="m-0 h-full">
+                    <TabsContent value="links" className="m-0 h-full">
                         <div className={cn(
                             "h-full",
                             uiDensity === 'large' && 'p-4',
                             uiDensity === 'medium' && 'p-3',
                             uiDensity === 'compact' && 'p-2'
                         )}>
-                           <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
-                        </div>
-                    </TabsContent>
-                    <TabsContent value="successors" className="m-0 h-full">
-                         <div className={cn(
-                            "h-full",
-                            uiDensity === 'large' && 'p-4',
-                            uiDensity === 'medium' && 'p-3',
-                            uiDensity === 'compact' && 'p-2'
-                        )}>
-                            <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
+                           <ResizablePanelGroup direction="horizontal" className="h-full">
+                                <ResizablePanel>
+                                    <div className="h-full flex flex-col pr-1">
+                                        <h3 className="text-sm font-semibold mb-2 shrink-0">Predecessors</h3>
+                                        <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
+                                    </div>
+                                </ResizablePanel>
+                                <ResizableHandle withHandle />
+                                <ResizablePanel>
+                                    <div className="h-full flex flex-col pl-1">
+                                         <h3 className="text-sm font-semibold mb-2 shrink-0">Successors</h3>
+                                         <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
+                                    </div>
+                                </ResizablePanel>
+                           </ResizablePanelGroup>
                         </div>
                     </TabsContent>
                     <TabsContent value="notes" className="m-0 h-full">
