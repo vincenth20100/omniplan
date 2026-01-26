@@ -7,7 +7,7 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
     let changed = true;
     let iterations = 0;
 
-    while (changed && iterations < 20) { // Increased safety break
+    while (changed && iterations < 20) { // Safety break
         changed = false;
         iterations++;
         
@@ -21,7 +21,7 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
                 const oldFinishMs = task.finish?.getTime();
                 const oldCost = task.cost;
                 const oldPercentComplete = task.percentComplete;
-                const oldCustomAttributes = JSON.stringify(task.customAttributes || {});
+                const oldCustomAttributes = task.customAttributes || {};
 
                 const newStart = min(children.map(c => c.start));
                 const newFinish = max(children.map(c => c.finish));
@@ -40,8 +40,18 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
                         newCustomAttributes[col.id] = sum;
                     }
                 }
+
+                const customAttrsChanged = (() => {
+                    const oldKeys = Object.keys(oldCustomAttributes);
+                    const newKeys = Object.keys(newCustomAttributes);
+                    if (oldKeys.length !== newKeys.length) return true;
+                    for (const key of oldKeys) {
+                        if (oldCustomAttributes[key] !== newCustomAttributes[key]) return true;
+                    }
+                    return false;
+                })();
                 
-                if (newStart.getTime() !== oldStartMs || newFinish.getTime() !== oldFinishMs || newCost !== oldCost || newPercentComplete !== oldPercentComplete || JSON.stringify(newCustomAttributes) !== oldCustomAttributes) {
+                if (newStart.getTime() !== oldStartMs || newFinish.getTime() !== oldFinishMs || newCost !== oldCost || newPercentComplete !== oldPercentComplete || customAttrsChanged) {
                     task.start = newStart;
                     task.finish = newFinish;
                     task.duration = newDuration;
@@ -52,7 +62,8 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
                     changed = true;
                 }
             } else { // Summary task with no children
-                const oldCustomAttributes = JSON.stringify(task.customAttributes || {});
+                const oldCustomAttributes = task.customAttributes || {};
+                
                 const newCustomAttributes = { ...(task.customAttributes || {}) };
                 if (columns) {
                      const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
@@ -61,7 +72,17 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
                      }
                 }
 
-                if (task.duration !== 0 || task.percentComplete !== 0 || task.cost !== 0 || JSON.stringify(newCustomAttributes) !== oldCustomAttributes) {
+                const customAttrsChanged = (() => {
+                    const oldKeys = Object.keys(oldCustomAttributes);
+                    const newKeys = Object.keys(newCustomAttributes);
+                    if (oldKeys.length !== newKeys.length) return true;
+                    for (const key of oldKeys) {
+                        if (oldCustomAttributes[key] !== newCustomAttributes[key]) return true;
+                    }
+                    return false;
+                })();
+
+                if (task.duration !== 0 || task.percentComplete !== 0 || task.cost !== 0 || customAttrsChanged) {
                     task.duration = 0;
                     task.percentComplete = 0;
                     task.cost = 0;
