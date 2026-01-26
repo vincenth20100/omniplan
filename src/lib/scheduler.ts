@@ -5,103 +5,67 @@ import { startOfDay, min, max } from 'date-fns';
 
 function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpec[]): Task[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
-    let changed = true;
-    let iterations = 0;
+    
+    // We iterate based on the max depth of the project. This ensures values propagate
+    // from the lowest-level children up to the top-level summaries without needing
+    // a `while(changed)` loop, which was the source of the infinite loop.
+    const maxLevels = Math.max(0, ...Array.from(taskMap.values()).map(t => t.level || 0));
 
-    while (changed && iterations < 20) { // Safety break
-        changed = false;
-        iterations++;
-        
-        const updatesInThisIteration = new Map<string, Partial<Task>>();
-
+    for (let i = 0; i <= maxLevels; i++) {
         for (const task of taskMap.values()) {
             if (!task.isSummary) continue;
 
             const children = Array.from(taskMap.values()).filter(t => t.parentId === task.id);
-            const currentUpdates: Partial<Task> = {};
-
+            
             if (children.length > 0) {
-                const newStart = min(children.map(c => c.start));
-                if (task.start.getTime() !== newStart.getTime()) {
-                    currentUpdates.start = newStart;
-                }
+                // Recalculate summary fields based on children
+                task.start = new Date(Math.min(...children.map(c => c.start.getTime())));
+                task.finish = new Date(Math.max(...children.map(c => c.finish.getTime())));
+                task.duration = calendarService.getWorkingDaysDuration(task.start, task.finish);
+                task.cost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
 
-                const newFinish = max(children.map(c => c.finish));
-                if (task.finish.getTime() !== newFinish.getTime()) {
-                    currentUpdates.finish = newFinish;
-                }
-                
-                const newDuration = calendarService.getWorkingDaysDuration(currentUpdates.start || task.start, currentUpdates.finish || task.finish);
-                if (task.duration !== newDuration) {
-                    currentUpdates.duration = newDuration;
-                }
-                
-                const newCost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
-                if (task.cost !== newCost) {
-                    currentUpdates.cost = newCost;
-                }
-                
                 const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
-                const childrenWeightedComplete = children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0);
-                const newPercentComplete = childrenTotalDuration > 0 ? Math.round(childrenWeightedComplete / childrenTotalDuration) : 0;
-                if (task.percentComplete !== newPercentComplete) {
-                    currentUpdates.percentComplete = newPercentComplete;
-                }
-                
+                task.percentComplete = childrenTotalDuration > 0
+                    ? Math.round(children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0) / childrenTotalDuration)
+                    : 0;
+
+                // Recalculate custom number columns
                 if (columns) {
                     const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
                     if (numberColumns.length > 0) {
                         const newCustomAttributes = { ...(task.customAttributes || {}) };
-                        let customChanged = false;
                         for (const col of numberColumns) {
-                            const sum = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
-                            if ((newCustomAttributes[col.id] || 0) !== sum) {
-                                newCustomAttributes[col.id] = sum;
-                                customChanged = true;
-                            }
+                            newCustomAttributes[col.id] = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
                         }
-                        if (customChanged) {
-                            currentUpdates.customAttributes = newCustomAttributes;
-                        }
+                        task.customAttributes = newCustomAttributes;
                     }
                 }
-            } else { // Summary task with no children
-                if (task.duration !== 0) currentUpdates.duration = 0;
-                if (task.finish.getTime() !== task.start.getTime()) currentUpdates.finish = task.start;
-                if (task.percentComplete !== 0) currentUpdates.percentComplete = 0;
-                if (task.cost !== 0) currentUpdates.cost = 0;
-
-                if (columns) {
+            } else { // Summary task with no children should have zeroed-out values
+                task.duration = 0;
+                task.finish = task.start;
+                task.percentComplete = 0;
+                task.cost = 0;
+                
+                if (columns && task.customAttributes) {
                     const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
                     if (numberColumns.length > 0) {
                         const newCustomAttributes = { ...(task.customAttributes || {}) };
                         let customChanged = false;
                         for (const col of numberColumns) {
-                            const currentVal = newCustomAttributes[col.id];
-                            if (currentVal !== undefined && currentVal !== 0) {
+                            if (newCustomAttributes[col.id] !== 0 && newCustomAttributes[col.id] !== undefined) {
                                 newCustomAttributes[col.id] = 0;
                                 customChanged = true;
                             }
                         }
                         if (customChanged) {
-                            currentUpdates.customAttributes = newCustomAttributes;
+                           task.customAttributes = newCustomAttributes;
                         }
                     }
                 }
             }
-
-            if (Object.keys(currentUpdates).length > 0) {
-                updatesInThisIteration.set(task.id, currentUpdates);
-                changed = true;
-            }
-        }
-
-        // Apply all updates for this iteration at once
-        for (const [taskId, updates] of updatesInThisIteration.entries()) {
-            const taskToUpdate = taskMap.get(taskId)!;
-            taskMap.set(taskId, { ...taskToUpdate, ...updates });
         }
     }
+    
     return Array.from(taskMap.values());
 }
 
