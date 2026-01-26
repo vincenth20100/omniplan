@@ -8,10 +8,47 @@ import { EditableSelectCell } from '@/components/omni-gantt/editable-select-cell
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { AddRelationshipRow } from './add-relationship-row';
+import React from 'react';
 
 export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dispatch, uiDensity }: { currentTaskId: string, predecessorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
 
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
+
+    const [colWidths, setColWidths] = React.useState({
+        id: 50,
+        task: 200,
+        type: 80,
+        lag: 60,
+        actions: 40,
+    });
+
+    const handleResize = (columnId: keyof typeof colWidths) => (e: React.MouseEvent | React.TouchEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const startX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const startWidth = colWidths[columnId];
+        
+        const handleMove = (moveEvent: MouseEvent | TouchEvent) => {
+            const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+            const newWidth = startWidth + (currentX - startX);
+            if (newWidth > 30) {
+                 setColWidths(prev => ({...prev, [columnId]: newWidth}));
+            }
+        };
+
+        const handleEnd = () => {
+            document.removeEventListener('mousemove', handleMove as any);
+            document.removeEventListener('mouseup', handleEnd);
+            document.removeEventListener('touchmove', handleMove as any);
+            document.removeEventListener('touchend', handleEnd);
+        };
+
+        document.addEventListener('mousemove', handleMove as any);
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchmove', handleMove as any);
+        document.addEventListener('touchend', handleEnd);
+    };
 
     const cellInnerDivClass = cn(
         "flex items-center h-full",
@@ -34,9 +71,29 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
         { value: 'SF', label: 'SF' },
     ];
 
+    const ResizableHeader = ({ id, name }: { id: keyof typeof colWidths, name: string }) => (
+        <TableHead className="relative group/header select-none p-0 overflow-hidden">
+            <div className={cn(cellInnerDivClass)}>
+                <span>{name}</span>
+            </div>
+            <div 
+                className="absolute top-0 right-0 h-full w-2 cursor-col-resize"
+                onMouseDown={handleResize(id)}
+                onTouchStart={handleResize(id)}
+            />
+        </TableHead>
+    );
+
     return (
-        <ScrollArea className="border rounded-md min-h-0">
-            <Table>
+        <ScrollArea className="border rounded-md min-h-0 w-full">
+            <Table style={{ tableLayout: 'fixed' }} className="w-auto">
+                <colgroup>
+                    <col style={{ width: `${colWidths.id}px` }} />
+                    <col style={{ width: `${colWidths.task}px` }} />
+                    <col style={{ width: `${colWidths.type}px` }} />
+                    <col style={{ width: `${colWidths.lag}px` }} />
+                    <col style={{ width: `${colWidths.actions}px` }} />
+                </colgroup>
                 <TableHeader>
                     <TableRow 
                         data-density={uiDensity}
@@ -46,11 +103,11 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
                             "data-[density=compact]:h-8"
                         )}
                     >
-                        <TableHead className="w-[40px] p-0"><div className={cellInnerDivClass}>ID</div></TableHead>
-                        <TableHead className="p-0"><div className={cellInnerDivClass}>Task</div></TableHead>
-                        <TableHead className="w-[80px] p-0"><div className={cellInnerDivClass}>Type</div></TableHead>
-                        <TableHead className="w-[60px] p-0"><div className={cellInnerDivClass}>Lag</div></TableHead>
-                        <TableHead className="w-[40px] p-0"><div className={cellInnerDivClass}></div></TableHead>
+                        <ResizableHeader id="id" name="ID" />
+                        <ResizableHeader id="task" name="Task" />
+                        <ResizableHeader id="type" name="Type" />
+                        <ResizableHeader id="lag" name="Lag" />
+                        <ResizableHeader id="actions" name="" />
                     </TableRow>
                 </TableHeader>
                 <TableBody>
