@@ -54,7 +54,7 @@ export function ColumnConfigDialog({
 
     const handleSave = () => {
         const finalOptions = type === 'selection' ? options.split('\n').map(o => o.trim()).filter(Boolean) : undefined;
-        onOpenChange(false);
+        // The onSave prop is now responsible for closing the dialog
         onSave({ name, type, options: finalOptions });
     }
 

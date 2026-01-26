@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Columns3, Plus } from "lucide-react";
 import type { ColumnSpec } from "@/lib/types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ColumnConfigDialog, type ColumnConfig } from "../view-options/column-config-dialog";
 
 export function ColumnSelector({
@@ -24,6 +24,23 @@ export function ColumnSelector({
     dispatch: any;
 }) {
     const [isConfigOpen, setIsConfigOpen] = useState(false);
+    const [pendingColumnConfig, setPendingColumnConfig] = useState<ColumnConfig | null>(null);
+    const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
+
+    useEffect(() => {
+        // When the dialog closes, if there's a pending column to be added, dispatch the action.
+        // This ensures the expensive state update happens AFTER the dialog has been removed from the DOM.
+        if (!isConfigOpen && pendingColumnConfig) {
+            if (editingColumn) {
+                dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...pendingColumnConfig } });
+            } else {
+                dispatch({ type: 'ADD_COLUMN', payload: pendingColumnConfig });
+            }
+            setPendingColumnConfig(null); // Clear the pending config
+            setEditingColumn(null);
+        }
+    }, [isConfigOpen, pendingColumnConfig, editingColumn, dispatch]);
+
 
     const handleCheckedChange = (columnId: string, checked: boolean) => {
         const newVisibleColumns = checked
@@ -32,9 +49,29 @@ export function ColumnSelector({
         dispatch({ type: 'SET_COLUMNS', payload: newVisibleColumns });
     };
 
-    const handleAddColumn = (config: ColumnConfig) => {
-        dispatch({ type: 'ADD_COLUMN', payload: config });
+    const handleSaveColumn = (config: ColumnConfig) => {
+        setPendingColumnConfig(config);
+        setIsConfigOpen(false); // Close the dialog, which will trigger the useEffect
+    };
+
+    const handleOpenNew = () => {
+        setEditingColumn(null);
+        setIsConfigOpen(true);
     }
+    
+    const handleOpenEdit = (col: ColumnSpec) => {
+        setEditingColumn(col);
+        setIsConfigOpen(true);
+    }
+    
+    const handleDialogClose = (open: boolean) => {
+        if (!open) {
+            setPendingColumnConfig(null);
+            setEditingColumn(null);
+        }
+        setIsConfigOpen(open);
+    }
+
 
     return (
         <>
@@ -53,22 +90,27 @@ export function ColumnSelector({
                             key={column.id}
                             checked={visibleColumns.includes(column.id)}
                             onCheckedChange={(checked) => handleCheckedChange(column.id, Boolean(checked))}
+                             onSelect={(e) => {
+                                // Prevent dropdown from closing when checking the box
+                                e.preventDefault();
+                            }}
                         >
-                            {column.name}
+                            <span className="flex-grow">{column.name}</span>
                         </DropdownMenuCheckboxItem>
                     ))}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setIsConfigOpen(true)}>
+                    <DropdownMenuItem onClick={handleOpenNew}>
                         <Plus className="mr-2 h-4 w-4" />
                         <span>New Column</span>
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
             <ColumnConfigDialog
+                key={editingColumn?.id || 'new'}
                 open={isConfigOpen}
-                onOpenChange={setIsConfigOpen}
-                onSave={handleAddColumn}
-                column={null}
+                onOpenChange={handleDialogClose}
+                onSave={handleSaveColumn}
+                column={editingColumn}
             />
         </>
     );
