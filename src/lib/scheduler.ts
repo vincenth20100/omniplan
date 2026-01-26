@@ -2,7 +2,7 @@ import type { Task, Link, ColumnSpec } from './types';
 import { calendarService } from './calendar';
 import { startOfDay, min, max } from 'date-fns';
 
-function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec[]): Task[] {
+function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpec[]): Task[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
     let changed = true;
     let iterations = 0; // safety break for potential infinite loops
@@ -205,7 +205,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns?: Column
       allTasksMap.set(task.id, task);
   }
 
-  const resultWithSummaries = updateAllSummaryTasks(Array.from(allTasksMap.values()), links, columns || []);
+  const resultWithSummaries = updateAllSummaryTasks(Array.from(allTasksMap.values()), links, columns);
   
   resultWithSummaries.sort((a, b) => (a.wbs || '').localeCompare(b.wbs || ''));
 
