@@ -93,9 +93,7 @@ type Action =
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
   | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string } }
-  | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null }
-  | { type: 'EXPAND_ALL' }
-  | { type: 'COLLAPSE_ALL' };
+  | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -954,40 +952,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       }
       case 'SET_ACTIVE_CELL': {
         return { ...state, activeCell: action.payload };
-      }
-      case 'COLLAPSE_ALL': {
-        const hasSelection = state.selectedTaskIds.length > 0;
-        const newTasks = state.tasks.map(task => {
-          if (!task.isSummary) {
-            return task;
-          }
-          if (hasSelection) {
-            if (state.selectedTaskIds.includes(task.id)) {
-              return { ...task, isCollapsed: true };
-            }
-          } else {
-            return { ...task, isCollapsed: true };
-          }
-          return task;
-        });
-        return { ...state, tasks: newTasks };
-      }
-      case 'EXPAND_ALL': {
-        const hasSelection = state.selectedTaskIds.length > 0;
-        const newTasks = state.tasks.map(task => {
-          if (!task.isSummary) {
-            return task;
-          }
-          if (hasSelection) {
-            if (state.selectedTaskIds.includes(task.id)) {
-              return { ...task, isCollapsed: false };
-            }
-          } else {
-            return { ...task, isCollapsed: false };
-          }
-          return task;
-        });
-        return { ...state, tasks: newTasks };
       }
       default:
         return state;
