@@ -28,22 +28,22 @@ export const initialLinks: Link[] = [
 ];
 
 export const initialResources: Resource[] = [
-    { id: 'r1', name: 'Project Manager' },
-    { id: 'r2', name: 'Business Analyst' },
-    { id: 'r3', name: 'Lead Designer' },
-    { id: 'r4', name: 'Lead Engineer' },
-    { id: 'r5', name: 'QA Engineer' },
-    { id: 'r6', name: 'DevOps Engineer' },
-    { id: 'r7', name: 'Steel Beams' },
+    { id: 'r1', name: 'Project Manager', type: 'Work', costPerHour: 100, availability: 1 },
+    { id: 'r2', name: 'Business Analyst', type: 'Work', costPerHour: 80, availability: 1 },
+    { id: 'r3', name: 'Lead Designer', type: 'Work', costPerHour: 90, availability: 1 },
+    { id: 'r4', name: 'Lead Engineer', type: 'Work', costPerHour: 120, availability: 1 },
+    { id: 'r5', name: 'QA Engineer', type: 'Work', costPerHour: 70, availability: 1 },
+    { id: 'r6', name: 'DevOps Engineer', type: 'Work', costPerHour: 110, availability: 1 },
+    { id: 'r7', name: 'Steel Beams', type: 'Material', costPerHour: 0, availability: 100 },
 ];
 
 export const initialAssignments: Assignment[] = [
-    { id: 'a1', taskId: '1', resourceId: 'r1' },
-    { id: 'a2', taskId: '2', resourceId: 'r2' },
-    { id: 'a3', taskId: '3', resourceId: 'r3' },
-    { id: 'a4', taskId: '4.1', resourceId: 'r4' },
-    { id: 'a5', taskId: '4.1', resourceId: 'r7' },
-    { id: 'a6', taskId: '4.2', resourceId: 'r4' },
-    { id: 'a7', taskId: '5', resourceId: 'r5' },
-    { id: 'a8', taskId: '6', resourceId: 'r6' },
+    { id: 'a1', taskId: '1', resourceId: 'r1', units: 1 },
+    { id: 'a2', taskId: '2', resourceId: 'r2', units: 1 },
+    { id: 'a3', taskId: '3', resourceId: 'r3', units: 0.5 },
+    { id: 'a4', taskId: '4.1', resourceId: 'r4', units: 1 },
+    { id: 'a5', taskId: '4.1', resourceId: 'r7', units: 10 },
+    { id: 'a6', taskId: '4.2', resourceId: 'r4', units: 1 },
+    { id: 'a7', taskId: '5', resourceId: 'r5', units: 1 },
+    { id: 'a8', taskId: '6', resourceId: 'r6', units: 0.5 },
 ];

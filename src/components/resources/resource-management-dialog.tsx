@@ -13,10 +13,12 @@ export function ResourceManagementDialog({
   open,
   onOpenChange,
   projectState,
+  dispatch,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectState: ProjectState;
+  dispatch: any;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -25,7 +27,7 @@ export function ResourceManagementDialog({
           <DialogTitle>Resource Management</DialogTitle>
         </DialogHeader>
         <div className="flex-grow overflow-auto pr-6">
-            <ResourceView projectState={projectState} />
+            <ResourceView projectState={projectState} dispatch={dispatch} />
         </div>
       </DialogContent>
     </Dialog>

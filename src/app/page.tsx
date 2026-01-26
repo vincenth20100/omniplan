@@ -61,15 +61,14 @@ export default function Home() {
             <Trash2 className="h-4 w-4" />
              <span className="hidden sm:inline ml-2">Remove Task</span>
         </Button>
+        <Button variant="outline" size="sm" onClick={() => setIsResourceDialogOpen(true)}>
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline ml-2">Resources</span>
+        </Button>
     </div>
   );
 
-  const headerRightActions = (
-    <Button variant="outline" size="sm" onClick={() => setIsResourceDialogOpen(true)}>
-      <Users className="h-4 w-4" />
-      <span className="hidden sm:inline ml-2">Resources</span>
-    </Button>
-  );
+  const headerRightActions = null;
 
   return (
     <MainLayout 
@@ -110,6 +109,7 @@ export default function Home() {
           open={isResourceDialogOpen}
           onOpenChange={setIsResourceDialogOpen}
           projectState={state}
+          dispatch={dispatch}
         />
       )}
     </MainLayout>

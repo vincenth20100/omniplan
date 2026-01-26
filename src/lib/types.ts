@@ -49,12 +49,16 @@ export interface Zone {
 export interface Resource {
   id: string;
   name: string;
+  type: 'Work' | 'Material' | 'Cost';
+  costPerHour?: number;
+  availability?: number; // e.g. 1 = 100%
 }
 
 export interface Assignment {
   id: string;
   taskId: string;
   resourceId: string;
+  units?: number; // e.g. 1 = 100% of resource time
 }
 
 export interface ColumnSpec {

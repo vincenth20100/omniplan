@@ -57,7 +57,10 @@ type Action =
   | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string; position: 'top' | 'bottom' } }
   | { type: 'NEST_TASKS', payload: { sourceIds: string[], parentId: string }}
   | { type: 'SET_UI_DENSITY', payload: UiDensity }
-  | { type: 'UPDATE_RELATIONSHIPS', payload: { taskId: string, field: 'predecessors' | 'successors', value: string }};
+  | { type: 'UPDATE_RELATIONSHIPS', payload: { taskId: string, field: 'predecessors' | 'successors', value: string }}
+  | { type: 'ADD_RESOURCE' }
+  | { type: 'REMOVE_RESOURCE', payload: { resourceId: string } }
+  | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -524,6 +527,29 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const reScheduledTasks = runScheduler(state.tasks, newLinks);
         
         return { ...state, tasks: reScheduledTasks, links: newLinks };
+      }
+      case 'ADD_RESOURCE': {
+        const newResource: Resource = {
+            id: `R-${Date.now()}`,
+            name: 'New Resource',
+            type: 'Work',
+            availability: 1,
+            costPerHour: 0,
+        };
+        return { ...state, resources: [...state.resources, newResource] };
+      }
+      case 'REMOVE_RESOURCE': {
+        const { resourceId } = action.payload;
+        const newResources = state.resources.filter(r => r.id !== resourceId);
+        const newAssignments = state.assignments.filter(a => a.resourceId !== resourceId);
+        return { ...state, resources: newResources, assignments: newAssignments };
+      }
+      case 'UPDATE_RESOURCE': {
+        const { id, ...updates } = action.payload;
+        const newResources = state.resources.map(res =>
+          res.id === id ? { ...res, ...updates } : res
+        );
+        return { ...state, resources: newResources };
       }
       default:
         return state;

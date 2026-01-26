@@ -1,56 +1,95 @@
 'use client';
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import type { ProjectState, Task } from "@/lib/types";
-import { Users } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Plus, Trash2 } from "lucide-react";
+import type { ProjectState, Resource } from "@/lib/types";
+import { EditableCell } from "@/components/omni-gantt/editable-cell";
+import { EditableSelectCell } from "@/components/omni-gantt/editable-select-cell";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-export function ResourceView({ projectState }: { projectState: ProjectState }) {
-    const { resources, assignments, tasks } = projectState;
-    const taskMap = new Map<string, Task>(tasks.map(t => [t.id, t]));
+export function ResourceView({ projectState, dispatch }: { projectState: ProjectState, dispatch: any }) {
+    const { resources } = projectState;
 
-    if (resources.length === 0) {
-        return (
-            <div className="p-4 border rounded-lg bg-muted/20 text-center">
-                <Users className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                    No resources in this project.
-                </p>
-            </div>
-        );
-    }
+    const handleAddResource = () => {
+        dispatch({ type: 'ADD_RESOURCE' });
+    };
 
+    const handleRemoveResource = (resourceId: string) => {
+        dispatch({ type: 'REMOVE_RESOURCE', payload: { resourceId } });
+    };
+
+    const resourceTypeOptions = [
+        { value: 'Work', label: 'Work' },
+        { value: 'Material', label: 'Material' },
+        { value: 'Cost', label: 'Cost' },
+    ];
+    
     return (
-        <Accordion type="multiple" className="w-full">
-            {resources.map(resource => {
-                const resourceAssignments = assignments.filter(a => a.resourceId === resource.id);
-                return (
-                    <AccordionItem value={resource.id} key={resource.id}>
-                        <AccordionTrigger className="hover:no-underline px-2 py-2 text-base">
-                            <div className="flex items-center justify-between w-full">
-                                <span className="font-medium">{resource.name}</span>
-                                <span className="text-muted-foreground text-sm mr-2">{resourceAssignments.length} tasks</span>
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="pb-0">
-                            {resourceAssignments.length > 0 ? (
-                                <ul className="pl-6 pr-2 py-1 space-y-1 text-sm">
-                                    {resourceAssignments.map(assignment => {
-                                        const task = taskMap.get(assignment.taskId);
-                                        return (
-                                            <li key={assignment.id} className="flex justify-between items-center py-1">
-                                                <span className="truncate pr-2" title={task?.name}>{task?.name || 'Unknown Task'}</span>
-                                                <span className="text-muted-foreground flex-shrink-0">{task?.duration}d</span>
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
-                            ) : (
-                                <p className="px-6 py-2 text-sm text-muted-foreground">Not assigned to any tasks.</p>
-                            )}
-                        </AccordionContent>
-                    </AccordionItem>
-                );
-            })}
-        </Accordion>
+        <div className="flex flex-col h-full">
+            <div className="flex-grow">
+                <ScrollArea className="h-[calc(80vh-150px)]">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead className="w-[120px]">Type</TableHead>
+                                <TableHead className="w-[120px]">Cost/Hour</TableHead>
+                                <TableHead className="w-[120px]">Availability</TableHead>
+                                <TableHead className="w-[60px]"></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {resources.map(resource => (
+                                <TableRow key={resource.id}>
+                                    <TableCell>
+                                        <EditableCell 
+                                            value={resource.name}
+                                            onSave={(newValue) => dispatch({ type: 'UPDATE_RESOURCE', payload: { id: resource.id, name: newValue }})}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <EditableSelectCell
+                                            value={resource.type}
+                                            onSave={(newValue) => dispatch({ type: 'UPDATE_RESOURCE', payload: { id: resource.id, type: newValue as Resource['type'] }})}
+                                            options={resourceTypeOptions}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <EditableCell 
+                                            value={String(resource.costPerHour || 0)}
+                                            onSave={(newValue) => dispatch({ type: 'UPDATE_RESOURCE', payload: { id: resource.id, costPerHour: parseFloat(newValue) || 0 }})}
+                                            className="text-right"
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <EditableCell 
+                                            value={`${(resource.availability || 1) * 100}%`}
+                                            onSave={(newValue) => {
+                                                const percentage = parseFloat(newValue.replace('%', ''));
+                                                if (!isNaN(percentage)) {
+                                                    dispatch({ type: 'UPDATE_RESOURCE', payload: { id: resource.id, availability: percentage / 100 }})
+                                                }
+                                            }}
+                                            className="text-right"
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Button variant="ghost" size="icon" onClick={() => handleRemoveResource(resource.id)}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
+            </div>
+            <div className="mt-4">
+                <Button onClick={handleAddResource}>
+                    <Plus className="mr-2 h-4 w-4" /> Add Resource
+                </Button>
+            </div>
+        </div>
     );
 }
