@@ -81,6 +81,8 @@ export interface ColumnSpec {
   id: string;
   name: string;
   width: number;
+  type?: 'text' | 'number' | 'selection';
+  options?: string[];
 }
 
 export interface ProjectState {

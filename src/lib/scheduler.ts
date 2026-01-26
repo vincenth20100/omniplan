@@ -1,8 +1,8 @@
-import type { Task, Link } from './types';
+import type { Task, Link, ColumnSpec } from './types';
 import { calendarService } from './calendar';
 import { startOfDay, min, max } from 'date-fns';
 
-function updateAllSummaryTasks(tasks: Task[], links: Link[]): Task[] {
+function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec[]): Task[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
     let changed = true;
     let iterations = 0; // safety break for potential infinite loops
@@ -24,11 +24,26 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[]): Task[] {
                     const newFinish = max(children.map(c => c.finish));
                     const newCost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
 
-                    if (newStart.getTime() !== oldStartMs || newFinish.getTime() !== oldFinishMs || newCost !== oldCost) {
+                    const newCustomAttributes = { ...(task.customAttributes || {}) };
+                    let customAttrChanged = false;
+                    
+                    if (columns) {
+                      const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
+                      for (const col of numberColumns) {
+                          const sum = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
+                          if (newCustomAttributes[col.id] !== sum) {
+                              newCustomAttributes[col.id] = sum;
+                              customAttrChanged = true;
+                          }
+                      }
+                    }
+
+                    if (newStart.getTime() !== oldStartMs || newFinish.getTime() !== oldFinishMs || newCost !== oldCost || customAttrChanged) {
                         task.start = newStart;
                         task.finish = newFinish;
                         task.duration = calendarService.getWorkingDaysDuration(newStart, newFinish);
                         task.cost = newCost;
+                        task.customAttributes = newCustomAttributes;
                         
                         const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
                         const childrenWeightedComplete = children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0);
@@ -52,7 +67,7 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[]): Task[] {
     return Array.from(taskMap.values());
 }
 
-export function calculateSchedule(tasks: Task[], links: Link[]): Task[] {
+export function calculateSchedule(tasks: Task[], links: Link[], columns?: ColumnSpec[]): Task[] {
   const allTasksMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
   const nonSummaryTasks = tasks.filter(t => !t.isSummary);
 
@@ -190,7 +205,7 @@ export function calculateSchedule(tasks: Task[], links: Link[]): Task[] {
       allTasksMap.set(task.id, task);
   }
 
-  const resultWithSummaries = updateAllSummaryTasks(Array.from(allTasksMap.values()), links);
+  const resultWithSummaries = updateAllSummaryTasks(Array.from(allTasksMap.values()), links, columns || []);
   
   resultWithSummaries.sort((a, b) => (a.wbs || '').localeCompare(b.wbs || ''));
 

@@ -5,12 +5,21 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Flame, ChevronRight, ChevronDown } from 'lucide-react';
+import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2 } from 'lucide-react';
 import React from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
 import { EditableSelectCell } from './editable-select-cell';
 import type { ConstraintType } from '@/lib/types';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Button } from '../ui/button';
+import { ColumnConfigDialog, type ColumnConfig } from '../view-options/column-config-dialog';
 
 
 export function TaskTable({ 
@@ -44,6 +53,7 @@ export function TaskTable({
 
     const [draggedColId, setDraggedColId] = React.useState<string | null>(null);
     const [dropColIndicator, setDropColIndicator] = React.useState<{ targetId: string } | null>(null);
+    const [editingColumn, setEditingColumn] = React.useState<ColumnSpec | null>(null);
 
 
     const childrenMap = React.useMemo(() => {
@@ -221,246 +231,291 @@ export function TaskTable({
         document.addEventListener('touchmove', handleTouchMove, { passive: false });
         document.addEventListener('touchend', handleTouchEnd);
     };
-
-    const columnDefinitions: Record<string, { name: string, render: (task: Task) => React.ReactNode }> = {
-        wbs: { name: 'WBS', render: (task) => task.wbs },
-        name: { 
-            name: 'Task Name', 
-            render: (task) => {
-                const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-                return (
-                    <div className="flex items-center gap-2" style={{ paddingLeft: `${(task.level || 0) * 1.5}rem` }}>
-                        {hasChildren ? (
-                            <button onClick={(e) => handleToggle(e, task.id)} className="p-0.5 rounded-sm hover:bg-muted -ml-7 mr-2">
-                                {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </button>
-                        ) : (
-                            <div className="w-5" style={{ marginLeft: '-1.75rem', marginRight: '0.5rem' }}></div>
-                        )}
-                        {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
-                        <div className="flex-grow">
-                             {task.isSummary ? (
-                                <span className="truncate">{task.name}</span>
-                             ) : (
-                                <EditableCell
-                                    value={task.name}
-                                    onSave={(newValue) => {
-                                        if (newValue.trim()) {
-                                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, name: newValue } })
-                                        }
-                                    }}
-                                    className="truncate"
-                                />
-                             )}
-                        </div>
-                    </div>
-                )
-            }
-        },
-        resourceNames: { 
-            name: 'Resource Names', 
-            render: (task) => {
-                if (task.isSummary) return '';
-                const resourceMap = new Map(resources.map(r => [r.id, r.name]));
-                const taskAssignments = assignments.filter(a => a.taskId === task.id);
-                const resourceNames = taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
-                
-                return <div className="truncate">{resourceNames}</div>;
-            }
-        },
-        predecessors: { 
-            name: 'Predecessors', 
-            render: (task) => {
-                if (task.isSummary) return '';
-                const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
-                const predecessorLinks = links.filter(l => l.target === task.id);
-                const predecessorString = predecessorLinks.map(l => {
-                    const sourceWbs = idToWbsMap.get(l.source);
-                    if (!sourceWbs) return '';
-                    let lagString = '';
-                    if (l.lag > 0) lagString = `+${l.lag}d`;
-                    if (l.lag < 0) lagString = `${l.lag}d`;
-                    return `${sourceWbs}${l.type}${lagString}`;
-                }).join(', ');
-                
-                return (
-                    <EditableCell
-                        value={predecessorString}
-                        onSave={(newValue) => {
-                            dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId: task.id, field: 'predecessors', value: newValue } });
-                        }}
-                    />
-                );
-            }
-        },
-        successors: { 
-            name: 'Successors', 
-            render: (task) => {
-                if (task.isSummary) return '';
-                const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
-                const successorLinks = links.filter(l => l.source === task.id);
-                const successorString = successorLinks.map(l => {
-                    const targetWbs = idToWbsMap.get(l.target);
-                    if (!targetWbs) return '';
-                    let lagString = '';
-                    if (l.lag > 0) lagString = `+${l.lag}d`;
-                    if (l.lag < 0) lagString = `${l.lag}d`;
-                    return `${targetWbs}${l.type}${lagString}`;
-                }).join(', ');
-                
-                return (
-                    <EditableCell
-                        value={successorString}
-                        onSave={(newValue) => {
-                            dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId: task.id, field: 'successors', value: newValue } });
-                        }}
-                    />
-                );
-            }
-        },
-        duration: { name: 'Duration', render: (task) => {
-            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren) return '';
-            
-            const displayValue = task.duration ? `${task.duration}d` : '';
-            if (task.isSummary) {
-                return <div className="text-right pr-4">{displayValue}</div>;
-            }
-
-            return (
-                 <EditableCell
-                    value={`${task.duration}`}
-                    onSave={(newValue) => {
-                        const newDuration = parseInt(newValue, 10);
-                        if (!isNaN(newDuration) && newDuration > 0) {
-                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, duration: newDuration } });
-                        }
-                    }}
-                    className="text-right pr-4"
-                />
-            );
-        }},
-        start: { name: 'Start', render: (task) => {
-            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren) return '';
-            if (task.isSummary) return format(task.start, 'MMM d, yyyy');
-
-            return (
-                <EditableDateCell
-                    value={task.start}
-                    onSave={(newDate) => {
-                        if (newDate) {
-                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, start: newDate } });
-                        }
-                    }}
-                />
-            );
-        }},
-        finish: { name: 'Finish', render: (task) => {
-            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren) return '';
-            if (task.isSummary) return format(task.finish, 'MMM d, yyyy');
-
-            return (
-                <EditableDateCell
-                    value={task.finish}
-                    onSave={(newDate) => {
-                        if (newDate) {
-                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, finish: newDate } });
-                        }
-                    }}
-                />
-            );
-        }},
-        percentComplete: { name: '% Complete', render: (task) => {
-            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren) return '';
-            if (task.isSummary) return `${task.percentComplete}%`;
-
-            return (
-                <EditableCell
-                    value={`${task.percentComplete}`}
-                    onSave={(newValue) => {
-                        const newPercent = parseInt(newValue, 10);
-                        if (!isNaN(newPercent) && newPercent >= 0 && newPercent <= 100) {
-                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, percentComplete: newPercent } });
-                        }
-                    }}
-                    className="text-right pr-4"
-                />
-            );
-        }},
-        constraintType: { name: 'Constraint Type', render: (task) => {
-            if (task.isSummary) return '';
-            const constraintOptions = [
-                { value: 'Start No Earlier Than', label: 'Start No Earlier Than' },
-                { value: 'Must Start On', label: 'Must Start On' },
-            ];
-            return (
-                <EditableSelectCell
-                    value={task.constraintType || null}
-                    onSave={(newValue) => {
-                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintType: newValue as ConstraintType | null } });
-                    }}
-                    options={constraintOptions}
-                    placeholder="None"
-                />
-            );
-        }},
-        constraintDate: { name: 'Constraint Date', render: (task) => {
-            if (task.isSummary || !task.constraintType) return '';
-
-             return (
-                <EditableDateCell
-                    value={task.constraintDate}
-                    onSave={(newDate) => {
-                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintDate: newDate } });
-                    }}
-                />
-            );
-        }},
-        cost: { name: 'Cost', render: (task) => {
-            const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
-            if (task.isSummary) {
-                return <div className="text-right pr-4">{currencyFormatter.format(task.cost || 0)}</div>;
-            }
-            return (
-                 <EditableCell
-                    value={`${task.cost || 0}`}
-                    onSave={(newValue) => {
-                        const newCost = parseFloat(newValue);
-                        if (!isNaN(newCost)) {
-                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, cost: newCost } });
-                        }
-                    }}
-                    className="text-right pr-4"
-                />
-            );
-        }},
+    
+    const handleUpdateColumn = (config: ColumnConfig) => {
+        if (editingColumn) {
+            dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
+        }
     };
 
+    const handleRemoveColumn = (columnId: string) => {
+        // TODO: Add confirmation dialog
+        dispatch({ type: 'REMOVE_COLUMN', payload: { columnId }});
+    }
+
+    const columnDefinitions: Record<string, { name: string, render: (task: Task) => React.ReactNode, col: ColumnSpec }> = {};
     columns.forEach(col => {
-        if (col.id.startsWith('custom-') && !columnDefinitions[col.id]) {
+      columnDefinitions[col.id] = { 
+        name: col.name,
+        col: col,
+        render: () => `Unknown column: ${col.id}`
+      }
+    });
+
+    columnDefinitions.wbs = { name: 'WBS', col: columns.find(c=>c.id === 'wbs')!, render: (task) => task.wbs };
+    columnDefinitions.name = { 
+        name: 'Task Name',
+        col: columns.find(c=>c.id === 'name')!, 
+        render: (task) => {
+            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+            return (
+                <div className="flex items-center gap-2" style={{ paddingLeft: `${(task.level || 0) * 1.5}rem` }}>
+                    {hasChildren ? (
+                        <button onClick={(e) => handleToggle(e, task.id)} className="p-0.5 rounded-sm hover:bg-muted -ml-7 mr-2">
+                            {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                    ) : (
+                        <div className="w-5" style={{ marginLeft: '-1.75rem', marginRight: '0.5rem' }}></div>
+                    )}
+                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
+                    <div className="flex-grow">
+                         {task.isSummary ? (
+                            <span className="truncate">{task.name}</span>
+                         ) : (
+                            <EditableCell
+                                value={task.name}
+                                onSave={(newValue) => {
+                                    if (newValue.trim()) {
+                                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, name: newValue } })
+                                    }
+                                }}
+                                className="truncate"
+                            />
+                         )}
+                    </div>
+                </div>
+            )
+        }
+    };
+    columnDefinitions.resourceNames = { 
+        name: 'Resource Names',
+        col: columns.find(c=>c.id === 'resourceNames')!, 
+        render: (task) => {
+            if (task.isSummary) return '';
+            const resourceMap = new Map(resources.map(r => [r.id, r.name]));
+            const taskAssignments = assignments.filter(a => a.taskId === task.id);
+            const resourceNames = taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
+            
+            return <div className="truncate">{resourceNames}</div>;
+        }
+    };
+    columnDefinitions.predecessors = { 
+        name: 'Predecessors', 
+        col: columns.find(c=>c.id === 'predecessors')!, 
+        render: (task) => {
+            if (task.isSummary) return '';
+            const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
+            const predecessorLinks = links.filter(l => l.target === task.id);
+            const predecessorString = predecessorLinks.map(l => {
+                const sourceWbs = idToWbsMap.get(l.source);
+                if (!sourceWbs) return '';
+                let lagString = '';
+                if (l.lag > 0) lagString = `+${l.lag}d`;
+                if (l.lag < 0) lagString = `${l.lag}d`;
+                return `${sourceWbs}${l.type}${lagString}`;
+            }).join(', ');
+            
+            return (
+                <EditableCell
+                    value={predecessorString}
+                    onSave={(newValue) => {
+                        dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId: task.id, field: 'predecessors', value: newValue } });
+                    }}
+                />
+            );
+        }
+    };
+    columnDefinitions.successors = { 
+        name: 'Successors', 
+        col: columns.find(c=>c.id === 'successors')!, 
+        render: (task) => {
+            if (task.isSummary) return '';
+            const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
+            const successorLinks = links.filter(l => l.source === task.id);
+            const successorString = successorLinks.map(l => {
+                const targetWbs = idToWbsMap.get(l.target);
+                if (!targetWbs) return '';
+                let lagString = '';
+                if (l.lag > 0) lagString = `+${l.lag}d`;
+                if (l.lag < 0) lagString = `${l.lag}d`;
+                return `${targetWbs}${l.type}${lagString}`;
+            }).join(', ');
+            
+            return (
+                <EditableCell
+                    value={successorString}
+                    onSave={(newValue) => {
+                        dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId: task.id, field: 'successors', value: newValue } });
+                    }}
+                />
+            );
+        }
+    };
+    columnDefinitions.duration = { name: 'Duration', col: columns.find(c=>c.id === 'duration')!, render: (task) => {
+        const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+        if (task.isSummary && !hasChildren) return '';
+        
+        const displayValue = task.duration ? `${task.duration}d` : '';
+        if (task.isSummary) {
+            return <div className="text-right pr-4">{displayValue}</div>;
+        }
+
+        return (
+             <EditableCell
+                value={`${task.duration}`}
+                onSave={(newValue) => {
+                    const newDuration = parseInt(newValue, 10);
+                    if (!isNaN(newDuration) && newDuration > 0) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, duration: newDuration } });
+                    }
+                }}
+                className="text-right pr-4"
+            />
+        );
+    }};
+    columnDefinitions.start = { name: 'Start', col: columns.find(c=>c.id === 'start')!, render: (task) => {
+        const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+        if (task.isSummary && !hasChildren) return '';
+        if (task.isSummary) return format(task.start, 'MMM d, yyyy');
+
+        return (
+            <EditableDateCell
+                value={task.start}
+                onSave={(newDate) => {
+                    if (newDate) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, start: newDate } });
+                    }
+                }}
+            />
+        );
+    }};
+    columnDefinitions.finish = { name: 'Finish', col: columns.find(c=>c.id === 'finish')!, render: (task) => {
+        const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+        if (task.isSummary && !hasChildren) return '';
+        if (task.isSummary) return format(task.finish, 'MMM d, yyyy');
+
+        return (
+            <EditableDateCell
+                value={task.finish}
+                onSave={(newDate) => {
+                    if (newDate) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, finish: newDate } });
+                    }
+                }}
+            />
+        );
+    }};
+    columnDefinitions.percentComplete = { name: '% Complete', col: columns.find(c=>c.id === 'percentComplete')!, render: (task) => {
+        const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+        if (task.isSummary && !hasChildren) return '';
+        if (task.isSummary) return `${task.percentComplete}%`;
+
+        return (
+            <EditableCell
+                value={`${task.percentComplete}`}
+                onSave={(newValue) => {
+                    const newPercent = parseInt(newValue, 10);
+                    if (!isNaN(newPercent) && newPercent >= 0 && newPercent <= 100) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, percentComplete: newPercent } });
+                    }
+                }}
+                className="text-right pr-4"
+            />
+        );
+    }};
+    columnDefinitions.constraintType = { name: 'Constraint Type', col: columns.find(c=>c.id === 'constraintType')!, render: (task) => {
+        if (task.isSummary) return '';
+        const constraintOptions = [
+            { value: 'Start No Earlier Than', label: 'Start No Earlier Than' },
+            { value: 'Must Start On', label: 'Must Start On' },
+        ];
+        return (
+            <EditableSelectCell
+                value={task.constraintType || null}
+                onSave={(newValue) => {
+                    dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintType: newValue as ConstraintType | null } });
+                }}
+                options={constraintOptions}
+                placeholder="None"
+            />
+        );
+    }};
+    columnDefinitions.constraintDate = { name: 'Constraint Date', col: columns.find(c=>c.id === 'constraintDate')!, render: (task) => {
+        if (task.isSummary || !task.constraintType) return '';
+
+         return (
+            <EditableDateCell
+                value={task.constraintDate}
+                onSave={(newDate) => {
+                    dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintDate: newDate } });
+                }}
+            />
+        );
+    }};
+    columnDefinitions.cost = { name: 'Cost', col: columns.find(c=>c.id === 'cost')!, render: (task) => {
+        const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        if (task.isSummary) {
+            return <div className="text-right pr-4">{currencyFormatter.format(task.cost || 0)}</div>;
+        }
+        return (
+             <EditableCell
+                value={`${task.cost || 0}`}
+                onSave={(newValue) => {
+                    const newCost = parseFloat(newValue);
+                    if (!isNaN(newCost)) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, cost: newCost } });
+                    }
+                }}
+                className="text-right pr-4"
+            />
+        );
+    }};
+
+    columns.forEach(col => {
+        if (col.id.startsWith('custom-')) {
             columnDefinitions[col.id] = {
                 name: col.name,
+                col: col,
                 render: (task) => {
-                    if (task.isSummary) return '';
+                    if (task.isSummary) {
+                       if (col.type === 'number') {
+                          const value = task.customAttributes?.[col.id] || 0;
+                          return <div className="text-right pr-4">{value}</div>
+                       }
+                       return '';
+                    }
+                    
+                    if (col.type === 'selection' && col.options) {
+                        return (
+                            <EditableSelectCell
+                                value={task.customAttributes?.[col.id] || null}
+                                onSave={(newValue) => {
+                                    dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, customAttributes: { ...(task.customAttributes || {}), [col.id]: newValue } } });
+                                }}
+                                options={col.options.map(o => ({ value: o, label: o }))}
+                                placeholder="Select..."
+                            />
+                        );
+                    }
+
                     return (
                         <EditableCell
-                            value={task.customAttributes?.[col.id] || ''}
+                            value={String(task.customAttributes?.[col.id] || '')}
                             onSave={(newValue) => {
+                                let valueToSave: string | number = newValue;
+                                if (col.type === 'number') {
+                                    const num = parseFloat(newValue);
+                                    valueToSave = isNaN(num) ? 0 : num;
+                                }
                                 dispatch({
                                     type: 'UPDATE_TASK',
                                     payload: {
                                         id: task.id,
-                                        customAttributes: {
-                                            ...(task.customAttributes || {}),
-                                            [col.id]: newValue
-                                        }
+                                        customAttributes: { ...(task.customAttributes || {}), [col.id]: valueToSave }
                                     }
                                 });
                             }}
-                            className="w-full"
+                            className={cn("w-full", col.type === 'number' && "text-right pr-4")}
                         />
                     );
                 }
@@ -486,6 +541,7 @@ export function TaskTable({
     }, [tasks]);
 
     return (
+        <>
         <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
             <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
                 <Table style={{ tableLayout: 'fixed' }} className="w-auto">
@@ -510,17 +566,41 @@ export function TaskTable({
                                         onDrop={(e) => handleColDrop(e, column.id)}
                                         onDragEnd={handleColDragEnd}
                                         className={cn(
-                                            "relative group select-none overflow-hidden",
+                                            "relative group/header select-none overflow-hidden",
                                             draggedColId === column.id && "opacity-50",
                                             dropColIndicator?.targetId === column.id && "border-l-2 border-primary"
                                         )}
                                     >
-                                        {colDef.name}
-                                        <div 
-                                            className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-border opacity-0 group-hover:opacity-100"
-                                            onMouseDown={(e) => handleResizeMouseDown(e, column.id)}
-                                            onTouchStart={(e) => handleResizeTouchStart(e, column.id)}
-                                        />
+                                      <div className="flex items-center justify-between h-full">
+                                        <span>{colDef.name}</span>
+                                        <div className="flex items-center">
+                                            {column.id.startsWith('custom-') && (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover/header:opacity-100 data-[state=open]:opacity-100">
+                                                            <Settings2 className="h-3 w-3" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        <DropdownMenuItem onClick={() => setEditingColumn(column)}>
+                                                            <Pencil className="mr-2 h-4 w-4" />
+                                                            <span>Edit Column</span>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator/>
+                                                        <DropdownMenuItem onClick={() => handleRemoveColumn(column.id)} className="text-destructive">
+                                                            <Trash2 className="mr-2 h-4 w-4" />
+                                                            <span>Delete Column</span>
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            )}
+                                            <div 
+                                                className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-border opacity-0 group-hover/header:opacity-100"
+                                                onMouseDown={(e) => handleResizeMouseDown(e, column.id)}
+                                                onTouchStart={(e) => handleResizeTouchStart(e, column.id)}
+                                            />
+                                        </div>
+                                      </div>
                                     </TableHead>
                                 )
                             })}
@@ -580,5 +660,12 @@ export function TaskTable({
             <ScrollBar orientation="horizontal" />
             <ScrollAreaPrimitive.Corner />
         </ScrollAreaPrimitive.Root>
+        <ColumnConfigDialog
+            open={!!editingColumn}
+            onOpenChange={() => setEditingColumn(null)}
+            onSave={handleUpdateColumn}
+            column={editingColumn}
+        />
+        </>
     );
 }
