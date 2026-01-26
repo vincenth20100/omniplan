@@ -4,7 +4,7 @@ import { calendarService } from './calendar';
 import { startOfDay, min, max } from 'date-fns';
 
 function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpec[]): Task[] {
-    const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task, customAttributes: task.customAttributes ? {...task.customAttributes} : null }]));
+    const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
     let changed = true;
     let iterations = 0;
 
@@ -12,81 +12,94 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
         changed = false;
         iterations++;
         
+        const updatesInThisIteration = new Map<string, Partial<Task>>();
+
         for (const task of taskMap.values()) {
             if (!task.isSummary) continue;
 
             const children = Array.from(taskMap.values()).filter(t => t.parentId === task.id);
-
-            const oldStart = task.start;
-            const oldFinish = task.finish;
-            const oldDuration = task.duration;
-            const oldCost = task.cost;
-            const oldPercentComplete = task.percentComplete;
-            const oldCustomAttributes = { ...(task.customAttributes || {}) };
+            const currentUpdates: Partial<Task> = {};
 
             if (children.length > 0) {
                 const newStart = min(children.map(c => c.start));
+                if (task.start.getTime() !== newStart.getTime()) {
+                    currentUpdates.start = newStart;
+                }
+
                 const newFinish = max(children.map(c => c.finish));
+                if (task.finish.getTime() !== newFinish.getTime()) {
+                    currentUpdates.finish = newFinish;
+                }
                 
-                task.start = newStart;
-                task.finish = newFinish;
-                task.duration = calendarService.getWorkingDaysDuration(newStart, newFinish);
-                task.cost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
+                const newDuration = calendarService.getWorkingDaysDuration(currentUpdates.start || task.start, currentUpdates.finish || task.finish);
+                if (task.duration !== newDuration) {
+                    currentUpdates.duration = newDuration;
+                }
+                
+                const newCost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
+                if (task.cost !== newCost) {
+                    currentUpdates.cost = newCost;
+                }
                 
                 const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
                 const childrenWeightedComplete = children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0);
-                task.percentComplete = childrenTotalDuration > 0 ? Math.round(childrenWeightedComplete / childrenTotalDuration) : 0;
+                const newPercentComplete = childrenTotalDuration > 0 ? Math.round(childrenWeightedComplete / childrenTotalDuration) : 0;
+                if (task.percentComplete !== newPercentComplete) {
+                    currentUpdates.percentComplete = newPercentComplete;
+                }
                 
                 if (columns) {
                     const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
-                    if (!task.customAttributes) task.customAttributes = {};
-                    for (const col of numberColumns) {
-                        const sum = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
-                        task.customAttributes[col.id] = sum;
+                    if (numberColumns.length > 0) {
+                        const newCustomAttributes = { ...(task.customAttributes || {}) };
+                        let customChanged = false;
+                        for (const col of numberColumns) {
+                            const sum = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
+                            if ((newCustomAttributes[col.id] || 0) !== sum) {
+                                newCustomAttributes[col.id] = sum;
+                                customChanged = true;
+                            }
+                        }
+                        if (customChanged) {
+                            currentUpdates.customAttributes = newCustomAttributes;
+                        }
                     }
                 }
             } else { // Summary task with no children
-                task.duration = 0;
-                task.finish = task.start;
-                task.percentComplete = 0;
-                task.cost = 0;
+                if (task.duration !== 0) currentUpdates.duration = 0;
+                if (task.finish.getTime() !== task.start.getTime()) currentUpdates.finish = task.start;
+                if (task.percentComplete !== 0) currentUpdates.percentComplete = 0;
+                if (task.cost !== 0) currentUpdates.cost = 0;
+
                 if (columns) {
-                     const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
-                     if (task.customAttributes) {
-                         for (const col of numberColumns) {
-                             if (task.customAttributes[col.id] !== undefined && task.customAttributes[col.id] !== 0) {
-                                task.customAttributes[col.id] = 0;
-                             }
-                         }
-                     }
-                }
-            }
-
-            let wasTaskChanged = false;
-            if (task.start.getTime() !== oldStart.getTime() || 
-                task.finish.getTime() !== oldFinish.getTime() ||
-                task.duration !== oldDuration ||
-                task.cost !== oldCost || 
-                task.percentComplete !== oldPercentComplete
-            ) {
-                wasTaskChanged = true;
-            }
-
-            const newCustomAttributes = task.customAttributes || {};
-            const customAttributeKeys = new Set([...Object.keys(oldCustomAttributes), ...Object.keys(newCustomAttributes)]);
-            if(customAttributeKeys.size > 0){
-                for (const key of customAttributeKeys) {
-                    if (oldCustomAttributes[key] !== newCustomAttributes[key]) {
-                        wasTaskChanged = true;
-                        break;
+                    const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
+                    if (numberColumns.length > 0) {
+                        const newCustomAttributes = { ...(task.customAttributes || {}) };
+                        let customChanged = false;
+                        for (const col of numberColumns) {
+                            const currentVal = newCustomAttributes[col.id];
+                            if (currentVal !== undefined && currentVal !== 0) {
+                                newCustomAttributes[col.id] = 0;
+                                customChanged = true;
+                            }
+                        }
+                        if (customChanged) {
+                            currentUpdates.customAttributes = newCustomAttributes;
+                        }
                     }
                 }
             }
-            
-            if (wasTaskChanged) {
-                taskMap.set(task.id, task);
+
+            if (Object.keys(currentUpdates).length > 0) {
+                updatesInThisIteration.set(task.id, currentUpdates);
                 changed = true;
             }
+        }
+
+        // Apply all updates for this iteration at once
+        for (const [taskId, updates] of updatesInThisIteration.entries()) {
+            const taskToUpdate = taskMap.get(taskId)!;
+            taskMap.set(taskId, { ...taskToUpdate, ...updates });
         }
     }
     return Array.from(taskMap.values());
