@@ -113,7 +113,7 @@ export function EditableDateCell({
     }
 
     return (
-        <div onDoubleClick={handleDoubleClick} className={cn("w-full h-full", className)}>
+        <div onDoubleClick={handleDoubleClick} className={cn("w-full h-full flex items-center", className)}>
             {value ? format(value, 'MMM d, yyyy') : ''}
         </div>
     );
