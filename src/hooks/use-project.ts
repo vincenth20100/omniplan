@@ -46,6 +46,7 @@ type Action =
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
   | { type: 'SELECT_TASK'; payload: { taskId: string | null, ctrlKey?: boolean, shiftKey?: boolean } }
   | { type: 'LINK_TASKS' }
+  | { type: 'ADD_LINK'; payload: { source: string, target: string, type: LinkType, lag: number } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
   | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } }
@@ -252,6 +253,26 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const combinedLinks = [...state.links, ...newLinks];
         const reScheduledTasks = runScheduler(state.tasks, combinedLinks);
         return { ...state, tasks: reScheduledTasks, links: combinedLinks };
+      }
+      case 'ADD_LINK': {
+        const { source, target, type, lag } = action.payload;
+
+        const linkExists = state.links.some(l => l.source === source && l.target === target);
+        if (linkExists) {
+            return state;
+        }
+
+        const newLink: Link = {
+            id: `l-${source}-${target}-${Date.now()}`,
+            source,
+            target,
+            type,
+            lag,
+        };
+
+        const newLinks = [...state.links, newLink];
+        const reScheduledTasks = runScheduler(state.tasks, newLinks);
+        return { ...state, tasks: reScheduledTasks, links: newLinks };
       }
       case 'SET_CONFLICTS': {
         const conflictIds = new Set(action.payload.map(c => c.taskId));

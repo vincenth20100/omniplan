@@ -7,11 +7,9 @@ import { EditableSelectCell } from '@/components/omni-gantt/editable-select-cell
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
+import { AddRelationshipRow } from './add-relationship-row';
 
-export function SuccessorList({ successorLinks, allTasks, dispatch, uiDensity }: { successorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
-    if (successorLinks.length === 0) {
-        return <div className="border rounded-md min-h-0 flex items-center justify-center py-4"><p className="text-sm text-muted-foreground">This task has no successors.</p></div>;
-    }
+export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatch, uiDensity }: { currentTaskId: string, successorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
 
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
 
@@ -72,7 +70,7 @@ export function SuccessorList({ successorLinks, allTasks, dispatch, uiDensity }:
                                 <TableCell className={cellClass}>
                                     <div className={cellInnerDivClass}>{targetTask?.wbs || 'N/A'}</div>
                                 </TableCell>
-                                <TableCell className={cn(cellClass, "max-w-[20ch]")} title={targetTask?.name}>
+                                <TableCell className={cn(cellClass, "max-w-[15ch]")} title={targetTask?.name}>
                                     <div className={cellInnerDivClass}>
                                         <EditableCell 
                                             value={targetTask.name}
@@ -122,6 +120,14 @@ export function SuccessorList({ successorLinks, allTasks, dispatch, uiDensity }:
                             </TableRow>
                         );
                     })}
+                    <AddRelationshipRow
+                        currentTaskId={currentTaskId}
+                        allTasks={allTasks}
+                        existingLinkedTaskIds={successorLinks.map(l => l.target)}
+                        dispatch={dispatch}
+                        type="successor"
+                        uiDensity={uiDensity}
+                    />
                 </TableBody>
             </Table>
         </ScrollArea>

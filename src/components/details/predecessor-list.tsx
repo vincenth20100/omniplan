@@ -7,11 +7,9 @@ import { EditableCell } from '@/components/omni-gantt/editable-cell';
 import { EditableSelectCell } from '@/components/omni-gantt/editable-select-cell';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
+import { AddRelationshipRow } from './add-relationship-row';
 
-export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensity }: { predecessorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
-    if (predecessorLinks.length === 0) {
-        return <div className="border rounded-md min-h-0 flex items-center justify-center py-4"><p className="text-sm text-muted-foreground">This task has no predecessors.</p></div>;
-    }
+export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dispatch, uiDensity }: { currentTaskId: string, predecessorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
 
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
 
@@ -73,7 +71,7 @@ export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensit
                                 <TableCell className={cellClass}>
                                     <div className={cellInnerDivClass}>{sourceTask?.wbs || 'N/A'}</div>
                                 </TableCell>
-                                <TableCell className={cn(cellClass, "max-w-[20ch]")} title={sourceTask?.name}>
+                                <TableCell className={cn(cellClass, "max-w-[15ch]")} title={sourceTask?.name}>
                                     <div className={cellInnerDivClass}>
                                         <EditableCell 
                                             value={sourceTask.name}
@@ -123,6 +121,14 @@ export function PredecessorList({ predecessorLinks, allTasks, dispatch, uiDensit
                             </TableRow>
                         );
                     })}
+                     <AddRelationshipRow
+                        currentTaskId={currentTaskId}
+                        allTasks={allTasks}
+                        existingLinkedTaskIds={predecessorLinks.map(l => l.source)}
+                        dispatch={dispatch}
+                        type="predecessor"
+                        uiDensity={uiDensity}
+                    />
                 </TableBody>
             </Table>
         </ScrollArea>
