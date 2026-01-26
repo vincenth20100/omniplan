@@ -47,7 +47,7 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                  uiDensity === 'medium' && 'p-3',
                  uiDensity === 'compact' && 'p-2'
             )}>
-                 <div className="mx-auto flex max-w-6xl flex-col gap-4 lg:flex-row">
+                 <div className="flex max-w-6xl flex-col gap-4 lg:flex-row">
                     <div className="flex flex-1 flex-col gap-2 min-w-0">
                         <h3 className="text-md font-semibold">Predecessors</h3>
                         <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
