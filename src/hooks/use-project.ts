@@ -347,11 +347,22 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         if (!firstSelectedTaskInOrder) return state;
 
         const firstSelectedIndex = sortedTasks.findIndex(t => t.id === firstSelectedTaskInOrder.id);
-        if (firstSelectedIndex === 0) return state;
+        if (firstSelectedIndex === 0) return state; // Cannot indent the first task
 
         const newParent = sortedTasks[firstSelectedIndex - 1];
         
-        if (state.selectedTaskIds.includes(newParent.id)) return state;
+        if (state.selectedTaskIds.includes(newParent.id)) return state; // Cannot indent a task under another selected task
+
+        // Check if newParent is a descendant of any selected task
+        for (const selectedTaskId of state.selectedTaskIds) {
+            let current = taskMap.get(newParent.id);
+            while (current?.parentId) {
+                if (current.parentId === selectedTaskId) {
+                    return state; // Can't indent under a child/descendant
+                }
+                current = taskMap.get(current.parentId);
+            }
+        }
 
         if (!newParent.isSummary) {
           newParent.isSummary = true;
@@ -371,13 +382,30 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       case 'OUTDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
 
-        const taskMap = new Map(state.tasks.map(t => [t.id, t]));
+        const tasksCopy = state.tasks.map(t => ({...t}));
+        const taskMap = new Map(tasksCopy.map(t => [t.id, t]));
+        const oldParentIds = new Set<string>();
 
+        // Update parentIds for all selected tasks
         state.selectedTaskIds.forEach(id => {
             const taskToUpdate = taskMap.get(id);
             if (taskToUpdate?.parentId) {
                 const currentParent = taskMap.get(taskToUpdate.parentId);
-                taskToUpdate.parentId = currentParent?.parentId ?? null;
+                if (currentParent) {
+                    oldParentIds.add(currentParent.id);
+                    taskToUpdate.parentId = currentParent.parentId ?? null;
+                }
+            }
+        });
+        
+        // After parent changes, check if old parents still have children. If not, demote them.
+        oldParentIds.forEach(parentId => {
+            const hasChildren = Array.from(taskMap.values()).some(t => t.parentId === parentId);
+            if (!hasChildren) {
+                const parentTask = taskMap.get(parentId);
+                if (parentTask) {
+                    parentTask.isSummary = false;
+                }
             }
         });
 
