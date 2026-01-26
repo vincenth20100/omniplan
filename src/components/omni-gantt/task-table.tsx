@@ -558,30 +558,31 @@ export function TaskTable({
         const column = columns.find(c => c.id === columnId);
         if (!column) return 'None';
         
-        if (task.isSummary) {
-            // Group summary tasks based on their own properties if available, or a default
-            switch(column.id) {
-                case 'constraintType': return 'N/A';
-                default:
-                     if (column.id.startsWith('custom-')) {
-                        return String(task.customAttributes?.[column.id] || 'None');
-                    }
-                    return 'N/A';
-            }
-        }
-        
         switch (column.id) {
             case 'resourceNames': {
                 const taskAssignments = assignments.filter(a => a.taskId === task.id);
-                return taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ') || 'Unassigned';
+                const resourceNames = taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
+                return resourceNames || 'Unassigned';
             }
-            case 'constraintType': return task.constraintType || 'None';
-            case 'cost': return String(task.cost || 0);
+            case 'constraintType': 
+                return task.constraintType || 'None';
+            case 'cost': 
+                return String(task.cost || 0);
+            case 'duration':
+                return `${task.duration} day(s)`;
+            case 'start':
+                return format(task.start, 'MMM d, yyyy');
+            case 'finish':
+                return format(task.finish, 'MMM d, yyyy');
+            case 'percentComplete':
+                return `${task.percentComplete}%`;
+            case 'constraintDate':
+                return task.constraintDate ? format(task.constraintDate, 'MMM d, yyyy') : 'None';
             default:
                 if (column.id.startsWith('custom-')) {
                     return String(task.customAttributes?.[column.id] || 'None');
                 }
-                return 'None';
+                return 'N/A';
         }
     }, [columns, assignments, resourceMap]);
 

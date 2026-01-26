@@ -35,7 +35,7 @@ export function GroupingDialog({
         }
     }, [open, grouping]);
 
-    const groupableColumns = columns.filter(c => !['wbs', 'name', 'duration', 'start', 'finish', 'predecessors', 'successors', 'percentComplete'].includes(c.id));
+    const groupableColumns = columns.filter(c => !['wbs', 'name', 'predecessors', 'successors'].includes(c.id));
     
     const availableFields = groupableColumns.filter(c => !currentGrouping.includes(c.id));
     const groupByFields = currentGrouping.map(id => columns.find(c => c.id === id)).filter(Boolean) as ColumnSpec[];
