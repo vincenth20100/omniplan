@@ -25,29 +25,25 @@ export function ColumnSelector({
 }) {
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
-    const [queuedColumnConfig, setQueuedColumnConfig] = useState<{ action: 'add' | 'update'; data: any } | null>(null);
 
     const handleSaveColumn = (config: ColumnConfig) => {
-        if (editingColumn) {
-             setQueuedColumnConfig({ action: 'update', data: { id: editingColumn.id, ...config } });
-        } else {
-             setQueuedColumnConfig({ action: 'add', data: config });
-        }
+        // Capture the value of editingColumn before we clear it
+        const columnBeingEdited = editingColumn;
+        
+        // Immediately close the dialog to allow UI to unmount and remove body styles
         setIsConfigOpen(false);
         setEditingColumn(null);
-    };
 
-    useEffect(() => {
-        // Run dispatch only after dialog has been closed and there's a queued config
-        if (!isConfigOpen && queuedColumnConfig) {
-            if (queuedColumnConfig.action === 'add') {
-                dispatch({ type: 'ADD_COLUMN', payload: queuedColumnConfig.data });
-            } else if (queuedColumnConfig.action === 'update') {
-                dispatch({ type: 'UPDATE_COLUMN', payload: queuedColumnConfig.data });
+        // Use a timeout to dispatch the heavy action after the dialog has had time to fully close.
+        // This prevents the main thread from freezing before the dialog's cleanup logic can run.
+        setTimeout(() => {
+            if (columnBeingEdited) {
+                dispatch({ type: 'UPDATE_COLUMN', payload: { id: columnBeingEdited.id, ...config } });
+            } else {
+                dispatch({ type: 'ADD_COLUMN', payload: config });
             }
-            setQueuedColumnConfig(null); // Clear the queue
-        }
-    }, [isConfigOpen, queuedColumnConfig, dispatch]);
+        }, 150); // A small delay to ensure animations and cleanup complete.
+    };
 
     const handleCheckedChange = (columnId: string, checked: boolean) => {
         const newVisibleColumns = checked
@@ -68,7 +64,6 @@ export function ColumnSelector({
     
     const handleDialogClose = (open: boolean) => {
         if (!open) {
-            // Only clear editing column, don't clear the queue
             setEditingColumn(null);
         }
         setIsConfigOpen(open);
