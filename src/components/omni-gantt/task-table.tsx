@@ -21,6 +21,23 @@ import {
 import { Button } from '../ui/button';
 import { ColumnConfigDialog, type ColumnConfig } from '../view-options/column-config-dialog';
 
+type GroupRow = {
+    itemType: 'group';
+    id: string;
+    level: number;
+    name: string;
+    childCount: number;
+    isCollapsed: boolean;
+};
+
+type TaskRow = {
+    itemType: 'task';
+    data: Task;
+    displayLevel: number;
+};
+
+type RenderableRow = GroupRow | TaskRow;
+
 const TaskCellRenderer = React.memo(({
     task,
     column,
@@ -31,6 +48,7 @@ const TaskCellRenderer = React.memo(({
     assignments,
     childrenMap,
     handleToggle,
+    displayLevel,
 }: {
     task: Task;
     column: ColumnSpec;
@@ -41,20 +59,23 @@ const TaskCellRenderer = React.memo(({
     assignments: Assignment[];
     childrenMap: Map<string, Task[]>;
     handleToggle: (e: React.MouseEvent, taskId: string) => void;
+    displayLevel: number;
 }) => {
     switch (column.id) {
         case 'wbs':
             return <>{task.wbs}</>;
         case 'name': {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+            const indentLevel = displayLevel;
+
             return (
-                <div className="flex items-center gap-2" style={{ paddingLeft: `${(task.level || 0) * 1.5}rem` }}>
+                <div className="flex items-center gap-1" style={{ paddingLeft: `${indentLevel * 1.5}rem` }}>
                     {hasChildren ? (
-                        <button onClick={(e) => handleToggle(e, task.id)} className="p-0.5 rounded-sm hover:bg-muted -ml-7 mr-2">
+                        <button onClick={(e) => handleToggle(e, task.id)} className="p-0.5 rounded-sm hover:bg-muted -ml-6 mr-1">
                             {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </button>
                     ) : (
-                        <div className="w-5" style={{ marginLeft: '-1.75rem', marginRight: '0.5rem' }}></div>
+                        <div className="w-5" style={{ marginLeft: '-1.5rem', marginRight: '0.25rem' }}></div>
                     )}
                     {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
                     <div className="flex-grow">
@@ -302,6 +323,7 @@ export function TaskTable({
     dispatch, 
     visibleColumns = ['wbs', 'name', 'start', 'finish'],
     columns,
+    grouping,
     viewportRef,
     onScroll,
     uiDensity
@@ -314,6 +336,7 @@ export function TaskTable({
     dispatch: any, 
     visibleColumns: string[],
     columns: ColumnSpec[],
+    grouping: string[],
     viewportRef: React.RefObject<HTMLDivElement>,
     onScroll: () => void,
     uiDensity: UiDensity
@@ -324,6 +347,11 @@ export function TaskTable({
     const [draggedColId, setDraggedColId] = React.useState<string | null>(null);
     const [dropColIndicator, setDropColIndicator] = React.useState<{ targetId: string } | null>(null);
     const [editingColumn, setEditingColumn] = React.useState<ColumnSpec | null>(null);
+    const [collapsedGroups, setCollapsedGroups] = React.useState<Record<string, boolean>>({});
+
+    const handleToggleGroup = (groupId: string) => {
+        setCollapsedGroups(prev => ({...prev, [groupId]: !prev[groupId]}));
+    }
     
     const childrenMap = React.useMemo(() => {
         const map = new Map<string, Task[]>();
@@ -386,7 +414,7 @@ export function TaskTable({
         const x = e.clientX - rect.left;
         const indentThreshold = 50;
 
-        if (x > indentThreshold) {
+        if (x > indentThreshold && grouping.length === 0) { // Only allow DnD nesting if not grouping
             setDropIndicator({ targetId: taskId, position: 'child' });
         } else {
             if (y < rect.height / 2) {
@@ -404,7 +432,11 @@ export function TaskTable({
     const handleDrop = (e: React.DragEvent<HTMLTableRowElement>) => {
         e.preventDefault();
         
-        if (!dropIndicator || !draggedIds) return;
+        if (!dropIndicator || !draggedIds || grouping.length > 0) { // Disable drop when grouping
+             setDraggedIds(null);
+             setDropIndicator(null);
+            return;
+        };
 
         const { targetId, position } = dropIndicator;
         
@@ -519,18 +551,93 @@ export function TaskTable({
         return columns.filter(c => visibleColumns.includes(c.id));
     }, [columns, visibleColumns]);
 
-    const visibleTasks = React.useMemo(() => {
+    const renderableRows: RenderableRow[] = React.useMemo(() => {
         const taskMap = new Map(tasks.map(t => [t.id, t]));
-        return tasks.filter(task => {
-            if (!task.parentId) return true;
-            let parent = taskMap.get(task.parentId);
-            while(parent) {
-                if (parent.isCollapsed) return false;
-                parent = taskMap.get(parent.parentId || '');
+        
+        const getVisibleHierarchicalTasks = (): Task[] => {
+            return tasks.filter(task => {
+                if (!task.parentId) return true;
+                let parent = taskMap.get(task.parentId);
+                while(parent) {
+                    if (parent.isCollapsed) return false;
+                    parent = taskMap.get(parent.parentId || '');
+                }
+                return true;
+            });
+        };
+        
+        if (grouping.length === 0) {
+            return getVisibleHierarchicalTasks().map(task => ({ itemType: 'task', data: task, displayLevel: task.level || 0 }));
+        }
+
+        const getTaskPropertyValue = (task: Task, columnId: string): string => {
+            const column = columns.find(c => c.id === columnId);
+            if (!column) return 'None';
+            
+            switch (column.id) {
+                case 'resourceNames': {
+                    const taskAssignments = assignments.filter(a => a.taskId === task.id);
+                    return taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ') || 'Unassigned';
+                }
+                case 'constraintType': return task.constraintType || 'None';
+                case 'cost': return String(task.cost || 0);
+                default:
+                    if (column.id.startsWith('custom-')) {
+                        return String(task.customAttributes?.[column.id] || 'None');
+                    }
+                    return 'None';
             }
-            return true;
-        });
-    }, [tasks]);
+        };
+
+        const finalRows: RenderableRow[] = [];
+        
+        const groupRecursively = (tasksToGroup: Task[], groupLevel: number) => {
+            if (groupLevel >= grouping.length) {
+                tasksToGroup.forEach(task => {
+                    finalRows.push({ itemType: 'task', data: task, displayLevel: (task.level || 0) + groupLevel });
+                });
+                return;
+            }
+
+            const groupField = grouping[groupLevel];
+            const grouped = new Map<string, Task[]>();
+
+            for (const task of tasksToGroup) {
+                const groupValue = getTaskPropertyValue(task, groupField);
+                if (!grouped.has(groupValue)) {
+                    grouped.set(groupValue, []);
+                }
+                grouped.get(groupValue)!.push(task);
+            }
+
+            const sortedGroupKeys = Array.from(grouped.keys()).sort();
+
+            for (const key of sortedGroupKeys) {
+                const groupTasks = grouped.get(key)!;
+                const groupColumn = columns.find(c => c.id === groupField);
+                const groupId = `group-${groupLevel}-${key}`;
+                const isCollapsed = collapsedGroups[groupId] || false;
+
+                finalRows.push({
+                    itemType: 'group',
+                    name: `${groupColumn?.name}: ${key}`,
+                    level: groupLevel,
+                    id: groupId,
+                    childCount: groupTasks.length,
+                    isCollapsed: isCollapsed,
+                });
+                
+                if (!isCollapsed) {
+                    groupRecursively(groupTasks, groupLevel + 1);
+                }
+            }
+        }
+        
+        groupRecursively(tasks.filter(t => !t.isSummary), 0);
+        
+        return finalRows;
+
+    }, [tasks, grouping, collapsedGroups, columns, assignments, resourceMap]);
 
     return (
         <>
@@ -548,7 +655,7 @@ export function TaskTable({
                                 return (
                                     <TableHead 
                                         key={column.id} 
-                                        draggable
+                                        draggable={grouping.length === 0}
                                         onDragStart={(e) => handleColDragStart(e, column.id)}
                                         onDragOver={(e) => handleColDragOver(e, column.id)}
                                         onDragLeave={handleColDragLeave}
@@ -596,62 +703,85 @@ export function TaskTable({
                         </TableRow>
                     </TableHeader>
                     <TableBody onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragLeave}>
-                        {visibleTasks.map((task) => (
-                            <TableRow
-                                key={task.id}
-                                draggable={true}
-                                onDragStart={(e) => handleDragStart(e, task.id)}
-                                onDragOver={(e) => handleDragOver(e, task.id)}
-                                data-density={uiDensity}
-                                className={cn(
-                                    "cursor-pointer", 
-                                    "transition-all duration-150",
-                                    "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                    selectedTaskIds.includes(task.id) && "bg-accent/50 hover:bg-accent/50",
-                                    !selectedTaskIds.includes(task.id) && "hover:bg-muted/50",
-                                    draggedIds?.includes(task.id) && "opacity-30",
-                                    !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && {
-                                        "border-t-2 border-primary": dropIndicator.position === 'top',
-                                        "border-b-2 border-primary": dropIndicator.position === 'bottom',
-                                        "bg-primary/20": dropIndicator.position === 'child',
-                                    }
-                                )}
-                                onClick={(e) => handleSelectTask(e, task.id)}
-                            >
-                                {orderedAndVisibleColumns.map(column => (
-                                    <TableCell 
-                                        key={column.id} 
-                                        data-density={uiDensity}
-                                        className={cn(
-                                            "font-medium truncate p-0",
-                                            "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8"
-                                        )}
-                                    >
-                                        <div 
-                                            className={cn(
-                                                "flex items-center h-full",
-                                                "data-[density=large]:px-4 data-[density=large]:text-sm",
-                                                "data-[density=medium]:px-3 data-[density=medium]:text-sm",
-                                                "data-[density=compact]:px-2 data-[density=compact]:text-xs",
-                                            )}
+                        {renderableRows.map((item) => {
+                            if (item.itemType === 'group') {
+                                return (
+                                    <TableRow key={item.id} className="bg-muted/50 hover:bg-muted/50 font-semibold">
+                                        <TableCell colSpan={orderedAndVisibleColumns.length} className="p-0">
+                                            <div 
+                                                className="flex items-center gap-2 h-full"
+                                                style={{ paddingLeft: `${item.level * 1.5}rem`}}
+                                            >
+                                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleToggleGroup(item.id)}>
+                                                    {item.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                                </Button>
+                                                <span>{item.name} ({item.childCount})</span>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            }
+
+                            // It's a task row
+                            const task = item.data;
+                            return (
+                                <TableRow
+                                    key={task.id}
+                                    draggable={grouping.length === 0}
+                                    onDragStart={(e) => handleDragStart(e, task.id)}
+                                    onDragOver={(e) => handleDragOver(e, task.id)}
+                                    data-density={uiDensity}
+                                    className={cn(
+                                        "cursor-pointer", 
+                                        "transition-all duration-150",
+                                        "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
+                                        selectedTaskIds.includes(task.id) && "bg-accent/50 hover:bg-accent/50",
+                                        !selectedTaskIds.includes(task.id) && "hover:bg-muted/50",
+                                        draggedIds?.includes(task.id) && "opacity-30",
+                                        !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && grouping.length === 0 && {
+                                            "border-t-2 border-primary": dropIndicator.position === 'top',
+                                            "border-b-2 border-primary": dropIndicator.position === 'bottom',
+                                            "bg-primary/20": dropIndicator.position === 'child',
+                                        }
+                                    )}
+                                    onClick={(e) => handleSelectTask(e, task.id)}
+                                >
+                                    {orderedAndVisibleColumns.map(column => (
+                                        <TableCell 
+                                            key={column.id} 
                                             data-density={uiDensity}
+                                            className={cn(
+                                                "font-medium truncate p-0",
+                                                "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8"
+                                            )}
                                         >
-                                          <TaskCellRenderer
-                                                task={task}
-                                                column={column}
-                                                dispatch={dispatch}
-                                                links={links}
-                                                idToWbsMap={idToWbsMap}
-                                                resourceMap={resourceMap}
-                                                assignments={assignments}
-                                                childrenMap={childrenMap}
-                                                handleToggle={handleToggle}
-                                           />
-                                        </div>
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        ))}
+                                            <div 
+                                                className={cn(
+                                                    "flex items-center h-full",
+                                                    "data-[density=large]:px-4 data-[density=large]:text-sm",
+                                                    "data-[density=medium]:px-3 data-[density=medium]:text-sm",
+                                                    "data-[density=compact]:px-2 data-[density=compact]:text-xs",
+                                                )}
+                                                data-density={uiDensity}
+                                            >
+                                            <TaskCellRenderer
+                                                    task={task}
+                                                    column={column}
+                                                    dispatch={dispatch}
+                                                    links={links}
+                                                    idToWbsMap={idToWbsMap}
+                                                    resourceMap={resourceMap}
+                                                    assignments={assignments}
+                                                    childrenMap={childrenMap}
+                                                    handleToggle={handleToggle}
+                                                    displayLevel={item.displayLevel}
+                                            />
+                                            </div>
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            )
+                        })}
                     </TableBody>
                 </Table>
             </ScrollAreaPrimitive.Viewport>

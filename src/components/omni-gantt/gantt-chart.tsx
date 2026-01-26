@@ -37,6 +37,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
                         dispatch={dispatch} 
                         visibleColumns={projectState.visibleColumns}
                         columns={projectState.columns}
+                        grouping={projectState.grouping}
                         viewportRef={tableViewportRef}
                         onScroll={() => handleVerticalScroll('table')}
                         uiDensity={uiDensity}

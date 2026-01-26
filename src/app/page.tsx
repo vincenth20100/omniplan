@@ -57,6 +57,7 @@ export default function Home() {
             columns={state.columns}
             dispatch={dispatch}
             uiDensity={state.uiDensity}
+            grouping={state.grouping}
         />
       )}
        <Separator className="my-2" />
@@ -80,10 +81,10 @@ export default function Home() {
             <LinkIcon className="h-4 w-4" />
             <span className="hidden sm:inline ml-2">Link</span>
         </Button>
-        <Button variant="outline" size="sm" onClick={handleIndentTask} disabled={state.selectedTaskIds.length === 0}>
+        <Button variant="outline" size="sm" onClick={handleIndentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
             <Indent className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" onClick={handleOutdentTask} disabled={state.selectedTaskIds.length === 0}>
+        <Button variant="outline" size="sm" onClick={handleOutdentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
             <Outdent className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="sm" onClick={() => setIsResourceDialogOpen(true)}>

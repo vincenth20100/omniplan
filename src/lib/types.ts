@@ -98,4 +98,5 @@ export interface ProjectState {
     visibleColumns: string[];
     columns: ColumnSpec[];
     uiDensity: UiDensity;
+    grouping: string[];
 }
