@@ -99,11 +99,7 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
         }
     }
 
-    const rootTasks = Array.from(taskMap.values()).filter(t => !t.parentId);
-
-    const originalIndices = new Map(tasks.map((t, i) => [t.id, i]));
-    rootTasks.sort((a, b) => (originalIndices.get(a.id) ?? 0) - (originalIndices.get(b.id) ?? 0));
-    
+    // Determine children for each task
     const childrenMap = new Map<string, string[]>();
     for (const task of taskMap.values()) {
         if (task.parentId) {
@@ -111,9 +107,20 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
             childrenMap.get(task.parentId)!.push(task.id);
         }
     }
+    
+    // Set isSummary flag based on children
+    for (const task of taskMap.values()) {
+        task.isSummary = childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+    }
 
+    const rootTasks = Array.from(taskMap.values()).filter(t => !t.parentId);
+
+    const originalIndices = new Map(tasks.map((t, i) => [t.id, i]));
+    rootTasks.sort((a, b) => (originalIndices.get(a.id) ?? 0) - (originalIndices.get(b.id) ?? 0));
+    
+    // sort children by original index
     for (const children of childrenMap.values()) {
-        children.sort((a, b) => (originalIndices.get(a.id) ?? 0) - (originalIndices.get(b.id) ?? 0));
+        children.sort((a, b) => (originalIndices.get(a) ?? 0) - (originalIndices.get(b) ?? 0));
     }
 
     function traverse(taskId: string, level: number, wbs: string) {
@@ -139,7 +146,8 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
 
 function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[]): Task[] => {
-      return calculateSchedule(tasks, links, columns);
+      const hierarchicalTasks = updateHierarchyAndSort(tasks);
+      return calculateSchedule(hierarchicalTasks, links, columns);
   };
 
   const getVisibleTasks = (tasks: Task[]): Task[] => {
@@ -377,10 +385,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             }
         }
 
-        if (!newParent.isSummary) {
-          newParent.isSummary = true;
-        }
-
         for (const taskId of state.selectedTaskIds) {
             const taskToUpdate = taskMap.get(taskId);
             if (taskToUpdate) {
@@ -388,7 +392,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             }
         }
 
-        const newTasks = updateHierarchyAndSort(Array.from(taskMap.values()));
+        const newTasks = Array.from(taskMap.values());
         const reScheduledTasks = runScheduler(newTasks, state.links, state.columns);
         return { ...state, tasks: reScheduledTasks };
       }
@@ -397,32 +401,19 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         const tasksCopy = state.tasks.map(t => ({...t}));
         const taskMap = new Map(tasksCopy.map(t => [t.id, t]));
-        const oldParentIds = new Set<string>();
-
+        
         // Update parentIds for all selected tasks
         state.selectedTaskIds.forEach(id => {
             const taskToUpdate = taskMap.get(id);
             if (taskToUpdate?.parentId) {
                 const currentParent = taskMap.get(taskToUpdate.parentId);
                 if (currentParent) {
-                    oldParentIds.add(currentParent.id);
                     taskToUpdate.parentId = currentParent.parentId ?? null;
                 }
             }
         });
         
-        // After parent changes, check if old parents still have children. If not, demote them.
-        oldParentIds.forEach(parentId => {
-            const hasChildren = Array.from(taskMap.values()).some(t => t.parentId === parentId);
-            if (!hasChildren) {
-                const parentTask = taskMap.get(parentId);
-                if (parentTask) {
-                    parentTask.isSummary = false;
-                }
-            }
-        });
-
-        const newTasks = updateHierarchyAndSort(Array.from(taskMap.values()));
+        const newTasks = Array.from(taskMap.values());
         const reScheduledTasks = runScheduler(newTasks, state.links, state.columns);
         return { ...state, tasks: reScheduledTasks };
       }
@@ -458,8 +449,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             newTasks.push(newTask);
         }
 
-        const hierarchicalTasks = updateHierarchyAndSort(newTasks);
-        const reScheduledTasks = runScheduler(hierarchicalTasks, state.links, state.columns);
+        const reScheduledTasks = runScheduler(newTasks, state.links, state.columns);
         return { ...state, tasks: reScheduledTasks, selectedTaskIds: newSelectedIds };
       }
       case 'REMOVE_TASK': {
@@ -488,8 +478,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newTasks = state.tasks.filter(t => !idsToRemove.has(t.id));
         const newLinks = state.links.filter(l => !idsToRemove.has(l.source) && !idsToRemove.has(l.target));
         
-        const hierarchicalTasks = updateHierarchyAndSort(newTasks);
-        const reScheduledTasks = runScheduler(hierarchicalTasks, newLinks, state.columns);
+        const reScheduledTasks = runScheduler(newTasks, newLinks, state.columns);
         
         return { ...state, tasks: reScheduledTasks, links: newLinks, selectedTaskIds: [] };
       }
@@ -525,8 +514,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         remainingTasks.splice(targetIndex, 0, ...sourceTasks);
 
-        const hierarchicalTasks = updateHierarchyAndSort(remainingTasks);
-        const reScheduledTasks = runScheduler(hierarchicalTasks, state.links, state.columns);
+        const reScheduledTasks = runScheduler(remainingTasks, state.links, state.columns);
         
         return { ...state, tasks: reScheduledTasks };
       }
@@ -540,10 +528,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const parentTask = taskMap.get(parentId);
         if (!parentTask) return state;
 
-        if (!parentTask.isSummary) {
-          parentTask.isSummary = true;
-        }
-        
         for (const sourceId of sourceIds) {
             let p: Task | undefined = parentTask;
             while(p) {
@@ -577,8 +561,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         remainingTasks.splice(insertAfterIndex + 1, 0, ...sourceTasks);
         
-        const hierarchicalTasks = updateHierarchyAndSort(remainingTasks);
-        const reScheduledTasks = runScheduler(hierarchicalTasks, state.links, state.columns);
+        const reScheduledTasks = runScheduler(remainingTasks, state.links, state.columns);
         
         return { ...state, tasks: reScheduledTasks };
       }
@@ -869,7 +852,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
   })();
   
   if (action.type !== 'INIT_STATE') {
-    return { ...newState, historyLog: [...state.historyLog, { action, timestamp: new Date() }] };
+    return { ...newState, isDirty: true, historyLog: [...state.historyLog, { action, timestamp: new Date() }] };
   }
   return newState;
 }
@@ -917,7 +900,6 @@ export function useProject() {
     const tasksWithDefaults = initialTasks.map(t => ({
       ...t,
       level: t.level || 0,
-      isSummary: !!t.isSummary,
       isCollapsed: !!t.isCollapsed,
     }));
 
@@ -927,7 +909,7 @@ export function useProject() {
       finish: new Date(t.finish),
       constraintDate: t.constraintDate ? new Date(t.constraintDate) : undefined,
       cost: t.cost || 0,
-    }));
+    } as Task));
 
     const calendarsWithDates: Calendar[] = initialCalendars.map(cal => ({
         id: cal.id,
@@ -940,7 +922,9 @@ export function useProject() {
         }))
     }));
     
-    const scheduledTasks = calculateSchedule(tasksWithDates, initialLinks, initialColumns);
+    const hierarchicalTasks = updateHierarchyAndSort(tasksWithDates);
+    const scheduledTasks = calculateSchedule(hierarchicalTasks, initialLinks, initialColumns);
+
     dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, resources: initialResources, assignments: initialAssignments, calendars: calendarsWithDates, defaultCalendarId: calendarsWithDates[0]?.id || null, columns: initialColumns, visibleColumns: initialVisibleColumns, views: defaultViews, currentViewId: 'default' } });
     setIsLoaded(true);
   }, []);
