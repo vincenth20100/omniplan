@@ -38,6 +38,7 @@ const initialState: ProjectState = {
   visibleColumns: initialVisibleColumns,
   columns: initialColumns,
   uiDensity: 'compact',
+  grouping: [],
 };
 
 type Action =
@@ -73,7 +74,8 @@ type Action =
   | { type: 'UPDATE_COLUMN', payload: Partial<ColumnSpec> & { id: string } }
   | { type: 'REMOVE_COLUMN', payload: { columnId: string } }
   | { type: 'NEW_PROJECT' }
-  | { type: 'LOAD_PROJECT', payload: ProjectState };
+  | { type: 'LOAD_PROJECT', payload: ProjectState }
+  | { type: 'SET_GROUPING', payload: string[] };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -783,6 +785,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
               return state;
           }
       }
+      case 'SET_GROUPING':
+        return { ...state, grouping: action.payload };
       default:
         return state;
     }
