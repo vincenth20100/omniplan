@@ -958,32 +958,34 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       case 'COLLAPSE_ALL': {
         const hasSelection = state.selectedTaskIds.length > 0;
         const newTasks = state.tasks.map(task => {
-            if (task.isSummary) {
-                if (hasSelection) {
-                    if (state.selectedTaskIds.includes(task.id)) {
-                        return { ...task, isCollapsed: true };
-                    }
-                } else {
-                    return { ...task, isCollapsed: true };
-                }
-            }
+          if (!task.isSummary) {
             return task;
+          }
+          if (hasSelection) {
+            if (state.selectedTaskIds.includes(task.id)) {
+              return { ...task, isCollapsed: true };
+            }
+          } else {
+            return { ...task, isCollapsed: true };
+          }
+          return task;
         });
         return { ...state, tasks: newTasks };
       }
       case 'EXPAND_ALL': {
         const hasSelection = state.selectedTaskIds.length > 0;
         const newTasks = state.tasks.map(task => {
-            if (task.isSummary) {
-                if (hasSelection) {
-                    if (state.selectedTaskIds.includes(task.id)) {
-                        return { ...task, isCollapsed: false };
-                    }
-                } else {
-                    return { ...task, isCollapsed: false };
-                }
-            }
+          if (!task.isSummary) {
             return task;
+          }
+          if (hasSelection) {
+            if (state.selectedTaskIds.includes(task.id)) {
+              return { ...task, isCollapsed: false };
+            }
+          } else {
+            return { ...task, isCollapsed: false };
+          }
+          return task;
         });
         return { ...state, tasks: newTasks };
       }

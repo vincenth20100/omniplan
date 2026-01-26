@@ -17,7 +17,7 @@ export const initialCalendars: (Omit<Calendar, 'exceptions'> & { exceptions?: (O
     { id: 'cal-weekends', name: 'Weekends Only', workingDays: [0, 6], exceptions: [] },
 ];
 
-export const initialTasks: (Omit<Task, 'start' | 'finish' | 'constraintDate' | 'cost' | 'notes'> & { start: string, finish: string, constraintDate?: string, cost?: number, notes?: (Omit<Note, 'timestamp'> & { timestamp: string })[] })[] = [
+export const initialTasks = [
   { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100, cost: 500, notes: [
       { id: 'note-1', author: 'Project Manager', content: 'Initial project meeting went well. Team is motivated.', timestamp: addDays(today, -1).toISOString() }
   ] },
