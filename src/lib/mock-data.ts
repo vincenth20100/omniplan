@@ -18,14 +18,14 @@ export const initialCalendars: (Omit<Calendar, 'exceptions'> & { exceptions?: (O
 ];
 
 export const initialTasks = [
-  { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100, cost: 500, notes: [
+  { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100, cost: 500, additionalNotes: 'This is some important, persistent information about the project kick-off. All stakeholders must be present.', notes: [
       { id: 'note-1', author: 'Project Manager', content: 'Initial project meeting went well. Team is motivated.', timestamp: addDays(today, -1).toISOString() }
   ] },
   { id: '2', wbs: '2', level: 0, name: 'Requirement Gathering', start: addDays(today, 1).toISOString(), duration: 5, finish: addDays(today, 6).toISOString(), percentComplete: 75, cost: 2500 },
   { id: '3', wbs: '3', level: 0, name: 'Design Phase', start: addDays(today, 1).toISOString(), duration: 10, finish: addDays(today, 11).toISOString(), percentComplete: 50, cost: 5000 },
   
   // Summary Task for Build
-  { id: '4', wbs: '4', level: 0, name: 'Build', start: addDays(today, 8).toISOString(), duration: 0, finish: addDays(today, 23).toISOString(), percentComplete: 0, isSummary: true, isCollapsed: false, cost: 0 },
+  { id: '4', wbs: '4', level: 0, name: 'Build', start: addDays(today, 8).toISOString(), duration: 0, finish: addDays(today, 23).toISOString(), percentComplete: 0, isCollapsed: false, cost: 0 },
   
   // Children of Build
   { id: '4.1', wbs: '4.1', parentId: '4', level: 1, name: 'Workshop Assembly', start: addDays(today, 8).toISOString(), duration: 15, finish: addDays(today, 23).toISOString(), percentComplete: 20, constraintType: 'Must Start On', constraintDate: addDays(today, 15).toISOString(), cost: 15000 },

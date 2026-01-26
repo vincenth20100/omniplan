@@ -890,7 +890,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                     content,
                     timestamp: new Date(),
                 };
-                const notes = [...(task.notes || []), newNote];
+                const notes = [newNote, ...(task.notes || [])];
                 return { ...task, notes };
             }
             return task;
@@ -970,12 +970,12 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       case 'COLLAPSE_ALL': {
         const shouldCollapse = action.type === 'COLLAPSE_ALL';
         const { tasks, selectedTaskIds } = state;
+        
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        const tasksToUpdate = new Set<string>();
 
-        const tasksToChange = new Set<string>();
-
-        // If tasks are selected, find all summary tasks within the selection and their descendants.
+        // If a selection exists, find all summary tasks within the selection and all their descendants.
         if (selectedTaskIds.length > 0) {
-            const taskMap = new Map(tasks.map(t => [t.id, t]));
             const queue: string[] = [...selectedTaskIds];
             const visited = new Set<string>();
 
@@ -986,9 +986,10 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
                 const task = taskMap.get(currentId);
                 if (task && task.isSummary) {
-                    tasksToChange.add(currentId);
+                    tasksToUpdate.add(currentId);
                 }
 
+                // Add children to the queue to process descendants
                 tasks.forEach(t => {
                     if (t.parentId === currentId) {
                         queue.push(t.id);
@@ -996,18 +997,18 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 });
             }
         } else {
-            // No selection, apply to all summary tasks in the project.
+            // No selection, so apply to all summary tasks in the project.
             tasks.forEach(task => {
                 if (task.isSummary) {
-                    tasksToChange.add(task.id);
+                    tasksToUpdate.add(task.id);
                 }
             });
         }
         
-        if (tasksToChange.size === 0) return state;
+        if (tasksToUpdate.size === 0) return state;
 
         const newTasks = tasks.map(task => {
-          if (tasksToChange.has(task.id)) {
+          if (tasksToUpdate.has(task.id)) {
             return { ...task, isCollapsed: shouldCollapse };
           }
           return task;
