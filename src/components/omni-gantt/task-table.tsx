@@ -5,7 +5,7 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2 } from 'lucide-react';
+import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare } from 'lucide-react';
 import React from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
@@ -54,6 +54,7 @@ const TaskCellRenderer = React.memo(({
             const isGrouped = grouping.length > 0;
             const hasChildren = !isGrouped && task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             const indentLevel = displayLevel;
+            const hasNotes = task.notes && task.notes.length > 0;
 
             return (
                 <div className="flex items-center gap-1" style={{ paddingLeft: `${indentLevel * 1.5}rem` }}>
@@ -64,7 +65,8 @@ const TaskCellRenderer = React.memo(({
                     ) : (
                          <div className="w-5" style={{ marginLeft: isGrouped ? '0' : '-1.5rem', marginRight: isGrouped ? '0' : '0.25rem' }}></div>
                     )}
-                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
+                    {hasNotes && <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive flex-shrink-0" />}
                     <div className="flex-grow">
                             {task.isSummary && !isGrouped ? (
                             <span className="truncate">{task.name}</span>
