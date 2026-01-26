@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Columns3, Plus } from "lucide-react";
 import type { ColumnSpec } from "@/lib/types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ColumnConfigDialog, type ColumnConfig } from "../view-options/column-config-dialog";
 
 export function ColumnSelector({
@@ -25,22 +25,35 @@ export function ColumnSelector({
 }) {
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
+    const [queuedColumnConfig, setQueuedColumnConfig] = useState<{ action: 'add' | 'update'; data: any } | null>(null);
+
+    const handleSaveColumn = (config: ColumnConfig) => {
+        if (editingColumn) {
+             setQueuedColumnConfig({ action: 'update', data: { id: editingColumn.id, ...config } });
+        } else {
+             setQueuedColumnConfig({ action: 'add', data: config });
+        }
+        setIsConfigOpen(false);
+        setEditingColumn(null);
+    };
+
+    useEffect(() => {
+        // Run dispatch only after dialog has been closed and there's a queued config
+        if (!isConfigOpen && queuedColumnConfig) {
+            if (queuedColumnConfig.action === 'add') {
+                dispatch({ type: 'ADD_COLUMN', payload: queuedColumnConfig.data });
+            } else if (queuedColumnConfig.action === 'update') {
+                dispatch({ type: 'UPDATE_COLUMN', payload: queuedColumnConfig.data });
+            }
+            setQueuedColumnConfig(null); // Clear the queue
+        }
+    }, [isConfigOpen, queuedColumnConfig, dispatch]);
 
     const handleCheckedChange = (columnId: string, checked: boolean) => {
         const newVisibleColumns = checked
             ? [...visibleColumns, columnId]
             : visibleColumns.filter(c => c !== columnId);
         dispatch({ type: 'SET_COLUMNS', payload: newVisibleColumns });
-    };
-
-    const handleSaveColumn = (config: ColumnConfig) => {
-        if (editingColumn) {
-            dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
-        } else {
-            dispatch({ type: 'ADD_COLUMN', payload: config });
-        }
-        setIsConfigOpen(false);
-        setEditingColumn(null);
     };
 
     const handleOpenNew = () => {
@@ -55,6 +68,7 @@ export function ColumnSelector({
     
     const handleDialogClose = (open: boolean) => {
         if (!open) {
+            // Only clear editing column, don't clear the queue
             setEditingColumn(null);
         }
         setIsConfigOpen(open);
