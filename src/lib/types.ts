@@ -4,6 +4,12 @@ export type ConstraintType = "Start No Earlier Than" | "Must Start On";
 
 export type UiDensity = 'compact' | 'medium' | 'large';
 
+export interface Calendar {
+  id: string;
+  name: string;
+  workingDays: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
+}
+
 export interface Task {
   id: string;
   name: string;
@@ -24,6 +30,7 @@ export interface Task {
   constraintDate?: Date | null;
   zoneId?: string | null;
   customAttributes?: Record<string, any> | null;
+  calendarId?: string | null;
 
   // Calculated fields
   schedulingConflict?: boolean;
@@ -52,6 +59,7 @@ export interface Resource {
   type: 'Work' | 'Material' | 'Cost';
   costPerHour?: number;
   availability?: number; // e.g. 1 = 100%
+  calendarId?: string | null;
 }
 
 export interface Assignment {
@@ -72,6 +80,8 @@ export interface ProjectState {
     resources: Resource[];
     assignments: Assignment[];
     zones: Zone[];
+    calendars: Calendar[];
+    defaultCalendarId: string | null;
     historyLog: any[];
     selectedTaskIds: string[];
     visibleColumns: string[];

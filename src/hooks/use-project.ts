@@ -1,8 +1,8 @@
 'use client';
 
 import { useReducer, useEffect, useState } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment } from '@/lib/types';
-import { initialTasks, initialLinks, initialResources, initialAssignments } from '@/lib/mock-data';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar } from '@/lib/types';
+import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 
@@ -30,6 +30,8 @@ const initialState: ProjectState = {
   resources: [],
   assignments: [],
   zones: [],
+  calendars: [],
+  defaultCalendarId: null,
   historyLog: [],
   selectedTaskIds: [],
   visibleColumns: initialVisibleColumns,
@@ -60,7 +62,10 @@ type Action =
   | { type: 'UPDATE_RELATIONSHIPS', payload: { taskId: string, field: 'predecessors' | 'successors', value: string }}
   | { type: 'ADD_RESOURCE' }
   | { type: 'REMOVE_RESOURCE', payload: { resourceId: string } }
-  | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } };
+  | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } }
+  | { type: 'ADD_CALENDAR' }
+  | { type: 'REMOVE_CALENDAR', payload: { calendarId: string } }
+  | { type: 'UPDATE_CALENDAR', payload: Partial<Calendar> & { id: string } };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -551,6 +556,34 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         );
         return { ...state, resources: newResources };
       }
+      case 'ADD_CALENDAR': {
+        const newCalendar: Calendar = {
+            id: `cal-${Date.now()}`,
+            name: 'New Calendar',
+            workingDays: [1, 2, 3, 4, 5], // Default to Mon-Fri
+        };
+        return { ...state, calendars: [...state.calendars, newCalendar] };
+      }
+      case 'REMOVE_CALENDAR': {
+        const { calendarId } = action.payload;
+        // Don't allow removing the default calendar
+        if (calendarId === state.defaultCalendarId) return state;
+        
+        const newCalendars = state.calendars.filter(c => c.id !== calendarId);
+        
+        // Reset calendarId for tasks and resources using the removed calendar
+        const newTasks = state.tasks.map(t => t.calendarId === calendarId ? { ...t, calendarId: null } : t);
+        const newResources = state.resources.map(r => r.calendarId === calendarId ? { ...r, calendarId: null } : r);
+
+        return { ...state, calendars: newCalendars, tasks: newTasks, resources: newResources };
+      }
+      case 'UPDATE_CALENDAR': {
+        const { id, ...updates } = action.payload;
+        const newCalendars = state.calendars.map(cal =>
+          cal.id === id ? { ...cal, ...updates } : cal
+        );
+        return { ...state, calendars: newCalendars };
+      }
       default:
         return state;
     }
@@ -618,7 +651,7 @@ export function useProject() {
     }));
     
     const scheduledTasks = calculateSchedule(tasksWithDates, initialLinks);
-    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, resources: initialResources, assignments: initialAssignments, columns: initialColumns, visibleColumns: initialVisibleColumns } });
+    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, resources: initialResources, assignments: initialAssignments, calendars: initialCalendars, defaultCalendarId: initialCalendars[0]?.id || null, columns: initialColumns, visibleColumns: initialVisibleColumns } });
     setIsLoaded(true);
   }, []);
 

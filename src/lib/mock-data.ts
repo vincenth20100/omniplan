@@ -1,7 +1,13 @@
-import type { Task, Link, Resource, Assignment } from './types';
+import type { Task, Link, Resource, Assignment, Calendar } from './types';
 import { addDays } from 'date-fns';
 
 const today = new Date('2024-08-01T00:00:00.000Z');
+
+export const initialCalendars: Calendar[] = [
+    { id: 'cal-standard', name: 'Standard (Mon-Fri)', workingDays: [1, 2, 3, 4, 5] },
+    { id: 'cal-247', name: '24/7', workingDays: [0, 1, 2, 3, 4, 5, 6] },
+    { id: 'cal-weekends', name: 'Weekends Only', workingDays: [0, 6] },
+];
 
 export const initialTasks: Omit<Task, 'start' | 'finish' | 'constraintDate' | 'cost'>[] & { start: string, finish: string, constraintDate?: string, cost?: number } = [
   { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100, cost: 500 },

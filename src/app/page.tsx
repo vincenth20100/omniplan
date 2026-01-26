@@ -9,15 +9,17 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
 import { ResourceManagementDialog } from '@/components/resources/resource-management-dialog';
+import { CalendarManagementDialog } from '@/components/calendars/calendar-management-dialog';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
+  const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
   const selectedTask = state.tasks.find(t => t.id === lastSelectedId);
@@ -65,6 +67,10 @@ export default function Home() {
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline ml-2">Resources</span>
         </Button>
+        <Button variant="outline" size="sm" onClick={() => setIsCalendarDialogOpen(true)}>
+            <CalendarDays className="h-4 w-4" />
+            <span className="hidden sm:inline ml-2">Calendars</span>
+        </Button>
     </div>
   );
 
@@ -105,12 +111,20 @@ export default function Home() {
         )}
       </div>
       {isLoaded && (
-        <ResourceManagementDialog
-          open={isResourceDialogOpen}
-          onOpenChange={setIsResourceDialogOpen}
-          projectState={state}
-          dispatch={dispatch}
-        />
+        <>
+          <ResourceManagementDialog
+            open={isResourceDialogOpen}
+            onOpenChange={setIsResourceDialogOpen}
+            projectState={state}
+            dispatch={dispatch}
+          />
+          <CalendarManagementDialog
+            open={isCalendarDialogOpen}
+            onOpenChange={setIsCalendarDialogOpen}
+            projectState={state}
+            dispatch={dispatch}
+          />
+        </>
       )}
     </MainLayout>
   );
