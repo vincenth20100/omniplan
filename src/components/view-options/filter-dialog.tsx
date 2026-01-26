@@ -8,12 +8,14 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import type { ColumnSpec, Filter as FilterType } from "@/lib/types";
+import type { ColumnSpec, Filter as FilterType, View } from "@/lib/types";
 import { useState, useEffect } from 'react';
 import { Plus, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { EditableDateCell } from "../omni-gantt/editable-date-cell";
+import { ViewManager } from "./view-manager";
+import { Separator } from "../ui/separator";
 
 type Operator =
   | 'contains' | 'not_contains'
@@ -21,7 +23,7 @@ type Operator =
   | 'gt' | 'lt' | 'gte' | 'lte'
   | 'is_empty' | 'is_not_empty';
 
-const OPERATORS: { [key in ColumnSpec['type'] | 'default']: { value: Operator; label: string }[] } = {
+const OPERATORS: { [key in ColumnSpec['type'] | 'default' | 'date']: { value: Operator; label: string }[] } = {
   text: [
     { value: 'contains', label: 'contains' },
     { value: 'not_contains', label: 'does not contain' },
@@ -67,12 +69,18 @@ export function FilterDialog({
     filters,
     columns,
     dispatch,
+    views,
+    currentViewId,
+    isDirty,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     filters: FilterType[];
     columns: ColumnSpec[];
     dispatch: any;
+    views: View[];
+    currentViewId: string | null;
+    isDirty?: boolean;
 }) {
     const [currentFilters, setCurrentFilters] = useState<FilterType[]>([]);
 
@@ -81,6 +89,13 @@ export function FilterDialog({
             setCurrentFilters(filters);
         }
     }, [open, filters]);
+
+    // This effect is needed to react to changes from the ViewManager inside the dialog
+    useEffect(() => {
+        if (open) {
+            setCurrentFilters(filters);
+        }
+    }, [filters, open]);
 
     const handleAddFilter = () => {
         const firstColumn = columns.find(c => c.id !== 'wbs');
@@ -113,7 +128,12 @@ export function FilterDialog({
             return <div className="w-[180px]" />;
         }
         
-        if (column.type === 'date') {
+        let columnType = column.type;
+        if (['start', 'finish', 'constraintDate'].includes(column.id)) {
+            columnType = 'date';
+        }
+        
+        if (columnType === 'date') {
              return (
                 <div className="w-[180px]">
                     <EditableDateCell
@@ -155,18 +175,38 @@ export function FilterDialog({
                 <DialogHeader>
                     <DialogTitle>Filter Tasks</DialogTitle>
                 </DialogHeader>
-                <div className="my-4 space-y-2">
+
+                <div className="border rounded-lg p-4">
+                    <ViewManager 
+                        views={views}
+                        currentViewId={currentViewId}
+                        isDirty={isDirty}
+                        dispatch={dispatch}
+                        showTitle={false}
+                    />
+                </div>
+
+                <Separator />
+                
+                <div className="space-y-2">
                     <p className="text-sm">Show items with matching conditions:</p>
                     {currentFilters.map((filter) => {
                         const column = columns.find(c => c.id === filter.columnId);
-                        const columnType = column?.type === 'date' ? 'date' : column?.type;
+                        
+                        let columnType = column?.type;
+                        if (['start', 'finish', 'constraintDate'].includes(filter.columnId)) {
+                            columnType = 'date';
+                        }
                         const operatorSet = OPERATORS[columnType || 'default'];
                         
                         return (
                             <div key={filter.id} className="flex items-center gap-2">
                                 <Select value={filter.columnId} onValueChange={(columnId) => {
                                     const newCol = columns.find(c=>c.id===columnId);
-                                    const newColType = newCol?.type === 'date' ? 'date' : newCol?.type;
+                                    let newColType = newCol?.type;
+                                    if (['start', 'finish', 'constraintDate'].includes(newCol?.id || '')) {
+                                        newColType = 'date';
+                                    }
                                     handleUpdateFilter(filter.id, { columnId, operator: OPERATORS[newColType || 'default'][0].value, value: '' })
                                 }}>
                                     <SelectTrigger className="w-[180px]">

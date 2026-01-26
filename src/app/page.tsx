@@ -196,6 +196,9 @@ export default function Home() {
             grouping={state.grouping}
             columns={state.columns}
             dispatch={dispatch}
+            views={state.views}
+            currentViewId={state.currentViewId}
+            isDirty={state.isDirty}
           />
           <FilterDialog
             open={isFilterDialogOpen}
@@ -203,6 +206,9 @@ export default function Home() {
             filters={state.filters}
             columns={state.columns}
             dispatch={dispatch}
+            views={state.views}
+            currentViewId={state.currentViewId}
+            isDirty={state.isDirty}
           />
         </>
       )}

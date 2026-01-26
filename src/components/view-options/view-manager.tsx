@@ -33,7 +33,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 
-export function ViewManager({ views, currentViewId, isDirty, dispatch }: { views: View[], currentViewId: string | null, isDirty?: boolean, dispatch: any }) {
+export function ViewManager({ views, currentViewId, isDirty, dispatch, showTitle = true }: { views: View[], currentViewId: string | null, isDirty?: boolean, dispatch: any, showTitle?: boolean }) {
     const [isSaveAsOpen, setIsSaveAsOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [newViewName, setNewViewName] = useState("");
@@ -87,7 +87,7 @@ export function ViewManager({ views, currentViewId, isDirty, dispatch }: { views
 
     return (
         <div>
-             <h3 className="text-sm font-semibold mb-2 px-2 text-muted-foreground">TABLE VIEW</h3>
+             {showTitle && <h3 className="text-sm font-semibold mb-2 px-2 text-muted-foreground">TABLE VIEW</h3>}
              <div className="p-1 flex flex-col gap-2">
                 <Select value={currentViewId || ''} onValueChange={handleSetView}>
                     <SelectTrigger>

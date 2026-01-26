@@ -8,9 +8,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import type { ColumnSpec } from "@/lib/types";
+import type { ColumnSpec, View } from "@/lib/types";
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, ChevronsUp, ChevronsDown } from "lucide-react";
+import { ViewManager } from "./view-manager";
+import { Separator } from "../ui/separator";
 
 export function GroupingDialog({
     open,
@@ -18,12 +20,18 @@ export function GroupingDialog({
     grouping,
     columns,
     dispatch,
+    views,
+    currentViewId,
+    isDirty,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     grouping: string[];
     columns: ColumnSpec[];
     dispatch: any;
+    views: View[];
+    currentViewId: string | null;
+    isDirty?: boolean;
 }) {
     const [currentGrouping, setCurrentGrouping] = useState<string[]>([]);
     const [selectedAvailable, setSelectedAvailable] = useState<string | null>(null);
@@ -34,6 +42,13 @@ export function GroupingDialog({
             setCurrentGrouping(grouping);
         }
     }, [open, grouping]);
+    
+    // This effect is needed to react to changes from the ViewManager inside the dialog
+    useEffect(() => {
+        if (open) {
+            setCurrentGrouping(grouping);
+        }
+    }, [grouping, open]);
 
     const groupableColumns = columns.filter(c => !['wbs', 'name', 'predecessors', 'successors'].includes(c.id));
     
@@ -103,7 +118,20 @@ export function GroupingDialog({
                 <DialogHeader>
                     <DialogTitle>Group By</DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-4 items-center my-4">
+
+                <div className="border rounded-lg p-4">
+                    <ViewManager 
+                        views={views}
+                        currentViewId={currentViewId}
+                        isDirty={isDirty}
+                        dispatch={dispatch}
+                        showTitle={false}
+                    />
+                </div>
+                
+                <Separator />
+                
+                <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-4 items-center">
                     {/* Available Fields */}
                     <div className="flex flex-col gap-2">
                         <h3 className="font-semibold text-sm">Available fields:</h3>
