@@ -30,7 +30,6 @@ const TaskCellRenderer = React.memo(({
     idToWbsMap,
     resourceMap,
     assignments,
-    childrenMap,
     handleToggle,
     displayLevel,
     grouping,
@@ -42,7 +41,6 @@ const TaskCellRenderer = React.memo(({
     idToWbsMap: Map<string, string>;
     resourceMap: Map<string, string>;
     assignments: Assignment[];
-    childrenMap: Map<string, Task[]>;
     handleToggle: (e: React.MouseEvent, taskId: string) => void;
     displayLevel: number;
     grouping: string[];
@@ -52,7 +50,7 @@ const TaskCellRenderer = React.memo(({
             return <>{task.wbs}</>;
         case 'name': {
             const isGrouped = grouping.length > 0;
-            const hasChildren = !isGrouped && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+            const hasChildren = !isGrouped && task.isSummary;
             const indentLevel = displayLevel;
             const hasNotes = task.notes && task.notes.length > 0;
 
@@ -134,12 +132,8 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'duration': {
-            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren && grouping.length === 0) return null;
-            
-            const displayValue = task.duration ? `${task.duration}d` : '';
             if (task.isSummary && grouping.length === 0) {
-                return <div className="text-right pr-4">{displayValue}</div>;
+                return <div className="text-right pr-4">{task.duration ? `${task.duration}d` : ''}</div>;
             }
 
             return (
@@ -156,8 +150,6 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'start': {
-            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren && grouping.length === 0) return null;
             if (task.isSummary && grouping.length === 0) return <>{format(task.start, 'MMM d, yyyy')}</>;
 
             return (
@@ -172,8 +164,6 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'finish': {
-            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren && grouping.length === 0) return null;
             if (task.isSummary && grouping.length === 0) return <>{format(task.finish, 'MMM d, yyyy')}</>;
 
             return (
@@ -188,8 +178,6 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'percentComplete': {
-            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren && grouping.length === 0) return null;
             if (task.isSummary && grouping.length === 0) return <>{`${task.percentComplete}%`}</>;
 
             return (
@@ -329,19 +317,6 @@ export function TaskTable({
     const [dropColIndicator, setDropColIndicator] = React.useState<{ targetId: string } | null>(null);
     const [editingColumn, setEditingColumn] = React.useState<ColumnSpec | null>(null);
     
-    const childrenMap = React.useMemo(() => {
-        const map = new Map<string, Task[]>();
-        tasks.forEach(task => {
-            if (task.parentId) {
-                if (!map.has(task.parentId)) {
-                    map.set(task.parentId, []);
-                }
-                map.get(task.parentId)!.push(task);
-            }
-        });
-        return map;
-    }, [tasks]);
-
     const handleSelectTask = (e: React.MouseEvent, taskId: string) => {
         dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } });
     };
@@ -664,7 +639,6 @@ export function TaskTable({
                                                     idToWbsMap={idToWbsMap}
                                                     resourceMap={resourceMap}
                                                     assignments={assignments}
-                                                    childrenMap={childrenMap}
                                                     handleToggle={handleToggle}
                                                     displayLevel={item.displayLevel}
                                                     grouping={grouping}
