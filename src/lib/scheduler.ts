@@ -24,6 +24,17 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
             summaryTask.percentComplete = childrenTotalDuration > 0
                 ? Math.round(children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0) / childrenTotalDuration)
                 : 0;
+            
+            if (columns) {
+                columns.forEach(col => {
+                    if (col.id.startsWith('custom-') && col.type === 'number') {
+                        const sum = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
+                        if (!summaryTask.customAttributes) summaryTask.customAttributes = {};
+                        summaryTask.customAttributes[col.id] = sum;
+                    }
+                });
+            }
+
         } else { // Summary task with no children should have zeroed-out values
             summaryTask.duration = 0;
             summaryTask.finish = summaryTask.start;
@@ -38,146 +49,6 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
 }
 
 export function calculateSchedule(tasks: Task[], links: Link[], columns?: ColumnSpec[]): Task[] {
-  const allTasksMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
-  const nonSummaryTasks = tasks.filter(t => !t.isSummary);
-
-  const taskMap = new Map<string, Task>(nonSummaryTasks.map(task => [task.id, { ...task }]));
-  
-  const adj: Record<string, string[]> = {};
-  nonSummaryTasks.forEach(task => adj[task.id] = []);
-  links.forEach(link => {
-    if (adj[link.source] && taskMap.has(link.target)) {
-      adj[link.source].push(link.target);
-    }
-  });
-
-  const inDegree: Record<string, number> = {};
-  nonSummaryTasks.forEach(task => inDegree[task.id] = 0);
-  links.forEach(link => {
-    const sourceTask = allTasksMap.get(link.source);
-    if (
-      inDegree[link.target] !== undefined &&
-      sourceTask &&
-      !sourceTask.isSummary
-    ) {
-      inDegree[link.target]++;
-    }
-  });
-
-  const queue = nonSummaryTasks.filter(task => inDegree[task.id] === 0);
-  
-  // Initialize start/finish based on constraints for tasks with no predecessors
-  queue.forEach(task => {
-    const taskFromMap = taskMap.get(task.id)!;
-    let newStart = calendarService.findNextWorkingDay(taskFromMap.start);
-     if (taskFromMap.constraintType === 'Must Start On' && taskFromMap.constraintDate) {
-        newStart = calendarService.findNextWorkingDay(taskFromMap.constraintDate);
-    } else if (taskFromMap.constraintType === 'Start No Earlier Than' && taskFromMap.constraintDate && taskFromMap.constraintDate > newStart) {
-        newStart = calendarService.findNextWorkingDay(taskFromMap.constraintDate);
-    }
-    taskFromMap.start = newStart;
-    taskFromMap.finish = calendarService.addWorkingDays(taskFromMap.start, taskFromMap.duration > 0 ? taskFromMap.duration -1 : 0);
-    taskMap.set(task.id, taskFromMap);
-  });
-  
-  let count = 0;
-  while (queue.length > 0) {
-    queue.sort((a,b) => (a.wbs || '').localeCompare(b.wbs || ''));
-    const taskId = queue.shift()!.id;
-    count++;
-    
-    const currentTask = taskMap.get(taskId)!;
-    
-    const predecessors = links.filter(l => l.target === taskId);
-    let newStartDate = currentTask.start;
-    let drivingLinkSource: string | null = null;
-
-    predecessors.forEach(link => {
-      const sourceTask = allTasksMap.get(link.source);
-      if(!sourceTask) return;
-
-      // If the source is a summary task, we need to use its finish date from the map.
-      const resolvedSourceTask = taskMap.has(link.source) ? taskMap.get(link.source)! : allTasksMap.get(link.source)!;
-
-      let potentialStartDate: Date;
-
-      switch (link.type) {
-        case 'SS':
-          potentialStartDate = calendarService.addWorkingDays(resolvedSourceTask.start, link.lag || 0);
-          break;
-        case 'FF':
-          {
-            const successorDuration = currentTask.duration > 0 ? currentTask.duration - 1 : 0;
-            const targetFinish = calendarService.addWorkingDays(resolvedSourceTask.finish, link.lag || 0);
-            potentialStartDate = calendarService.addWorkingDays(targetFinish, -successorDuration);
-          }
-          break;
-        case 'SF':
-          {
-            const successorDuration = currentTask.duration > 0 ? currentTask.duration - 1 : 0;
-            const targetFinish = calendarService.addWorkingDays(resolvedSourceTask.start, link.lag || 0);
-            potentialStartDate = calendarService.addWorkingDays(targetFinish, -successorDuration);
-          }
-          break;
-        case 'FS':
-        default:
-          potentialStartDate = calendarService.addWorkingDays(resolvedSourceTask.finish, (link.lag || 0) + 1);
-          break;
-      }
-        
-        if (potentialStartDate > newStartDate) {
-          newStartDate = potentialStartDate;
-          drivingLinkSource = resolvedSourceTask.id;
-        }
-    });
-
-    links.forEach(link => {
-        if(link.target === taskId) {
-            link.isDriving = link.source === drivingLinkSource;
-        }
-    });
-
-    let conflict = false;
-    if (currentTask.constraintType && currentTask.constraintDate) {
-      const constraintDate = startOfDay(currentTask.constraintDate);
-       if (currentTask.constraintType === 'Must Start On') {
-        if (startOfDay(newStartDate) > constraintDate) {
-          conflict = true;
-        } else if (startOfDay(newStartDate) < constraintDate) {
-          newStartDate = constraintDate;
-        }
-      } else if (currentTask.constraintType === 'Start No Earlier Than') {
-        if (newStartDate < constraintDate) {
-          newStartDate = constraintDate;
-        }
-      }
-    }
-    
-    currentTask.start = newStartDate;
-    currentTask.finish = calendarService.addWorkingDays(currentTask.start, currentTask.duration > 0 ? currentTask.duration -1 : 0);
-    currentTask.schedulingConflict = conflict;
-    
-    taskMap.set(taskId, currentTask);
-
-    (adj[taskId] || []).forEach(successorId => {
-      inDegree[successorId]--;
-      if (inDegree[successorId] === 0) {
-        queue.push(taskMap.get(successorId)!);
-      }
-    });
-  }
-
-  if (count !== nonSummaryTasks.length) {
-    console.error("Cycle detected in graph or error in scheduling. Scheduled " + count + " of " + nonSummaryTasks.length);
-  }
-
-  for(const task of taskMap.values()) {
-      allTasksMap.set(task.id, task);
-  }
-
-  const resultWithSummaries = updateAllSummaryTasks(Array.from(allTasksMap.values()), links, columns);
-  
-  resultWithSummaries.sort((a, b) => (a.wbs || '').localeCompare(b.wbs || ''));
-
-  return resultWithSummaries;
+  // DIAGNOSTIC STEP: Return tasks without recalculating to test for infinite loops.
+  return tasks;
 }
