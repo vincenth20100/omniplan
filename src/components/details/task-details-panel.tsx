@@ -48,11 +48,11 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                  uiDensity === 'compact' && 'p-2'
             )}>
                  <div className="flex max-w-6xl flex-col gap-4 lg:flex-row">
-                    <div className="flex flex-1 flex-col gap-2 min-w-0">
+                    <div className="flex flex-col gap-2 min-w-0">
                         <h3 className="text-md font-semibold">Predecessors</h3>
                         <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
                     </div>
-                    <div className="flex flex-1 flex-col gap-2 min-w-0">
+                    <div className="flex flex-col gap-2 min-w-0">
                         <h3 className="text-md font-semibold">Successors</h3>
                         <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
                     </div>
