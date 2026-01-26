@@ -41,7 +41,7 @@ export default function Home() {
 
   const sidebarContent = (
     <>
-      <FileExplorer />
+      <FileExplorer projectState={state} dispatch={dispatch} />
       <Separator className="my-2" />
       {isLoaded && state.visibleColumns && (
         <ViewOptions 

@@ -71,7 +71,9 @@ type Action =
   | { type: 'UPDATE_CALENDAR', payload: Partial<Calendar> & { id: string } }
   | { type: 'ADD_COLUMN', payload: Omit<ColumnSpec, 'id'|'width'> & { width?: number } }
   | { type: 'UPDATE_COLUMN', payload: Partial<ColumnSpec> & { id: string } }
-  | { type: 'REMOVE_COLUMN', payload: { columnId: string } };
+  | { type: 'REMOVE_COLUMN', payload: { columnId: string } }
+  | { type: 'NEW_PROJECT' }
+  | { type: 'LOAD_PROJECT', payload: ProjectState };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -682,6 +684,76 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         });
 
         return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, tasks: newTasks };
+      }
+      case 'NEW_PROJECT': {
+        const calendarsWithDates: Calendar[] = initialCalendars.map(cal => ({
+            id: cal.id,
+            name: cal.name,
+            workingDays: cal.workingDays,
+            exceptions: (cal.exceptions || []).map(ex => ({
+                ...ex,
+                start: new Date(ex.start),
+                finish: new Date(ex.finish),
+            }))
+        }));
+
+        const scheduledTasks = runScheduler([], [], state.columns);
+        return { 
+            ...initialState,
+            tasks: scheduledTasks,
+            links: [],
+            resources: [],
+            assignments: [],
+            calendars: calendarsWithDates,
+            defaultCalendarId: calendarsWithDates[0]?.id || null,
+            columns: state.columns,
+            visibleColumns: state.visibleColumns,
+            uiDensity: state.uiDensity,
+         };
+      }
+      case 'LOAD_PROJECT': {
+          try {
+            const loadedState = action.payload as ProjectState;
+            
+            const tasksWithDates: Task[] = (loadedState.tasks || []).map(t => ({
+                ...t,
+                start: new Date(t.start),
+                finish: new Date(t.finish),
+                constraintDate: t.constraintDate ? new Date(t.constraintDate) : null,
+            }));
+
+            const calendarsWithDates: Calendar[] = (loadedState.calendars || []).map(cal => ({
+                ...cal,
+                exceptions: (cal.exceptions || []).map(ex => ({
+                    ...ex,
+                    start: new Date(ex.start),
+                    finish: new Date(ex.finish),
+                }))
+            }));
+
+            const newState: ProjectState = {
+                ...initialState,
+                ...loadedState,
+                tasks: tasksWithDates,
+                links: loadedState.links || [],
+                resources: loadedState.resources || [],
+                assignments: loadedState.assignments || [],
+                calendars: calendarsWithDates,
+                defaultCalendarId: loadedState.defaultCalendarId || calendarsWithDates[0]?.id || null,
+                selectedTaskIds: [],
+                historyLog: [],
+                uiDensity: loadedState.uiDensity || state.uiDensity,
+                columns: loadedState.columns || state.columns,
+                visibleColumns: loadedState.visibleColumns || state.visibleColumns,
+            };
+            const scheduledTasks = runScheduler(newState.tasks, newState.links, newState.columns);
+            
+            return { ...newState, tasks: scheduledTasks };
+
+          } catch (error) {
+              console.error("Failed to load project state:", error);
+              return state;
+          }
       }
       default:
         return state;
