@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from "@/components/ui/button";
-import { Filter } from "lucide-react";
 import { ColumnSelector } from '@/components/layout/column-selector';
-import type { ColumnSpec, UiDensity, View } from "@/lib/types";
+import type { ColumnSpec, UiDensity, View, Filter } from "@/lib/types";
 import { Separator } from "../ui/separator";
 import { DensitySelector } from "./density-selector";
 import { GroupingManager } from "./grouping-manager";
+import { FilterManager } from "./filter-manager";
 import { ViewManager } from "./view-manager";
 
 export function ViewOptions({
@@ -15,7 +15,9 @@ export function ViewOptions({
     dispatch,
     uiDensity,
     grouping,
+    filters,
     onOpenGroupingDialog,
+    onOpenFilterDialog,
     views,
     currentViewId,
     isDirty,
@@ -25,7 +27,9 @@ export function ViewOptions({
     dispatch: any;
     uiDensity: UiDensity;
     grouping: string[];
+    filters: Filter[];
     onOpenGroupingDialog: () => void;
+    onOpenFilterDialog: () => void;
     views: View[];
     currentViewId: string | null;
     isDirty?: boolean;
@@ -37,10 +41,7 @@ export function ViewOptions({
             <h3 className="text-sm font-semibold mb-2 px-2 text-muted-foreground">DISPLAY OPTIONS</h3>
             <div className="flex flex-col gap-1">
                 <ColumnSelector visibleColumns={visibleColumns} columns={columns} dispatch={dispatch} />
-                <Button variant="ghost" className="w-full justify-start gap-2" disabled>
-                    <Filter className="h-4 w-4" />
-                    Filter
-                </Button>
+                <FilterManager filters={filters} onOpenFilterDialog={onOpenFilterDialog} />
                 <GroupingManager onOpenGroupingDialog={onOpenGroupingDialog} />
             </div>
             <Separator className="my-2" />

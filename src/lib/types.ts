@@ -98,8 +98,15 @@ export interface ColumnSpec {
   id: string;
   name: string;
   width: number;
-  type?: 'text' | 'number' | 'selection';
+  type?: 'text' | 'number' | 'selection' | 'date';
   options?: string[];
+}
+
+export interface Filter {
+  id: string;
+  columnId: string;
+  operator: string;
+  value: any;
 }
 
 export interface View {
@@ -107,6 +114,7 @@ export interface View {
   name: string;
   grouping: string[];
   visibleColumns: string[];
+  filters: Filter[];
 }
 
 export interface ProjectState {
@@ -123,6 +131,7 @@ export interface ProjectState {
     columns: ColumnSpec[];
     uiDensity: UiDensity;
     grouping: string[];
+    filters: Filter[];
     views: View[];
     currentViewId: string | null;
     isDirty?: boolean;

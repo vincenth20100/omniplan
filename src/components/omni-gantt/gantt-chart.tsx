@@ -1,10 +1,10 @@
 'use client';
-import type { ProjectState, UiDensity, Task, Link, ColumnSpec, Assignment, Resource } from '@/lib/types';
+import type { ProjectState, UiDensity, Task, Link, ColumnSpec, Assignment, Resource, Filter } from '@/lib/types';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { TaskTable } from './task-table';
 import { Timeline } from './timeline';
 import React, { useRef, useCallback, useMemo, useState } from 'react';
-import { format } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { addDays, min } from 'date-fns';
 
 export type GroupRow = {
@@ -49,109 +49,222 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         }
     }, []);
 
-    const { tasks, links, resources, assignments, columns, grouping } = projectState;
+    const { tasks, links, resources, assignments, columns, grouping, filters } = projectState;
     const resourceMap = useMemo(() => new Map(resources.map(r => [r.id, r.name])), [resources]);
 
-    const getTaskPropertyValue = useCallback((task: Task, columnId: string): string => {
+    const getRawTaskPropertyValue = useCallback((task: Task, columnId: string): any => {
         const column = columns.find(c => c.id === columnId);
-        if (!column) return 'None';
+        if (!column) return null;
         
         switch (column.id) {
             case 'resourceNames': {
                 const taskAssignments = assignments.filter(a => a.taskId === task.id);
                 const resourceNames = taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
-                return resourceNames || 'Unassigned';
+                return resourceNames || null;
             }
             case 'constraintType': 
-                return task.constraintType || 'None';
+                return task.constraintType || null;
             case 'cost': 
-                return String(task.cost || 0);
+                return task.cost || 0;
             case 'duration':
-                return `${task.duration} day(s)`;
+                return task.duration;
             case 'start':
-                return format(task.start, 'MMM d, yyyy');
+                return task.start;
             case 'finish':
-                return format(task.finish, 'MMM d, yyyy');
+                return task.finish;
             case 'percentComplete':
-                return `${task.percentComplete}%`;
+                return task.percentComplete;
             case 'constraintDate':
-                return task.constraintDate ? format(task.constraintDate, 'MMM d, yyyy') : 'None';
+                return task.constraintDate || null;
+            case 'name':
+                return task.name;
             default:
                 if (column.id.startsWith('custom-')) {
-                    return String(task.customAttributes?.[column.id] || 'None');
+                    return task.customAttributes?.[column.id] || null;
                 }
-                return 'N/A';
+                return null;
         }
     }, [columns, assignments, resourceMap]);
 
+    const getTaskPropertyValue = useCallback((task: Task, columnId: string): string => {
+        const rawValue = getRawTaskPropertyValue(task, columnId);
+        const column = columns.find(c => c.id === columnId);
+        if (rawValue === null || rawValue === undefined) return 'None';
+
+        const dateColumns = ['start', 'finish', 'constraintDate'];
+        if (dateColumns.includes(columnId) && rawValue) {
+            return format(new Date(rawValue), 'MMM d, yyyy');
+        }
+
+        if (column?.id === 'duration') return `${rawValue} day(s)`;
+        if (column?.id === 'percentComplete') return `${rawValue}%`;
+        
+        return String(rawValue);
+    }, [getRawTaskPropertyValue, columns]);
+
     const renderableRows: RenderableRow[] = useMemo(() => {
         const taskMap = new Map(tasks.map(t => [t.id, t]));
+
+        const checkCondition = (rawValue: any, operator: string, filterValue: any, columnType?: 'text' | 'number' | 'selection' | 'date'): boolean => {
+            if (operator === 'is_empty') {
+                return rawValue === null || rawValue === undefined || rawValue === '';
+            }
+            if (operator === 'is_not_empty') {
+                return rawValue !== null && rawValue !== undefined && rawValue !== '';
+            }
+            if (rawValue === null || rawValue === undefined || rawValue === '') {
+                return false;
+            }
         
+            switch (columnType) {
+                case 'number': {
+                    const numValue = parseFloat(rawValue);
+                    const numFilterValue = parseFloat(filterValue);
+                    if (isNaN(numValue) || isNaN(numFilterValue)) return false;
+                    switch (operator) {
+                        case 'equals': return numValue === numFilterValue;
+                        case 'not_equals': return numValue !== numFilterValue;
+                        case 'gt': return numValue > numFilterValue;
+                        case 'lt': return numValue < numFilterValue;
+                        case 'gte': return numValue >= numFilterValue;
+                        case 'lte': return numValue <= numFilterValue;
+                        default: return false;
+                    }
+                }
+                case 'date': {
+                    const dateValue = startOfDay(new Date(rawValue)).getTime();
+                    const dateFilterValue = startOfDay(new Date(filterValue)).getTime();
+                    if (isNaN(dateValue) || isNaN(dateFilterValue)) return false;
+                     switch (operator) {
+                        case 'equals': return dateValue === dateFilterValue;
+                        case 'not_equals': return dateValue !== dateFilterValue;
+                        case 'gt': return dateValue > dateFilterValue;
+                        case 'lt': return dateValue < dateFilterValue;
+                        case 'gte': return dateValue >= dateFilterValue;
+                        case 'lte': return dateValue <= dateFilterValue;
+                        default: return false;
+                    }
+                }
+                case 'selection': {
+                     switch (operator) {
+                        case 'equals': return rawValue === filterValue;
+                        case 'not_equals': return rawValue !== filterValue;
+                        default: return false;
+                     }
+                }
+                case 'text':
+                default: {
+                    const textValue = String(rawValue).toLowerCase();
+                    const textFilterValue = String(filterValue).toLowerCase();
+                     switch (operator) {
+                        case 'contains': return textValue.includes(textFilterValue);
+                        case 'not_contains': return !textValue.includes(textFilterValue);
+                        case 'equals': return textValue === textFilterValue;
+                        case 'not_equals': return textValue !== textFilterValue;
+                        default: return false;
+                     }
+                }
+            }
+        }
+
+        let filteredTaskIds = new Set(tasks.map(t => t.id));
+
+        if (filters && filters.length > 0) {
+            const matchingTaskIds = new Set<string>();
+
+            tasks.forEach(task => {
+                if (task.isSummary) return;
+
+                const isMatch = filters.every(filter => {
+                    const rawValue = getRawTaskPropertyValue(task, filter.columnId);
+                    const column = columns.find(c => c.id === filter.columnId);
+                    
+                    let type = column?.type;
+                    if (['start', 'finish', 'constraintDate'].includes(filter.columnId)) {
+                        type = 'date';
+                    }
+
+                    return checkCondition(rawValue, filter.operator, filter.value, type);
+                });
+                
+                if (isMatch) {
+                    matchingTaskIds.add(task.id);
+                }
+            });
+
+            filteredTaskIds = new Set();
+            matchingTaskIds.forEach(id => {
+                let current = taskMap.get(id);
+                while(current) {
+                    filteredTaskIds.add(current.id);
+                    current = current.parentId ? taskMap.get(current.parentId) : undefined;
+                }
+            });
+        }
+        
+        const finalTasks = tasks.filter(t => filteredTaskIds.has(t.id));
+
         const getVisibleHierarchicalTasks = (): Task[] => {
-            return tasks.filter(task => {
+            return finalTasks.filter(task => {
                 if (!task.parentId) return true;
                 let parent = taskMap.get(task.parentId);
                 while(parent) {
-                    if (parent.isCollapsed) return false;
+                    if (parent.isCollapsed && filteredTaskIds.has(parent.id)) return false;
                     parent = taskMap.get(parent.parentId || '');
                 }
                 return true;
             });
         };
         
-        if (grouping.length === 0) {
-            return getVisibleHierarchicalTasks().map(task => ({ itemType: 'task', data: task, displayLevel: task.level || 0 }));
-        }
-
-        const finalRows: RenderableRow[] = [];
-        
-        const groupRecursively = (tasksToGroup: Task[], groupLevel: number) => {
-            if (groupLevel >= grouping.length) {
-                tasksToGroup.forEach(task => {
-                    finalRows.push({ itemType: 'task', data: task, displayLevel: groupLevel });
-                });
-                return;
-            }
-
-            const groupField = grouping[groupLevel];
-            const grouped = new Map<string, Task[]>();
-
-            for (const task of tasksToGroup) {
-                const groupValue = getTaskPropertyValue(task, groupField);
-                if (!grouped.has(groupValue)) {
-                    grouped.set(groupValue, []);
+        if (grouping.length > 0) {
+            const finalRows: RenderableRow[] = [];
+            const groupRecursively = (tasksToGroup: Task[], groupLevel: number) => {
+                if (groupLevel >= grouping.length) {
+                    tasksToGroup.forEach(task => {
+                        finalRows.push({ itemType: 'task', data: task, displayLevel: groupLevel });
+                    });
+                    return;
                 }
-                grouped.get(groupValue)!.push(task);
-            }
-
-            const sortedGroupKeys = Array.from(grouped.keys()).sort();
-
-            for (const key of sortedGroupKeys) {
-                const groupTasks = grouped.get(key)!;
-                const groupColumn = columns.find(c => c.id === groupField);
-                const groupId = `group-${groupLevel}-${key}`;
-                const isCollapsed = collapsedGroups[groupId] || false;
-
-                finalRows.push({
-                    itemType: 'group',
-                    name: `${groupColumn?.name}: ${key}`,
-                    level: groupLevel,
-                    id: groupId,
-                    childCount: groupTasks.length,
-                    isCollapsed: isCollapsed,
-                });
-                
-                if (!isCollapsed) {
-                    groupRecursively(groupTasks, groupLevel + 1);
+    
+                const groupField = grouping[groupLevel];
+                const grouped = new Map<string, Task[]>();
+    
+                for (const task of tasksToGroup) {
+                    const groupValue = getTaskPropertyValue(task, groupField);
+                    if (!grouped.has(groupValue)) {
+                        grouped.set(groupValue, []);
+                    }
+                    grouped.get(groupValue)!.push(task);
+                }
+    
+                const sortedGroupKeys = Array.from(grouped.keys()).sort();
+    
+                for (const key of sortedGroupKeys) {
+                    const groupTasks = grouped.get(key)!;
+                    const groupColumn = columns.find(c => c.id === groupField);
+                    const groupId = `group-${groupLevel}-${key}`;
+                    const isCollapsed = collapsedGroups[groupId] || false;
+    
+                    finalRows.push({
+                        itemType: 'group',
+                        name: `${groupColumn?.name}: ${key}`,
+                        level: groupLevel,
+                        id: groupId,
+                        childCount: groupTasks.length,
+                        isCollapsed: isCollapsed,
+                    });
+                    
+                    if (!isCollapsed) {
+                        groupRecursively(groupTasks, groupLevel + 1);
+                    }
                 }
             }
+            groupRecursively(finalTasks, 0);
+            return finalRows;
+        } else {
+             return getVisibleHierarchicalTasks().map(task => ({ itemType: 'task', data: task, displayLevel: task.level || 0 }));
         }
-        
-        groupRecursively(tasks, 0);
-        
-        return finalRows;
-
-    }, [tasks, grouping, collapsedGroups, columns, assignments, getTaskPropertyValue, resourceMap]);
+    }, [tasks, filters, grouping, collapsedGroups, getRawTaskPropertyValue, getTaskPropertyValue, columns, assignments, resourceMap]);
     
     const timelineTasks = useMemo(() => 
         renderableRows.filter((r): r is TaskRow => r.itemType === 'task').map(r => r.data)

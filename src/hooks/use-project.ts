@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState, useRef } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
@@ -12,14 +12,14 @@ const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
     { id: 'name', name: 'Task Name', defaultWidth: 250, type: 'text' },
     { id: 'resourceNames', name: 'Resource Names', defaultWidth: 150, type: 'text' },
     { id: 'duration', name: 'Duration', defaultWidth: 80, type: 'number' },
-    { id: 'start', name: 'Start', defaultWidth: 110, type: 'text' }, // It's a date, but handled as custom cell. 'text' is fine for type.
-    { id: 'finish', name: 'Finish', defaultWidth: 110, type: 'text' },
+    { id: 'start', name: 'Start', defaultWidth: 110, type: 'date' },
+    { id: 'finish', name: 'Finish', defaultWidth: 110, type: 'date' },
     { id: 'cost', name: 'Cost', defaultWidth: 100, type: 'number' },
     { id: 'predecessors', name: 'Predecessors', defaultWidth: 120, type: 'text' },
     { id: 'successors', name: 'Successors', defaultWidth: 120, type: 'text' },
     { id: 'percentComplete', name: '% Complete', defaultWidth: 80, type: 'number' },
     { id: 'constraintType', name: 'Constraint Type', defaultWidth: 110, type: 'selection', options: ['Start No Earlier Than', 'Must Start On'] },
-    { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110, type: 'text' },
+    { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110, type: 'date' },
 ];
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, name: c.name, width: c.defaultWidth, type: c.type, options: c.options }));
@@ -27,7 +27,7 @@ const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, name: c.n
 const initialVisibleColumns = ['wbs', 'name', 'resourceNames', 'duration', 'start', 'finish', 'cost', 'predecessors', 'successors'];
 
 const defaultViews: View[] = [
-    { id: 'default', name: 'Default View', grouping: [], visibleColumns: initialVisibleColumns }
+    { id: 'default', name: 'Default View', grouping: [], visibleColumns: initialVisibleColumns, filters: [] }
 ];
 
 const initialState: ProjectState = {
@@ -44,6 +44,7 @@ const initialState: ProjectState = {
   columns: initialColumns,
   uiDensity: 'compact',
   grouping: [],
+  filters: [],
   views: defaultViews,
   currentViewId: 'default',
   isDirty: false,
@@ -86,6 +87,7 @@ type Action =
   | { type: 'NEW_PROJECT' }
   | { type: 'LOAD_PROJECT', payload: ProjectState }
   | { type: 'SET_GROUPING', payload: string[] }
+  | { type: 'SET_FILTERS', payload: Filter[] }
   | { type: 'SET_VIEW', payload: { viewId: string } }
   | { type: 'SAVE_VIEW_AS', payload: { name: string } }
   | { type: 'UPDATE_CURRENT_VIEW' }
@@ -748,6 +750,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             visibleColumns: initialVisibleColumns,
             uiDensity: state.uiDensity,
             views: defaultViews,
+            filters: [],
             currentViewId: 'default',
             isDirty: false,
             activeCell: null,
@@ -792,6 +795,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 columns: loadedState.columns || state.columns,
                 visibleColumns: loadedState.visibleColumns || initialVisibleColumns,
                 views: loadedState.views || defaultViews,
+                filters: loadedState.filters || [],
                 currentViewId: loadedState.currentViewId || 'default',
                 isDirty: false,
                 activeCell: null,
@@ -807,6 +811,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       }
       case 'SET_GROUPING':
         return { ...state, grouping: action.payload, isDirty: true };
+      case 'SET_FILTERS':
+        return { ...state, filters: action.payload, isDirty: true };
       case 'SET_VIEW': {
         const view = state.views.find(v => v.id === action.payload.viewId);
         if (view) {
@@ -815,6 +821,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 currentViewId: view.id,
                 grouping: view.grouping,
                 visibleColumns: view.visibleColumns,
+                filters: view.filters || [],
                 isDirty: false,
             };
         }
@@ -827,6 +834,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             name,
             grouping: state.grouping,
             visibleColumns: state.visibleColumns,
+            filters: state.filters,
         };
         const newViews = [...state.views, newView];
         return { ...state, views: newViews, currentViewId: newView.id, isDirty: false };
@@ -836,7 +844,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         const newViews = state.views.map(v => 
             v.id === state.currentViewId 
-            ? { ...v, grouping: state.grouping, visibleColumns: state.visibleColumns }
+            ? { ...v, grouping: state.grouping, visibleColumns: state.visibleColumns, filters: state.filters }
             : v
         );
         return { ...state, views: newViews, isDirty: false };
@@ -849,12 +857,14 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         let newCurrentViewId = state.currentViewId;
         let newGrouping = state.grouping;
         let newVisibleColumns = state.visibleColumns;
+        let newFilters = state.filters;
 
         if (state.currentViewId === viewId) {
             newCurrentViewId = 'default';
             const defaultView = newViews.find(v => v.id === 'default') ?? defaultViews[0];
             newGrouping = defaultView.grouping;
             newVisibleColumns = defaultView.visibleColumns;
+            newFilters = defaultView.filters || [];
         }
         
         return { 
@@ -863,6 +873,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             currentViewId: newCurrentViewId,
             grouping: newGrouping,
             visibleColumns: newVisibleColumns,
+            filters: newFilters,
             isDirty: false
         };
       }
@@ -962,41 +973,38 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         const tasksToChange = new Set<string>();
 
+        // If tasks are selected, find all summary tasks within the selection and their descendants.
         if (selectedTaskIds.length > 0) {
-            const descendantIds = new Set<string>();
+            const taskMap = new Map(tasks.map(t => [t.id, t]));
             const queue: string[] = [...selectedTaskIds];
-            const visited = new Set<string>(); // To prevent infinite loops
+            const visited = new Set<string>();
 
-            while (queue.length > 0) {
+            while(queue.length > 0) {
                 const currentId = queue.shift()!;
-                if (visited.has(currentId)) continue;
+                if(visited.has(currentId)) continue;
                 visited.add(currentId);
 
-                // Add children of currentId to the queue
+                const task = taskMap.get(currentId);
+                if (task && task.isSummary) {
+                    tasksToChange.add(currentId);
+                }
+
                 tasks.forEach(t => {
                     if (t.parentId === currentId) {
                         queue.push(t.id);
-                        descendantIds.add(t.id);
                     }
                 });
             }
-            
-            tasks.forEach(task => {
-                if (task.isSummary && (selectedTaskIds.includes(task.id) || descendantIds.has(task.id))) {
-                    tasksToChange.add(task.id);
-                }
-            });
-
         } else {
-            // No selection, apply to all summary tasks
+            // No selection, apply to all summary tasks in the project.
             tasks.forEach(task => {
                 if (task.isSummary) {
                     tasksToChange.add(task.id);
                 }
             });
         }
-
-        if (tasksToChange.size === 0) return state; // No change needed
+        
+        if (tasksToChange.size === 0) return state;
 
         const newTasks = tasks.map(task => {
           if (tasksToChange.has(task.id)) {

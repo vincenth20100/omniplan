@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { ResourceManagementDialog } from '@/components/resources/resource-management-dialog';
 import { CalendarManagementDialog } from '@/components/calendars/calendar-management-dialog';
 import { GroupingDialog } from '@/components/view-options/grouping-dialog';
+import { FilterDialog } from '@/components/view-options/filter-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function Home() {
@@ -23,6 +24,7 @@ export default function Home() {
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const isMobile = useIsMobile();
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
@@ -74,7 +76,9 @@ export default function Home() {
             dispatch={dispatch}
             uiDensity={state.uiDensity}
             grouping={state.grouping}
+            filters={state.filters}
             onOpenGroupingDialog={() => setIsGroupingDialogOpen(true)}
+            onOpenFilterDialog={() => setIsFilterDialogOpen(true)}
             views={state.views}
             currentViewId={state.currentViewId}
             isDirty={state.isDirty}
@@ -108,11 +112,11 @@ export default function Home() {
             <Outdent className="h-4 w-4" />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
-        <Button variant="outline" size="sm" onClick={handleCollapseAll} disabled={state.grouping.length > 0}>
-            <ChevronsUp className="h-4 w-4" />
+        <Button variant="outline" size="icon" onClick={handleCollapseAll} disabled={state.grouping.length > 0}>
+            <ChevronsUp />
         </Button>
-        <Button variant="outline" size="sm" onClick={handleExpandAll} disabled={state.grouping.length > 0}>
-            <ChevronsDown className="h-4 w-4" />
+        <Button variant="outline" size="icon" onClick={handleExpandAll} disabled={state.grouping.length > 0}>
+            <ChevronsDown />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
         <Button variant="outline" size="sm" onClick={() => setIsResourceDialogOpen(true)}>
@@ -144,7 +148,7 @@ export default function Home() {
       headerLeftActions={headerLeftActions}
       headerRightActions={headerRightActions}
     >
-      <div className="flex-1 flex flex-col h-full min-w-0">
+      <main className="flex-1 flex flex-col h-full min-w-0">
         {isLoaded ? (
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>
@@ -171,7 +175,7 @@ export default function Home() {
             <p>Loading Project...</p>
           </div>
         )}
-      </div>
+      </main>
       {isLoaded && (
         <>
           <ResourceManagementDialog
@@ -190,6 +194,13 @@ export default function Home() {
             open={isGroupingDialogOpen}
             onOpenChange={setIsGroupingDialogOpen}
             grouping={state.grouping}
+            columns={state.columns}
+            dispatch={dispatch}
+          />
+          <FilterDialog
+            open={isFilterDialogOpen}
+            onOpenChange={setIsFilterDialogOpen}
+            filters={state.filters}
             columns={state.columns}
             dispatch={dispatch}
           />
