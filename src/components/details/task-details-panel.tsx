@@ -42,16 +42,16 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                 </Button>
             </div>
             <div className={cn(
-                "flex-grow overflow-auto grid grid-cols-1 gap-4",
+                "flex-grow overflow-auto grid grid-cols-1 lg:grid-cols-2 gap-4",
                  uiDensity === 'large' && 'p-4',
                  uiDensity === 'medium' && 'p-3',
                  uiDensity === 'compact' && 'p-2'
             )}>
-                 <div className="flex flex-col gap-2">
+                 <div className="flex flex-col gap-2 min-w-0">
                     <h3 className="text-md font-semibold">Predecessors</h3>
                     <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
                 </div>
-                 <div className="flex flex-col gap-2">
+                 <div className="flex flex-col gap-2 min-w-0">
                     <h3 className="text-md font-semibold">Successors</h3>
                     <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
                 </div>
