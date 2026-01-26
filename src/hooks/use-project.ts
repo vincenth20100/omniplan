@@ -21,7 +21,7 @@ const ALL_COLUMNS = [
     { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110 },
 ];
 
-const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, width: c.defaultWidth }));
+const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, name: c.name, width: c.defaultWidth }));
 const initialVisibleColumns = ['wbs', 'name', 'resourceNames', 'duration', 'start', 'finish', 'cost', 'predecessors', 'successors'];
 
 const initialState: ProjectState = {
@@ -67,7 +67,8 @@ type Action =
   | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } }
   | { type: 'ADD_CALENDAR' }
   | { type: 'REMOVE_CALENDAR', payload: { calendarId: string } }
-  | { type: 'UPDATE_CALENDAR', payload: Partial<Calendar> & { id: string } };
+  | { type: 'UPDATE_CALENDAR', payload: Partial<Calendar> & { id: string } }
+  | { type: 'ADD_COLUMN' };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -642,6 +643,18 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
           cal.id === id ? { ...cal, ...updates } : cal
         );
         return { ...state, calendars: newCalendars };
+      }
+      case 'ADD_COLUMN': {
+        const customColCount = state.columns.filter(c => c.id.startsWith('custom-')).length;
+        const newColumn: ColumnSpec = {
+            id: `custom-${customColCount + 1}`,
+            name: `Custom Column ${customColCount + 1}`,
+            width: 150,
+        };
+        const newColumns = [...state.columns, newColumn];
+        const newVisibleColumns = [...state.visibleColumns, newColumn.id];
+        
+        return { ...state, columns: newColumns, visibleColumns: newVisibleColumns };
       }
       default:
         return state;

@@ -45,7 +45,8 @@ export default function Home() {
       <Separator className="my-2" />
       {isLoaded && state.visibleColumns && (
         <ViewOptions 
-            visibleColumns={state.visibleColumns} 
+            visibleColumns={state.visibleColumns}
+            columns={state.columns}
             dispatch={dispatch}
             uiDensity={state.uiDensity}
         />

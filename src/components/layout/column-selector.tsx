@@ -3,32 +3,22 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button";
-import { Columns3 } from "lucide-react";
-import type { ProjectState } from "@/lib/types";
-
-const ALL_COLUMNS = [
-    { id: 'wbs', name: 'WBS' },
-    { id: 'name', name: 'Task Name' },
-    { id: 'predecessors', name: 'Predecessors' },
-    { id: 'successors', name: 'Successors' },
-    { id: 'duration', name: 'Duration' },
-    { id: 'start', name: 'Start' },
-    { id: 'finish', name: 'Finish' },
-    { id: 'percentComplete', name: '% Complete' },
-    { id: 'constraintType', name: 'Constraint Type' },
-    { id: 'constraintDate', name: 'Constraint Date' },
-];
+import { Columns3, Plus } from "lucide-react";
+import type { ColumnSpec } from "@/lib/types";
 
 export function ColumnSelector({
     visibleColumns,
+    columns,
     dispatch,
 }: {
     visibleColumns: string[];
+    columns: ColumnSpec[];
     dispatch: any;
 }) {
     const handleCheckedChange = (columnId: string, checked: boolean) => {
@@ -37,6 +27,10 @@ export function ColumnSelector({
             : visibleColumns.filter(c => c !== columnId);
         dispatch({ type: 'SET_COLUMNS', payload: newVisibleColumns });
     };
+
+    const handleAddColumn = () => {
+        dispatch({ type: 'ADD_COLUMN' });
+    }
 
     return (
         <DropdownMenu>
@@ -49,7 +43,7 @@ export function ColumnSelector({
             <DropdownMenuContent className="w-56">
                 <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {ALL_COLUMNS.map(column => (
+                {columns.map(column => (
                     <DropdownMenuCheckboxItem
                         key={column.id}
                         checked={visibleColumns.includes(column.id)}
@@ -58,6 +52,11 @@ export function ColumnSelector({
                         {column.name}
                     </DropdownMenuCheckboxItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleAddColumn}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    <span>New Column</span>
+                </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
     );

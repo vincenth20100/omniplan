@@ -439,6 +439,35 @@ export function TaskTable({
         }},
     };
 
+    columns.forEach(col => {
+        if (col.id.startsWith('custom-') && !columnDefinitions[col.id]) {
+            columnDefinitions[col.id] = {
+                name: col.name,
+                render: (task) => {
+                    if (task.isSummary) return '';
+                    return (
+                        <EditableCell
+                            value={task.customAttributes?.[col.id] || ''}
+                            onSave={(newValue) => {
+                                dispatch({
+                                    type: 'UPDATE_TASK',
+                                    payload: {
+                                        id: task.id,
+                                        customAttributes: {
+                                            ...(task.customAttributes || {}),
+                                            [col.id]: newValue
+                                        }
+                                    }
+                                });
+                            }}
+                            className="w-full"
+                        />
+                    );
+                }
+            }
+        }
+    });
+
     const orderedAndVisibleColumns = React.useMemo(() => {
         return columns.filter(c => visibleColumns.includes(c.id));
     }, [columns, visibleColumns]);

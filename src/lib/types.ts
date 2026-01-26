@@ -79,6 +79,7 @@ export interface Assignment {
 
 export interface ColumnSpec {
   id: string;
+  name: string;
   width: number;
 }
 
