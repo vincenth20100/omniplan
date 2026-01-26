@@ -23,6 +23,7 @@ export function ColumnSelector({
     columns: ColumnSpec[];
     dispatch: any;
 }) {
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
     const [pendingAction, setPendingAction] = useState<{ type: string, payload: any } | null>(null);
@@ -58,11 +59,13 @@ export function ColumnSelector({
     const handleOpenNew = () => {
         setEditingColumn(null);
         setIsConfigOpen(true);
+        setIsMenuOpen(false); // Explicitly close the menu
     }
     
     const handleOpenEdit = (col: ColumnSpec) => {
         setEditingColumn(col);
         setIsConfigOpen(true);
+        setIsMenuOpen(false); // Explicitly close the menu
     }
     
     const handleDialogClose = (open: boolean) => {
@@ -74,7 +77,7 @@ export function ColumnSelector({
 
     return (
         <>
-            <DropdownMenu>
+            <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="w-full justify-start gap-2">
                         <Columns3 className="h-4 w-4" />
