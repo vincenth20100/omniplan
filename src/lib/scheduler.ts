@@ -5,61 +5,69 @@ import { startOfDay, min, max } from 'date-fns';
 function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpec[]): Task[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
     let changed = true;
-    let iterations = 0; // safety break for potential infinite loops
+    let iterations = 0;
 
-    while(changed && iterations < 10) {
+    while (changed && iterations < 20) { // Increased safety break
         changed = false;
         iterations++;
         
         for (const task of taskMap.values()) {
-            if (task.isSummary) {
-                const children = Array.from(taskMap.values()).filter(t => t.parentId === task.id);
+            if (!task.isSummary) continue;
+
+            const children = Array.from(taskMap.values()).filter(t => t.parentId === task.id);
+            
+            if (children.length > 0) {
+                const oldStartMs = task.start?.getTime();
+                const oldFinishMs = task.finish?.getTime();
+                const oldCost = task.cost;
+                const oldPercentComplete = task.percentComplete;
+                const oldCustomAttributes = JSON.stringify(task.customAttributes || {});
+
+                const newStart = min(children.map(c => c.start));
+                const newFinish = max(children.map(c => c.finish));
+                const newDuration = calendarService.getWorkingDaysDuration(newStart, newFinish);
+                const newCost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
                 
-                if (children.length > 0 && children.every(c => c.start && c.finish)) {
-                    const oldStartMs = task.start?.getTime();
-                    const oldFinishMs = task.finish?.getTime();
-                    const oldCost = task.cost;
-                    
-                    const newStart = min(children.map(c => c.start));
-                    const newFinish = max(children.map(c => c.finish));
-                    const newCost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
+                const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
+                const childrenWeightedComplete = children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0);
+                const newPercentComplete = childrenTotalDuration > 0 ? Math.round(childrenWeightedComplete / childrenTotalDuration) : 0;
+                
+                const newCustomAttributes = { ...(task.customAttributes || {}) };
+                if (columns) {
+                    const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
+                    for (const col of numberColumns) {
+                        const sum = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
+                        newCustomAttributes[col.id] = sum;
+                    }
+                }
+                
+                if (newStart.getTime() !== oldStartMs || newFinish.getTime() !== oldFinishMs || newCost !== oldCost || newPercentComplete !== oldPercentComplete || JSON.stringify(newCustomAttributes) !== oldCustomAttributes) {
+                    task.start = newStart;
+                    task.finish = newFinish;
+                    task.duration = newDuration;
+                    task.cost = newCost;
+                    task.percentComplete = newPercentComplete;
+                    task.customAttributes = newCustomAttributes;
+                    taskMap.set(task.id, task);
+                    changed = true;
+                }
+            } else { // Summary task with no children
+                const oldCustomAttributes = JSON.stringify(task.customAttributes || {});
+                const newCustomAttributes = { ...(task.customAttributes || {}) };
+                if (columns) {
+                     const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
+                     for (const col of numberColumns) {
+                         newCustomAttributes[col.id] = 0;
+                     }
+                }
 
-                    const newCustomAttributes = { ...(task.customAttributes || {}) };
-                    let customAttrChanged = false;
-                    
-                    if (columns) {
-                      const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
-                      for (const col of numberColumns) {
-                          const sum = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
-                          if (newCustomAttributes[col.id] !== sum) {
-                              newCustomAttributes[col.id] = sum;
-                              customAttrChanged = true;
-                          }
-                      }
-                    }
-
-                    if (newStart.getTime() !== oldStartMs || newFinish.getTime() !== oldFinishMs || newCost !== oldCost || customAttrChanged) {
-                        task.start = newStart;
-                        task.finish = newFinish;
-                        task.duration = calendarService.getWorkingDaysDuration(newStart, newFinish);
-                        task.cost = newCost;
-                        task.customAttributes = newCustomAttributes;
-                        
-                        const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
-                        const childrenWeightedComplete = children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0);
-                        task.percentComplete = childrenTotalDuration > 0 ? Math.round(childrenWeightedComplete / childrenTotalDuration) : 0;
-                        
-                        taskMap.set(task.id, task);
-                        changed = true;
-                    }
-                } else if (children.length === 0) {
-                    if (task.duration !== 0 || task.percentComplete !== 0 || task.cost !== 0) {
-                        task.duration = 0;
-                        task.percentComplete = 0;
-                        task.cost = 0;
-                        taskMap.set(task.id, task);
-                        changed = true;
-                    }
+                if (task.duration !== 0 || task.percentComplete !== 0 || task.cost !== 0 || JSON.stringify(newCustomAttributes) !== oldCustomAttributes) {
+                    task.duration = 0;
+                    task.percentComplete = 0;
+                    task.cost = 0;
+                    task.customAttributes = newCustomAttributes;
+                    taskMap.set(task.id, task);
+                    changed = true;
                 }
             }
         }
