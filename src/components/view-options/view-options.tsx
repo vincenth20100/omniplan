@@ -42,7 +42,7 @@ export function ViewOptions({
             <div className="flex flex-col gap-1">
                 <ColumnSelector visibleColumns={visibleColumns} columns={columns} dispatch={dispatch} />
                 <FilterManager filters={filters} onOpenFilterDialog={onOpenFilterDialog} />
-                <GroupingManager onOpenGroupingDialog={onOpenGroupingDialog} />
+                <GroupingManager grouping={grouping} onOpenGroupingDialog={onOpenGroupingDialog} />
             </div>
             <Separator className="my-2" />
             <DensitySelector density={uiDensity} dispatch={dispatch} />

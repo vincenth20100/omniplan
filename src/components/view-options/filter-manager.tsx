@@ -7,7 +7,7 @@ import type { Filter as FilterType } from '@/lib/types';
 export function FilterManager({ filters, onOpenFilterDialog }: { filters: FilterType[], onOpenFilterDialog: () => void }) {
     const filterCount = filters.length;
     return (
-        <Button variant="ghost" className="w-full justify-start gap-2" onClick={onOpenFilterDialog}>
+        <Button variant={filterCount > 0 ? "secondary" : "ghost"} className="w-full justify-start gap-2" onClick={onOpenFilterDialog}>
             <Filter className="h-4 w-4" />
             Filter
             {filterCount > 0 && (

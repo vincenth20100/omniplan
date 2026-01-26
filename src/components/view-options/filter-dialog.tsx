@@ -18,6 +18,7 @@ import { ViewManager } from "./view-manager";
 import { Separator } from "../ui/separator";
 
 type Operator =
+  | 'none'
   | 'contains' | 'not_contains'
   | 'equals' | 'not_equals'
   | 'gt' | 'lt' | 'gte' | 'lte'
@@ -25,6 +26,7 @@ type Operator =
 
 const OPERATORS: { [key in ColumnSpec['type'] | 'default' | 'date']: { value: Operator; label: string }[] } = {
   text: [
+    { value: 'none', label: 'None' },
     { value: 'contains', label: 'contains' },
     { value: 'not_contains', label: 'does not contain' },
     { value: 'equals', label: 'is' },
@@ -33,6 +35,7 @@ const OPERATORS: { [key in ColumnSpec['type'] | 'default' | 'date']: { value: Op
     { value: 'is_not_empty', label: 'is not empty' },
   ],
   number: [
+    { value: 'none', label: 'None' },
     { value: 'equals', label: '=' },
     { value: 'not_equals', label: '!=' },
     { value: 'gt', label: '>' },
@@ -43,6 +46,7 @@ const OPERATORS: { [key in ColumnSpec['type'] | 'default' | 'date']: { value: Op
     { value: 'is_not_empty', label: 'is not empty' },
   ],
   date: [
+    { value: 'none', label: 'None' },
     { value: 'equals', label: 'is on' },
     { value: 'not_equals', label: 'is not on' },
     { value: 'gt', label: 'is after' },
@@ -53,10 +57,12 @@ const OPERATORS: { [key in ColumnSpec['type'] | 'default' | 'date']: { value: Op
     { value: 'is_not_empty', label: 'is not empty' },
   ],
   selection: [
-      { value: 'equals', label: 'is' },
-      { value: 'not_equals', label: 'is not' },
+    { value: 'none', label: 'None' },
+    { value: 'equals', label: 'is' },
+    { value: 'not_equals', label: 'is not' },
   ],
   default: [
+    { value: 'none', label: 'None' },
     { value: 'contains', label: 'contains' },
     { value: 'not_contains', label: 'does not contain' },
   ],
@@ -103,7 +109,7 @@ export function FilterDialog({
         const newFilter: FilterType = {
             id: `filter-${Date.now()}`,
             columnId: firstColumn.id,
-            operator: 'contains',
+            operator: 'none',
             value: ''
         };
         setCurrentFilters([...currentFilters, newFilter]);
@@ -118,13 +124,13 @@ export function FilterDialog({
     };
     
     const handleApply = () => {
-        dispatch({ type: 'SET_FILTERS', payload: currentFilters });
+        dispatch({ type: 'SET_FILTERS', payload: currentFilters.filter(f => f.operator !== 'none') });
         onOpenChange(false);
     };
     
     const renderFilterValueInput = (filter: FilterType) => {
         const column = columns.find(c => c.id === filter.columnId);
-        if (!column || filter.operator === 'is_empty' || filter.operator === 'is_not_empty') {
+        if (!column || filter.operator === 'is_empty' || filter.operator === 'is_not_empty' || filter.operator === 'none') {
             return <div className="w-[180px]" />;
         }
         
