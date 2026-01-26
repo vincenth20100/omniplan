@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from "@/components/ui/button";
-import { FilePlus, FolderOpen, Save, FileDown } from "lucide-react";
+import { FilePlus, FolderOpen, Save } from "lucide-react";
 import { useRef } from 'react';
 import type { ProjectState } from "@/lib/types";
 
@@ -72,16 +72,12 @@ export function FileExplorer({ projectState, dispatch }: { projectState: Project
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileSelect}
-                    accept=".json"
+                    accept=".json,application/json"
                     className="hidden"
                 />
                 <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleSave}>
                     <Save className="h-4 w-4" />
                     Save
-                </Button>
-                 <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleSave}>
-                    <FileDown className="h-4 w-4" />
-                    Export
                 </Button>
             </div>
         </div>
