@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
@@ -88,7 +88,8 @@ type Action =
   | { type: 'SAVE_VIEW_AS', payload: { name: string } }
   | { type: 'UPDATE_CURRENT_VIEW' }
   | { type: 'DELETE_VIEW', payload: { viewId: string } }
-  | { type: 'TOGGLE_MULTI_SELECT_MODE' };
+  | { type: 'TOGGLE_MULTI_SELECT_MODE' }
+  | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -749,6 +750,10 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 start: new Date(t.start),
                 finish: new Date(t.finish),
                 constraintDate: t.constraintDate ? new Date(t.constraintDate) : null,
+                notes: (t.notes || []).map((note: any) => ({
+                    ...note,
+                    timestamp: new Date(note.timestamp),
+                })),
             }));
 
             const calendarsWithDates: Calendar[] = (loadedState.calendars || []).map(cal => ({
@@ -851,6 +856,23 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       case 'TOGGLE_MULTI_SELECT_MODE': {
         return { ...state, multiSelectMode: !state.multiSelectMode };
       }
+      case 'ADD_NOTE_TO_TASK': {
+        const { taskId, content } = action.payload;
+        const newTasks = state.tasks.map(task => {
+            if (task.id === taskId) {
+                const newNote: Note = {
+                    id: `note-${Date.now()}`,
+                    author: 'User', // Hardcoded for now
+                    content,
+                    timestamp: new Date(),
+                };
+                const notes = [...(task.notes || []), newNote];
+                return { ...task, notes };
+            }
+            return task;
+        });
+        return { ...state, tasks: newTasks };
+      }
       default:
         return state;
     }
@@ -914,6 +936,10 @@ export function useProject() {
       finish: new Date(t.finish),
       constraintDate: t.constraintDate ? new Date(t.constraintDate) : undefined,
       cost: t.cost || 0,
+      notes: (t.notes || []).map((note: any) => ({
+          ...note,
+          timestamp: new Date(note.timestamp)
+      }))
     } as Task));
 
     const calendarsWithDates: Calendar[] = initialCalendars.map(cal => ({

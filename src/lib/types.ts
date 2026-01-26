@@ -19,6 +19,21 @@ export interface Calendar {
   exceptions?: Exception[];
 }
 
+export interface NoteAttachment {
+  id: string;
+  name: string;
+  url: string;
+  type: 'image' | 'file';
+}
+
+export interface Note {
+  id: string;
+  author: string;
+  content: string;
+  timestamp: Date;
+  attachments?: NoteAttachment[];
+}
+
 export interface Task {
   id: string;
   name: string;
@@ -40,6 +55,7 @@ export interface Task {
   zoneId?: string | null;
   customAttributes?: Record<string, any> | null;
   calendarId?: string | null;
+  notes?: Note[];
 
   // Calculated fields
   schedulingConflict?: boolean;

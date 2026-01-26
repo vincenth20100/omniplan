@@ -1,4 +1,4 @@
-import type { Task, Link, Resource, Assignment, Calendar, Exception } from './types';
+import type { Task, Link, Resource, Assignment, Calendar, Exception, Note } from './types';
 import { addDays } from 'date-fns';
 
 const today = new Date('2024-08-01T00:00:00.000Z');
@@ -17,8 +17,10 @@ export const initialCalendars: (Omit<Calendar, 'exceptions'> & { exceptions?: (O
     { id: 'cal-weekends', name: 'Weekends Only', workingDays: [0, 6], exceptions: [] },
 ];
 
-export const initialTasks: Omit<Task, 'start' | 'finish' | 'constraintDate' | 'cost'>[] & { start: string, finish: string, constraintDate?: string, cost?: number } = [
-  { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100, cost: 500 },
+export const initialTasks: Omit<Task, 'start' | 'finish' | 'constraintDate' | 'cost' | 'notes'>[] & { start: string, finish: string, constraintDate?: string, cost?: number, notes?: (Omit<Note, 'timestamp'> & { timestamp: string })[] } = [
+  { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100, cost: 500, notes: [
+      { id: 'note-1', author: 'Project Manager', content: 'Initial project meeting went well. Team is motivated.', timestamp: addDays(today, -1).toISOString() }
+  ] },
   { id: '2', wbs: '2', level: 0, name: 'Requirement Gathering', start: addDays(today, 1).toISOString(), duration: 5, finish: addDays(today, 6).toISOString(), percentComplete: 75, cost: 2500 },
   { id: '3', wbs: '3', level: 0, name: 'Design Phase', start: addDays(today, 1).toISOString(), duration: 10, finish: addDays(today, 11).toISOString(), percentComplete: 50, cost: 5000 },
   
