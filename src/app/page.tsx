@@ -110,11 +110,9 @@ export default function Home() {
         <Separator orientation="vertical" className="h-6 mx-1" />
         <Button variant="outline" size="sm" onClick={handleCollapseAll} disabled={state.grouping.length > 0}>
             <ChevronsUp className="h-4 w-4" />
-            <span className="hidden sm:inline ml-2">Collapse All</span>
         </Button>
         <Button variant="outline" size="sm" onClick={handleExpandAll} disabled={state.grouping.length > 0}>
             <ChevronsDown className="h-4 w-4" />
-            <span className="hidden sm:inline ml-2">Expand All</span>
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
         <Button variant="outline" size="sm" onClick={() => setIsResourceDialogOpen(true)}>
