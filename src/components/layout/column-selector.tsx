@@ -34,19 +34,13 @@ export function ColumnSelector({
     };
 
     const handleSaveColumn = (config: ColumnConfig) => {
-        // Immediately start the dialog closing process
+        if (editingColumn) {
+            dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
+        } else {
+            dispatch({ type: 'ADD_COLUMN', payload: config });
+        }
         setIsConfigOpen(false);
-
-        // Delay the expensive state update to give the dialog time to animate out and unmount.
-        // This prevents its overlay from getting stuck and blocking mouse events.
-        setTimeout(() => {
-            if (editingColumn) {
-                dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
-            } else {
-                dispatch({ type: 'ADD_COLUMN', payload: config });
-            }
-            setEditingColumn(null);
-        }, 200); // The delay should be slightly longer than the dialog's close animation.
+        setEditingColumn(null);
     };
 
     const handleOpenNew = () => {

@@ -342,10 +342,10 @@ export function TaskTable({
         dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } });
     };
 
-    const handleToggle = (e: React.MouseEvent, taskId: string) => {
+    const handleToggle = React.useCallback((e: React.MouseEvent, taskId: string) => {
       e.stopPropagation();
       dispatch({ type: 'TOGGLE_TASK_COLLAPSE', payload: { taskId } });
-    }
+    }, [dispatch]);
 
     // Row Drag & Drop
     const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, taskId: string) => {
@@ -641,7 +641,6 @@ export function TaskTable({
                                                 column={column}
                                                 dispatch={dispatch}
                                                 links={links}
-                                                tasks={tasks}
                                                 idToWbsMap={idToWbsMap}
                                                 resourceMap={resourceMap}
                                                 assignments={assignments}
