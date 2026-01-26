@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Columns3, Plus } from "lucide-react";
 import type { ColumnSpec } from "@/lib/types";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ColumnConfigDialog, type ColumnConfig } from "../view-options/column-config-dialog";
 
 export function ColumnSelector({
@@ -25,33 +25,22 @@ export function ColumnSelector({
 }) {
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
-    const [configToDispatch, setConfigToDispatch] = useState<{
-        config: ColumnConfig;
-        columnBeingEdited: ColumnSpec | null;
-    } | null>(null);
 
-    // This effect handles dispatching the heavy action AFTER the dialog has closed.
-    useEffect(() => {
-        // Only run if there's a config queued and the dialog is confirmed to be closed.
-        if (configToDispatch && !isConfigOpen) {
-            const { config, columnBeingEdited } = configToDispatch;
-            if (columnBeingEdited) {
-                dispatch({ type: 'UPDATE_COLUMN', payload: { id: columnBeingEdited.id, ...config } });
+    const handleSaveColumn = (config: ColumnConfig) => {
+        // Immediately close the dialog. This is a fast state update.
+        setIsConfigOpen(false);
+        setEditingColumn(null);
+
+        // Defer the heavy dispatch action. This gives the browser time
+        // to process the dialog's closing animation and, critically,
+        // run the cleanup effect that removes 'pointer-events: none' from the body.
+        setTimeout(() => {
+            if (editingColumn) {
+                dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
             } else {
                 dispatch({ type: 'ADD_COLUMN', payload: config });
             }
-            // Clear the queue after dispatching
-            setConfigToDispatch(null);
-        }
-    }, [configToDispatch, isConfigOpen, dispatch]);
-
-    const handleSaveColumn = (config: ColumnConfig) => {
-        // Step 1: Queue the configuration to be dispatched later.
-        setConfigToDispatch({ config, columnBeingEdited: editingColumn });
-        
-        // Step 2: Close the dialog. This triggers a fast re-render.
-        setIsConfigOpen(false);
-        setEditingColumn(null);
+        }, 200); // 200ms is a safe value to allow for animations.
     };
 
     const handleCheckedChange = (columnId: string, checked: boolean) => {
