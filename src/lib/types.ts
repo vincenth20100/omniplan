@@ -4,11 +4,18 @@ export type ConstraintType = "Start No Earlier Than" | "Must Start On";
 
 export type UiDensity = 'compact' | 'medium' | 'large';
 
+export interface Exception {
+  id: string;
+  name: string;
+  start: Date;
+  finish: Date;
+}
+
 export interface Calendar {
   id: string;
   name: string;
   workingDays: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
-  exceptions?: string[]; // Array of ISO date strings for non-working days
+  exceptions?: Exception[];
 }
 
 export interface Task {

@@ -1,24 +1,24 @@
 'use client';
 
 import { useReducer, useEffect, useState } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 
 const ALL_COLUMNS = [
     { id: 'wbs', name: 'WBS', defaultWidth: 50 },
-    { id: 'name', name: 'Task Name', defaultWidth: 150 },
-    { id: 'resourceNames', name: 'Resource Names', defaultWidth: 120 },
-    { id: 'predecessors', name: 'Predecessors', defaultWidth: 100 },
-    { id: 'successors', name: 'Successors', defaultWidth: 100 },
-    { id: 'duration', name: 'Duration', defaultWidth: 60 },
-    { id: 'start', name: 'Start', defaultWidth: 90 },
-    { id: 'finish', name: 'Finish', defaultWidth: 90 },
+    { id: 'name', name: 'Task Name', defaultWidth: 250 },
+    { id: 'resourceNames', name: 'Resource Names', defaultWidth: 150 },
+    { id: 'duration', name: 'Duration', defaultWidth: 80 },
+    { id: 'start', name: 'Start', defaultWidth: 110 },
+    { id: 'finish', name: 'Finish', defaultWidth: 110 },
+    { id: 'cost', name: 'Cost', defaultWidth: 100 },
+    { id: 'predecessors', name: 'Predecessors', defaultWidth: 120 },
+    { id: 'successors', name: 'Successors', defaultWidth: 120 },
     { id: 'percentComplete', name: '% Complete', defaultWidth: 80 },
     { id: 'constraintType', name: 'Constraint Type', defaultWidth: 110 },
     { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110 },
-    { id: 'cost', name: 'Cost', defaultWidth: 80 },
 ];
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, width: c.defaultWidth }));
@@ -561,6 +561,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             id: `cal-${Date.now()}`,
             name: 'New Calendar',
             workingDays: [1, 2, 3, 4, 5], // Default to Mon-Fri
+            exceptions: [],
         };
         return { ...state, calendars: [...state.calendars, newCalendar] };
       }
@@ -649,9 +650,20 @@ export function useProject() {
       constraintDate: t.constraintDate ? new Date(t.constraintDate) : undefined,
       cost: t.cost || 0,
     }));
+
+    const calendarsWithDates: Calendar[] = initialCalendars.map(cal => ({
+        id: cal.id,
+        name: cal.name,
+        workingDays: cal.workingDays,
+        exceptions: (cal.exceptions || []).map(ex => ({
+            ...ex,
+            start: new Date(ex.start),
+            finish: new Date(ex.finish),
+        }))
+    }));
     
     const scheduledTasks = calculateSchedule(tasksWithDates, initialLinks);
-    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, resources: initialResources, assignments: initialAssignments, calendars: initialCalendars, defaultCalendarId: initialCalendars[0]?.id || null, columns: initialColumns, visibleColumns: initialVisibleColumns } });
+    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, resources: initialResources, assignments: initialAssignments, calendars: calendarsWithDates, defaultCalendarId: calendarsWithDates[0]?.id || null, columns: initialColumns, visibleColumns: initialVisibleColumns } });
     setIsLoaded(true);
   }, []);
 
