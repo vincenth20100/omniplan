@@ -110,4 +110,5 @@ export interface ProjectState {
     views: View[];
     currentViewId: string | null;
     isDirty?: boolean;
+    multiSelectMode?: boolean;
 }

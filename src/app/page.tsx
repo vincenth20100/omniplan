@@ -9,19 +9,21 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
 import { ResourceManagementDialog } from '@/components/resources/resource-management-dialog';
 import { CalendarManagementDialog } from '@/components/calendars/calendar-management-dialog';
 import { GroupingDialog } from '@/components/view-options/grouping-dialog';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
   const selectedTask = state.tasks.find(t => t.id === lastSelectedId);
@@ -47,6 +49,10 @@ export default function Home() {
 
   const handleOutdentTask = () => {
     dispatch({ type: 'OUTDENT_TASK' });
+  };
+
+  const handleToggleMultiSelect = () => {
+    dispatch({ type: 'TOGGLE_MULTI_SELECT_MODE' });
   };
 
   const sidebarContent = (
@@ -101,6 +107,16 @@ export default function Home() {
             <CalendarDays className="h-4 w-4" />
             <span className="hidden sm:inline ml-2">Calendars</span>
         </Button>
+        {isMobile && (
+            <Button
+                variant={state.multiSelectMode ? "secondary" : "outline"}
+                size="sm"
+                onClick={handleToggleMultiSelect}
+                className="w-9 px-0"
+            >
+                <ListChecks className="h-4 w-4" />
+            </Button>
+        )}
     </div>
   );
 

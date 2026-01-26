@@ -46,6 +46,7 @@ const initialState: ProjectState = {
   views: defaultViews,
   currentViewId: 'default',
   isDirty: false,
+  multiSelectMode: false,
 };
 
 type Action =
@@ -86,7 +87,8 @@ type Action =
   | { type: 'SET_VIEW', payload: { viewId: string } }
   | { type: 'SAVE_VIEW_AS', payload: { name: string } }
   | { type: 'UPDATE_CURRENT_VIEW' }
-  | { type: 'DELETE_VIEW', payload: { viewId: string } };
+  | { type: 'DELETE_VIEW', payload: { viewId: string } }
+  | { type: 'TOGGLE_MULTI_SELECT_MODE' };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -239,7 +241,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             }
         }
 
-        if (ctrlKey) {
+        if (ctrlKey || state.multiSelectMode) {
             const currentSelection = [...state.selectedTaskIds];
             const existingIndex = currentSelection.indexOf(taskId);
             if (existingIndex > -1) {
@@ -845,6 +847,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             visibleColumns: newVisibleColumns,
             isDirty: false
         };
+      }
+      case 'TOGGLE_MULTI_SELECT_MODE': {
+        return { ...state, multiSelectMode: !state.multiSelectMode };
       }
       default:
         return state;
