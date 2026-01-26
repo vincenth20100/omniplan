@@ -4,7 +4,7 @@ import { addDays } from 'date-fns';
 const today = new Date('2024-08-01T00:00:00.000Z');
 
 export const initialCalendars: Calendar[] = [
-    { id: 'cal-standard', name: 'Standard (Mon-Fri)', workingDays: [1, 2, 3, 4, 5] },
+    { id: 'cal-standard', name: 'Standard (Mon-Fri)', workingDays: [1, 2, 3, 4, 5], exceptions: [`${today.getFullYear()}-01-01T00:00:00.000Z`, `${today.getFullYear()}-12-25T00:00:00.000Z`] },
     { id: 'cal-247', name: '24/7', workingDays: [0, 1, 2, 3, 4, 5, 6] },
     { id: 'cal-weekends', name: 'Weekends Only', workingDays: [0, 6] },
 ];

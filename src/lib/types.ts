@@ -8,6 +8,7 @@ export interface Calendar {
   id: string;
   name: string;
   workingDays: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
+  exceptions?: string[]; // Array of ISO date strings for non-working days
 }
 
 export interface Task {
