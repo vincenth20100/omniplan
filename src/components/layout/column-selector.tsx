@@ -27,20 +27,16 @@ export function ColumnSelector({
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
 
     const handleSaveColumn = (config: ColumnConfig) => {
-        // Immediately close the dialog. This is a fast state update.
+        // Close the dialog first.
         setIsConfigOpen(false);
         setEditingColumn(null);
 
-        // Defer the heavy dispatch action. This gives the browser time
-        // to process the dialog's closing animation and, critically,
-        // run the cleanup effect that removes 'pointer-events: none' from the body.
-        setTimeout(() => {
-            if (editingColumn) {
-                dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
-            } else {
-                dispatch({ type: 'ADD_COLUMN', payload: config });
-            }
-        }, 200); // 200ms is a safe value to allow for animations.
+        // Then dispatch the action. With the performant scheduler, this should be fast.
+        if (editingColumn) {
+            dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
+        } else {
+            dispatch({ type: 'ADD_COLUMN', payload: config });
+        }
     };
 
     const handleCheckedChange = (columnId: string, checked: boolean) => {
