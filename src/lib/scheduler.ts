@@ -7,16 +7,13 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
     
     // Sort tasks by level in descending order. This ensures we process children before their parents.
-    const sortedByLevel = Array.from(taskMap.values()).sort((a, b) => (b.level || 0) - (a.level || 0));
+    const sortedByLevel = Array.from(taskMap.values())
+        .filter(t => t.isSummary)
+        .sort((a, b) => (b.level || 0) - (a.level || 0));
 
-    for (const task of sortedByLevel) {
-        if (!task.isSummary) {
-            continue;
-        }
-
-        const children = Array.from(taskMap.values()).filter(child => child.parentId === task.id);
-        const summaryTask = taskMap.get(task.id)!; // Get the task from the map to ensure we are modifying the version that parents will see.
-
+    for (const summaryTask of sortedByLevel) {
+        const children = Array.from(taskMap.values()).filter(child => child.parentId === summaryTask.id);
+        
         if (children.length > 0) {
             summaryTask.start = new Date(Math.min(...children.map(c => c.start.getTime())));
             summaryTask.finish = new Date(Math.max(...children.map(c => c.finish.getTime())));
@@ -27,37 +24,14 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
             summaryTask.percentComplete = childrenTotalDuration > 0
                 ? Math.round(children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0) / childrenTotalDuration)
                 : 0;
-
-            if (columns) {
-                const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
-                if (numberColumns.length > 0) {
-                    const newCustomAttributes = { ...(summaryTask.customAttributes || {}) };
-                    for (const col of numberColumns) {
-                        newCustomAttributes[col.id] = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
-                    }
-                    summaryTask.customAttributes = newCustomAttributes;
-                }
-            }
         } else { // Summary task with no children should have zeroed-out values
             summaryTask.duration = 0;
             summaryTask.finish = summaryTask.start;
             summaryTask.percentComplete = 0;
             summaryTask.cost = 0;
-            
-            if (columns && summaryTask.customAttributes) {
-                const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
-                if (numberColumns.length > 0) {
-                    const newCustomAttributes = { ...(summaryTask.customAttributes || {}) };
-                    for (const col of numberColumns) {
-                        // only update if it exists
-                        if (newCustomAttributes[col.id] !== undefined) {
-                            newCustomAttributes[col.id] = 0;
-                        }
-                    }
-                    summaryTask.customAttributes = newCustomAttributes;
-                }
-            }
         }
+
+        taskMap.set(summaryTask.id, summaryTask);
     }
     
     return Array.from(taskMap.values());
