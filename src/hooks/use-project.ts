@@ -45,6 +45,7 @@ const initialState: ProjectState = {
   grouping: [],
   views: defaultViews,
   currentViewId: 'default',
+  isDirty: false,
 };
 
 type Action =
@@ -325,14 +326,14 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, selectedTaskIds: nextTaskId ? [nextTaskId] : [] };
       }
       case 'SET_COLUMNS': {
-        return { ...state, visibleColumns: action.payload, currentViewId: null };
+        return { ...state, visibleColumns: action.payload, isDirty: true };
       }
        case 'RESIZE_COLUMN': {
         const { columnId, width } = action.payload;
         const newColumns = state.columns.map(c =>
           c.id === columnId ? { ...c, width } : c
         );
-        return { ...state, columns: newColumns, currentViewId: null };
+        return { ...state, columns: newColumns, isDirty: true };
       }
       case 'REORDER_COLUMNS': {
         const { sourceId, targetId } = action.payload;
@@ -345,7 +346,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const [removed] = columns.splice(sourceIndex, 1);
         columns.splice(targetIndex, 0, removed);
         
-        return { ...state, columns, currentViewId: null };
+        return { ...state, columns, isDirty: true };
       }
       case 'INDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
@@ -701,13 +702,13 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newColumns = [...state.columns, newColumn];
         const newVisibleColumns = [...state.visibleColumns, newColumn.id];
         
-        return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, currentViewId: null };
+        return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, isDirty: true };
       }
       case 'UPDATE_COLUMN': {
         const { id, ...updates } = action.payload;
         const newColumns = state.columns.map(c => c.id === id ? { ...c, ...updates } : c);
         const reScheduledTasks = runScheduler(state.tasks, state.links, newColumns);
-        return { ...state, tasks: reScheduledTasks, columns: newColumns, currentViewId: null };
+        return { ...state, tasks: reScheduledTasks, columns: newColumns, isDirty: true };
       }
       case 'REMOVE_COLUMN': {
         const { columnId } = action.payload;
@@ -723,7 +724,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             return task;
         });
 
-        return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, tasks: newTasks, currentViewId: null };
+        return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, tasks: newTasks, isDirty: true };
       }
       case 'NEW_PROJECT': {
         const calendarsWithDates: Calendar[] = initialCalendars.map(cal => ({
@@ -751,6 +752,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             uiDensity: state.uiDensity,
             views: defaultViews,
             currentViewId: 'default',
+            isDirty: false,
          };
       }
       case 'LOAD_PROJECT': {
@@ -789,6 +791,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 visibleColumns: loadedState.visibleColumns || initialVisibleColumns,
                 views: loadedState.views || defaultViews,
                 currentViewId: loadedState.currentViewId || 'default',
+                isDirty: false,
             };
             const scheduledTasks = runScheduler(newState.tasks, newState.links, newState.columns);
             
@@ -800,7 +803,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
           }
       }
       case 'SET_GROUPING':
-        return { ...state, grouping: action.payload, currentViewId: null };
+        return { ...state, grouping: action.payload, isDirty: true };
       case 'SET_VIEW': {
         const view = state.views.find(v => v.id === action.payload.viewId);
         if (view) {
@@ -809,6 +812,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 currentViewId: view.id,
                 grouping: view.grouping,
                 visibleColumns: view.visibleColumns,
+                isDirty: false,
             };
         }
         return state;
@@ -822,7 +826,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             visibleColumns: state.visibleColumns,
         };
         const newViews = [...state.views, newView];
-        return { ...state, views: newViews, currentViewId: newView.id };
+        return { ...state, views: newViews, currentViewId: newView.id, isDirty: false };
       }
       case 'UPDATE_CURRENT_VIEW': {
         if (!state.currentViewId) return state;
@@ -832,7 +836,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             ? { ...v, grouping: state.grouping, visibleColumns: state.visibleColumns }
             : v
         );
-        return { ...state, views: newViews };
+        return { ...state, views: newViews, isDirty: false };
       }
       case 'DELETE_VIEW': {
         const { viewId } = action.payload;
@@ -845,7 +849,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         if (state.currentViewId === viewId) {
             newCurrentViewId = 'default';
-            const defaultView = newViews.find(v => v.id === 'default')!;
+            const defaultView = newViews.find(v => v.id === 'default') ?? defaultViews[0];
             newGrouping = defaultView.grouping;
             newVisibleColumns = defaultView.visibleColumns;
         }
@@ -855,7 +859,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             views: newViews, 
             currentViewId: newCurrentViewId,
             grouping: newGrouping,
-            visibleColumns: newVisibleColumns
+            visibleColumns: newVisibleColumns,
+            isDirty: false
         };
       }
       default:

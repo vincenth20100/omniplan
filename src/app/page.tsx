@@ -63,6 +63,7 @@ export default function Home() {
             onOpenGroupingDialog={() => setIsGroupingDialogOpen(true)}
             views={state.views}
             currentViewId={state.currentViewId}
+            isDirty={state.isDirty}
         />
       )}
        <Separator className="my-2" />

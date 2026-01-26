@@ -109,4 +109,5 @@ export interface ProjectState {
     grouping: string[];
     views: View[];
     currentViewId: string | null;
+    isDirty?: boolean;
 }

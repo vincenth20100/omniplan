@@ -18,6 +18,7 @@ export function ViewOptions({
     onOpenGroupingDialog,
     views,
     currentViewId,
+    isDirty,
 }: {
     visibleColumns: string[];
     columns: ColumnSpec[];
@@ -27,10 +28,11 @@ export function ViewOptions({
     onOpenGroupingDialog: () => void;
     views: View[];
     currentViewId: string | null;
+    isDirty?: boolean;
 }) {
     return (
         <div className="p-2">
-            <ViewManager views={views} currentViewId={currentViewId} dispatch={dispatch} />
+            <ViewManager views={views} currentViewId={currentViewId} isDirty={isDirty} dispatch={dispatch} />
             <Separator className="my-2" />
             <h3 className="text-sm font-semibold mb-2 px-2 text-muted-foreground">DISPLAY OPTIONS</h3>
             <div className="flex flex-col gap-1">

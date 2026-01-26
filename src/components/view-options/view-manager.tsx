@@ -33,7 +33,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 
-export function ViewManager({ views, currentViewId, dispatch }: { views: View[], currentViewId: string | null, dispatch: any }) {
+export function ViewManager({ views, currentViewId, isDirty, dispatch }: { views: View[], currentViewId: string | null, isDirty?: boolean, dispatch: any }) {
     const [isSaveAsOpen, setIsSaveAsOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [newViewName, setNewViewName] = useState("");
@@ -42,7 +42,7 @@ export function ViewManager({ views, currentViewId, dispatch }: { views: View[],
     const currentView = views.find(v => v.id === currentViewId);
 
     const handleSetView = (viewId: string) => {
-        if (viewId === 'custom') return;
+        // TODO: Could add a confirmation dialog here if `isDirty` is true
         dispatch({ type: 'SET_VIEW', payload: { viewId } });
     }
 
@@ -54,7 +54,7 @@ export function ViewManager({ views, currentViewId, dispatch }: { views: View[],
                 description: `The view "${currentView?.name}" has been updated.`,
             });
         } else {
-            // If current view is a custom one or default, "Save" should act like "Save As"
+            // If current view is default, "Save" should act like "Save As"
             setNewViewName(currentView ? `${currentView.name} - Copy` : "Custom View");
             setIsSaveAsOpen(true);
         }
@@ -89,15 +89,16 @@ export function ViewManager({ views, currentViewId, dispatch }: { views: View[],
         <div>
              <h3 className="text-sm font-semibold mb-2 px-2 text-muted-foreground">TABLE VIEW</h3>
              <div className="p-1 flex flex-col gap-2">
-                <Select value={currentViewId || 'custom'} onValueChange={handleSetView}>
+                <Select value={currentViewId || ''} onValueChange={handleSetView}>
                     <SelectTrigger>
-                        <SelectValue placeholder="Select a view..." />
+                        <SelectValue placeholder="Select a view...">
+                             {currentView ? `${currentView.name}${isDirty ? '*' : ''}` : 'Custom'}
+                        </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                         {views.map(view => (
                             <SelectItem key={view.id} value={view.id}>{view.name}</SelectItem>
                         ))}
-                        {!currentView && <SelectItem value="custom" disabled>Custom View</SelectItem>}
                     </SelectContent>
                 </Select>
                 <div className="flex gap-1 justify-end">
