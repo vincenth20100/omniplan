@@ -52,7 +52,7 @@ export function AddRelationshipRow({
 
     return (
         <TableRow>
-            <TableCell colSpan={5} className={cn(cellClass, "p-0")}>
+            <TableCell colSpan={6} className={cn(cellClass, "p-0")}>
                 <div className={cellInnerDivClass}>
                     <Select onValueChange={handleAddTask}>
                         <SelectTrigger className="h-8 border-dashed w-full text-xs">

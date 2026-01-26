@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { AddRelationshipRow } from './add-relationship-row';
 import React from 'react';
+import { format } from 'date-fns';
 
 export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatch, uiDensity }: { currentTaskId: string, successorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
 
@@ -19,6 +20,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
         task: 200,
         type: 80,
         lag: 60,
+        date: 110,
         actions: 40,
     });
 
@@ -93,6 +95,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                     <col style={{ width: `${colWidths.task}px` }} />
                     <col style={{ width: `${colWidths.type}px` }} />
                     <col style={{ width: `${colWidths.lag}px` }} />
+                    <col style={{ width: `${colWidths.date}px` }} />
                     <col style={{ width: `${colWidths.actions}px` }} />
                 </colgroup>
                 <TableHeader>
@@ -108,6 +111,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                         <ResizableHeader id="task" name="Task" />
                         <ResizableHeader id="type" name="Type" />
                         <ResizableHeader id="lag" name="Lag" />
+                        <ResizableHeader id="date" name="Date" />
                         <ResizableHeader id="actions" name="" />
                     </TableRow>
                 </TableHeader>
@@ -115,6 +119,21 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                     {successorLinks.map(link => {
                         const targetTask = taskMap.get(link.target);
                         if (!targetTask) return null;
+
+                        const getDateForLink = () => {
+                            switch (link.type) {
+                                case 'FS':
+                                case 'SS':
+                                    return targetTask.start;
+                                case 'FF':
+                                case 'SF':
+                                    return targetTask.finish;
+                                default:
+                                    return null;
+                            }
+                        };
+                        const linkDate = getDateForLink();
+                        
                         return (
                             <TableRow 
                                 key={link.id}
@@ -166,6 +185,11 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                                             }}
                                             className="text-right w-full"
                                         />
+                                    </div>
+                                </TableCell>
+                                <TableCell className={cellClass}>
+                                    <div className={cellInnerDivClass}>
+                                        {linkDate ? format(linkDate, 'MMM d, yyyy') : ''}
                                     </div>
                                 </TableCell>
                                <TableCell className={cellClass}>
