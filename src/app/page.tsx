@@ -9,13 +9,15 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Users } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
-import { ResourceView } from '@/components/resources/resource-view';
+import { useState } from 'react';
+import { ResourceManagementDialog } from '@/components/resources/resource-management-dialog';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
+  const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
   const selectedTask = state.tasks.find(t => t.id === lastSelectedId);
@@ -43,8 +45,6 @@ export default function Home() {
         />
       )}
        <Separator className="my-2" />
-      <ResourceView projectState={state} />
-       <Separator className="my-2" />
       <ConflictDetector projectState={state} dispatch={dispatch} />
        <Separator className="my-2" />
       <SpatialView projectState={state} />
@@ -64,10 +64,18 @@ export default function Home() {
     </div>
   );
 
+  const headerRightActions = (
+    <Button variant="outline" size="sm" onClick={() => setIsResourceDialogOpen(true)}>
+      <Users className="h-4 w-4" />
+      <span className="hidden sm:inline ml-2">Resources</span>
+    </Button>
+  );
+
   return (
     <MainLayout 
       sidebarContent={sidebarContent} 
       headerLeftActions={headerLeftActions}
+      headerRightActions={headerRightActions}
     >
       <div className="flex flex-col h-[calc(100vh-120px)] w-full">
         {isLoaded ? (
@@ -97,6 +105,13 @@ export default function Home() {
           </div>
         )}
       </div>
+      {isLoaded && (
+        <ResourceManagementDialog
+          open={isResourceDialogOpen}
+          onOpenChange={setIsResourceDialogOpen}
+          projectState={state}
+        />
+      )}
     </MainLayout>
   );
 }
