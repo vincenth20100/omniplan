@@ -147,7 +147,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
             }
         }
         
-        groupRecursively(tasks.filter(t => !t.isSummary), 0);
+        groupRecursively(tasks, 0);
         
         return finalRows;
 
