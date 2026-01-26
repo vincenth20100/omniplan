@@ -47,6 +47,7 @@ export function TaskTable({
     onScroll: () => void,
     uiDensity: UiDensity
 }) {
+    console.log("--- TaskTable Rerender ---");
     
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
     const [dropIndicator, setDropIndicator] = React.useState<{ targetId: string; position: 'top' | 'bottom' | 'child' } | null>(null);
@@ -243,6 +244,7 @@ export function TaskTable({
     }
 
     const columnDefinitions = React.useMemo(() => {
+        console.log("--- Recalculating columnDefinitions ---");
         const defs: Record<string, { name: string, render: (task: Task) => React.ReactNode }> = {};
 
         const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
@@ -526,10 +528,12 @@ export function TaskTable({
 
 
     const orderedAndVisibleColumns = React.useMemo(() => {
+        console.log("--- Recalculating orderedAndVisibleColumns ---");
         return columns.filter(c => visibleColumns.includes(c.id));
     }, [columns, visibleColumns]);
 
     const visibleTasks = React.useMemo(() => {
+        console.log("--- Recalculating visibleTasks ---");
         const taskMap = new Map(tasks.map(t => [t.id, t]));
         return tasks.filter(task => {
             if (!task.parentId) return true;
