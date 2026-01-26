@@ -86,7 +86,7 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
 
     return (
         <ScrollArea className="border rounded-md min-h-0 w-full">
-            <Table style={{ tableLayout: 'fixed' }} className="w-auto">
+            <Table style={{ tableLayout: 'fixed' }} className="w-full">
                 <colgroup>
                     <col style={{ width: `${colWidths.id}px` }} />
                     <col style={{ width: `${colWidths.task}px` }} />
