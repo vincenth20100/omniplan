@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Columns3, Plus } from "lucide-react";
 import type { ColumnSpec } from "@/lib/types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ColumnConfigDialog, type ColumnConfig } from "../view-options/column-config-dialog";
 
 export function ColumnSelector({
@@ -25,18 +25,27 @@ export function ColumnSelector({
 }) {
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
+    const [pendingAction, setPendingAction] = useState<{ type: string, payload: any } | null>(null);
+
+    useEffect(() => {
+        // When the dialog is closed, if there's a pending action, dispatch it.
+        // This ensures the dialog cleanup (removing pointer-events: none) happens BEFORE the heavy dispatch.
+        if (!isConfigOpen && pendingAction) {
+            dispatch(pendingAction);
+            setPendingAction(null); // Clear the pending action
+        }
+    }, [isConfigOpen, pendingAction, dispatch]);
 
     const handleSaveColumn = (config: ColumnConfig) => {
-        // Close the dialog first.
+        // Instead of dispatching directly, queue the action and close the dialog.
+        if (editingColumn) {
+            setPendingAction({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
+        } else {
+            setPendingAction({ type: 'ADD_COLUMN', payload: config });
+        }
+        // This will trigger the re-render that closes the dialog. The useEffect will handle the dispatch.
         setIsConfigOpen(false);
         setEditingColumn(null);
-
-        // Then dispatch the action. With the performant scheduler, this should be fast.
-        if (editingColumn) {
-            dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
-        } else {
-            dispatch({ type: 'ADD_COLUMN', payload: config });
-        }
     };
 
     const handleCheckedChange = (columnId: string, checked: boolean) => {
@@ -62,7 +71,6 @@ export function ColumnSelector({
         }
         setIsConfigOpen(open);
     }
-
 
     return (
         <>
