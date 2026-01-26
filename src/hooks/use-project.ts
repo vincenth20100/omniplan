@@ -48,6 +48,7 @@ const initialState: ProjectState = {
   currentViewId: 'default',
   isDirty: false,
   multiSelectMode: false,
+  activeCell: null,
 };
 
 type Action =
@@ -91,7 +92,8 @@ type Action =
   | { type: 'DELETE_VIEW', payload: { viewId: string } }
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
-  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string } };
+  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string } }
+  | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -484,8 +486,13 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newLinks = state.links.filter(l => !idsToRemove.has(l.source) && !idsToRemove.has(l.target));
         
         const reScheduledTasks = runScheduler(newTasks, newLinks, state.columns);
+
+        let activeCell = state.activeCell;
+        if (activeCell && idsToRemove.has(activeCell.taskId)) {
+            activeCell = null;
+        }
         
-        return { ...state, tasks: reScheduledTasks, links: newLinks, selectedTaskIds: [] };
+        return { ...state, tasks: reScheduledTasks, links: newLinks, selectedTaskIds: [], activeCell };
       }
       case 'REMOVE_LINK': {
         const { linkId } = action.payload;
@@ -741,6 +748,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             views: defaultViews,
             currentViewId: 'default',
             isDirty: false,
+            activeCell: null,
          };
       }
       case 'LOAD_PROJECT': {
@@ -784,6 +792,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 views: loadedState.views || defaultViews,
                 currentViewId: loadedState.currentViewId || 'default',
                 isDirty: false,
+                activeCell: null,
             };
             const scheduledTasks = runScheduler(newState.tasks, newState.links, newState.columns);
             
@@ -941,6 +950,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         return { ...state, tasks: scheduledTasks, selectedTaskIds: newTasks.map(t => t.id) };
       }
+      case 'SET_ACTIVE_CELL': {
+        return { ...state, activeCell: action.payload };
+      }
       default:
         return state;
     }
@@ -990,9 +1002,75 @@ export function useProject() {
       }
     };
 
+    const getCellValue = (task: Task, columnId: string, state: ProjectState): string => {
+        const { links, resources, assignments, columns } = state;
+        const idToWbsMap = new Map(state.tasks.map(t => [t.id, t.wbs || '']));
+        const resourceMap = new Map(resources.map(r => [r.id, r.name]));
+
+        const col = columns.find(c => c.id === columnId);
+        if (!col) return '';
+        
+        switch (col.id) {
+            case 'wbs': return task.wbs || '';
+            case 'name': return task.name;
+            case 'duration': return String(task.duration);
+            case 'start': return format(task.start, 'MM/dd/yyyy');
+            case 'finish': return format(task.finish, 'MM/dd/yyyy');
+            case 'cost': return String(task.cost || 0);
+            case 'percentComplete': return `${task.percentComplete}%`;
+            case 'resourceNames': {
+                const taskAssignments = assignments.filter(a => a.taskId === task.id);
+                return taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
+            }
+            case 'predecessors': {
+                const predecessorLinks = links.filter(l => l.target === task.id);
+                return predecessorLinks.map(l => {
+                    const sourceWbs = idToWbsMap.get(l.source);
+                    if (!sourceWbs) return '';
+                    let lagString = '';
+                    if (l.lag > 0) lagString = `+${l.lag}d`;
+                    if (l.lag < 0) lagString = `${l.lag}d`;
+                    return `${sourceWbs}${l.type}${lagString}`;
+                }).join(', ');
+            }
+            case 'successors': {
+                const successorLinks = links.filter(l => l.source === task.id);
+                return successorLinks.map(l => {
+                    const targetWbs = idToWbsMap.get(l.target);
+                    if (!targetWbs) return '';
+                    let lagString = '';
+                    if (l.lag > 0) lagString = `+${l.lag}d`;
+                    if (l.lag < 0) lagString = `${l.lag}d`;
+                    return `${targetWbs}${l.type}${lagString}`;
+                }).join(', ');
+            }
+            case 'constraintType': return task.constraintType || '';
+            case 'constraintDate': return task.constraintDate ? format(task.constraintDate, 'MM/dd/yyyy') : '';
+            default:
+                if (col.id.startsWith('custom-')) {
+                    return String(task.customAttributes?.[col.id] || '');
+                }
+                return '';
+        }
+    };
+
     const handleCopy = (e: ClipboardEvent) => {
         const currentState = stateRef.current;
         if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+        // Single cell copy
+        if (currentState.activeCell) {
+            const { taskId, columnId } = currentState.activeCell;
+            const task = currentState.tasks.find(t => t.id === taskId);
+            if (task) {
+                const cellValue = getCellValue(task, columnId, currentState);
+                e.clipboardData?.setData('text/plain', cellValue);
+                e.preventDefault();
+                return;
+            }
+        }
+        
+        // Row copy (fallback)
         if (currentState.selectedTaskIds.length === 0) return;
 
         e.preventDefault();
@@ -1000,48 +1078,10 @@ export function useProject() {
         const columnsToCopy = currentState.columns.filter(c => currentState.visibleColumns.includes(c.id));
         const header = columnsToCopy.map(c => c.name).join('\t');
 
-        const idToWbsMap = new Map(currentState.tasks.map(t => [t.id, t.wbs || '']));
-        const resourceMap = new Map(currentState.resources.map(r => [r.id, r.name]));
-
         const selectedTasks = currentState.tasks.filter(t => currentState.selectedTaskIds.includes(t.id));
 
         const taskRows = selectedTasks.map(task => {
-            return columnsToCopy.map(col => {
-                switch (col.id) {
-                    case 'wbs': return task.wbs || '';
-                    case 'name': return task.name;
-                    case 'duration': return String(task.duration);
-                    case 'start': return format(task.start, 'MM/dd/yyyy');
-                    case 'finish': return format(task.finish, 'MM/dd/yyyy');
-                    case 'cost': return String(task.cost || 0);
-                    case 'percentComplete': return `${task.percentComplete}%`;
-                    case 'resourceNames': {
-                        const taskAssignments = currentState.assignments.filter(a => a.taskId === task.id);
-                        return taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
-                    }
-                    case 'predecessors': {
-                        const predecessorLinks = currentState.links.filter(l => l.target === task.id);
-                        return predecessorLinks.map(l => {
-                            const sourceWbs = idToWbsMap.get(l.source);
-                            if (!sourceWbs) return '';
-                            let lagString = '';
-                            if (l.type !== 'FS' || l.lag !== 0) {
-                                lagString = l.type;
-                                if (l.lag > 0) lagString += `+${l.lag}d`;
-                                if (l.lag < 0) lagString += `${l.lag}d`;
-                            }
-                            return `${sourceWbs}${lagString}`;
-                        }).join('; ');
-                    }
-                    case 'constraintType': return task.constraintType || '';
-                    case 'constraintDate': return task.constraintDate ? format(task.constraintDate, 'MM/dd/yyyy') : '';
-                    default:
-                        if (col.id.startsWith('custom-')) {
-                            return String(task.customAttributes?.[col.id] || '');
-                        }
-                        return '';
-                }
-            }).join('\t');
+            return columnsToCopy.map(col => getCellValue(task, col.id, currentState)).join('\t');
         });
 
         const data = [header, ...taskRows].join('\n');
@@ -1050,11 +1090,85 @@ export function useProject() {
 
     const handlePaste = (e: ClipboardEvent) => {
         if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        
         const data = e.clipboardData?.getData('text/plain');
-        if (data) {
+        if (!data) return;
+
+        const currentState = stateRef.current;
+
+        // Single cell paste
+        if (currentState.activeCell) {
             e.preventDefault();
-            dispatch({ type: 'ADD_TASKS_FROM_PASTE', payload: { data }});
+            const { taskId, columnId } = currentState.activeCell;
+            const task = currentState.tasks.find(t => t.id === taskId);
+            if (!task || task.isSummary) return;
+
+            const value = data.trim();
+
+            switch (columnId) {
+                case 'name':
+                    dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, name: value } });
+                    break;
+                case 'duration': {
+                    const duration = parseInt(value, 10);
+                    if (!isNaN(duration) && duration > 0) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, duration } });
+                    }
+                    break;
+                }
+                case 'start':
+                case 'finish':
+                case 'constraintDate': {
+                    const date = new Date(value);
+                    if (!isNaN(date.getTime())) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, [columnId]: date } });
+                    }
+                    break;
+                }
+                case 'cost': {
+                    const cost = parseFloat(value.replace(/[^0-9.]/g, ''));
+                    if (!isNaN(cost)) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, cost } });
+                    }
+                    break;
+                }
+                case 'percentComplete': {
+                    const percent = parseInt(value.replace('%', ''), 10);
+                    if (!isNaN(percent)) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, percentComplete: Math.max(0, Math.min(100, percent)) } });
+                    }
+                    break;
+                }
+                case 'predecessors':
+                case 'successors':
+                    dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId, field: columnId as 'predecessors' | 'successors', value } });
+                    break;
+                default:
+                    if (columnId.startsWith('custom-')) {
+                        const column = currentState.columns.find(c => c.id === columnId);
+                        if (column) {
+                             let valueToSave: string | number = value;
+                            if (column.type === 'number') {
+                                const num = parseFloat(value);
+                                valueToSave = isNaN(num) ? 0 : num;
+                            }
+                             dispatch({
+                                type: 'UPDATE_TASK',
+                                payload: {
+                                    id: taskId,
+                                    customAttributes: { ...(task.customAttributes || {}), [columnId]: valueToSave }
+                                }
+                            });
+                        }
+                    }
+                    break;
+            }
+            return;
         }
+
+        // Row paste (fallback)
+        e.preventDefault();
+        dispatch({ type: 'ADD_TASKS_FROM_PASTE', payload: { data }});
     };
 
     window.addEventListener('keydown', handleKeyDown);

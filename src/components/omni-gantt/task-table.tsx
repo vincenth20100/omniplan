@@ -320,7 +320,7 @@ export function TaskTable({
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
 }) {
-    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping } = projectState;
+    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell } = projectState;
 
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
     const [dropIndicator, setDropIndicator] = React.useState<{ targetId: string; position: 'top' | 'bottom' | 'child' } | null>(null);
@@ -632,7 +632,6 @@ export function TaskTable({
                                             "bg-primary/20": dropIndicator.position === 'child',
                                         }
                                     )}
-                                    onClick={(e) => handleSelectTask(e, task.id)}
                                 >
                                     {orderedAndVisibleColumns.map(column => (
                                         <TableCell 
@@ -640,8 +639,13 @@ export function TaskTable({
                                             data-density={uiDensity}
                                             className={cn(
                                                 "font-medium truncate p-0",
-                                                "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8"
+                                                "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
+                                                activeCell?.taskId === task.id && activeCell?.columnId === column.id && "ring-2 ring-inset ring-primary"
                                             )}
+                                            onClick={(e) => {
+                                                dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: task.id, columnId: column.id } });
+                                                handleSelectTask(e, task.id);
+                                            }}
                                         >
                                             <div 
                                                 className={cn(

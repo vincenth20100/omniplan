@@ -127,4 +127,5 @@ export interface ProjectState {
     currentViewId: string | null;
     isDirty?: boolean;
     multiSelectMode?: boolean;
+    activeCell?: { taskId: string, columnId: string } | null;
 }
