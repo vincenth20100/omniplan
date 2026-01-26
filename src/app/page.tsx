@@ -15,11 +15,13 @@ import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
 import { ResourceManagementDialog } from '@/components/resources/resource-management-dialog';
 import { CalendarManagementDialog } from '@/components/calendars/calendar-management-dialog';
+import { GroupingDialog } from '@/components/view-options/grouping-dialog';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
+  const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
   const selectedTask = state.tasks.find(t => t.id === lastSelectedId);
@@ -58,6 +60,7 @@ export default function Home() {
             dispatch={dispatch}
             uiDensity={state.uiDensity}
             grouping={state.grouping}
+            onOpenGroupingDialog={() => setIsGroupingDialogOpen(true)}
         />
       )}
        <Separator className="my-2" />
@@ -146,6 +149,13 @@ export default function Home() {
             open={isCalendarDialogOpen}
             onOpenChange={setIsCalendarDialogOpen}
             projectState={state}
+            dispatch={dispatch}
+          />
+          <GroupingDialog
+            open={isGroupingDialogOpen}
+            onOpenChange={setIsGroupingDialogOpen}
+            grouping={state.grouping}
+            columns={state.columns}
             dispatch={dispatch}
           />
         </>
