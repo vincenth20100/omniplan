@@ -17,7 +17,7 @@ export const initialCalendars: (Omit<Calendar, 'exceptions'> & { exceptions?: (O
     { id: 'cal-weekends', name: 'Weekends Only', workingDays: [0, 6], exceptions: [] },
 ];
 
-export const initialTasks: Omit<Task, 'start' | 'finish' | 'constraintDate' | 'cost' | 'notes'>[] & { start: string, finish: string, constraintDate?: string, cost?: number, notes?: (Omit<Note, 'timestamp'> & { timestamp: string })[] } = [
+export const initialTasks: (Omit<Task, 'start' | 'finish' | 'constraintDate' | 'cost' | 'notes'> & { start: string, finish: string, constraintDate?: string, cost?: number, notes?: (Omit<Note, 'timestamp'> & { timestamp: string })[] })[] = [
   { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100, cost: 500, notes: [
       { id: 'note-1', author: 'Project Manager', content: 'Initial project meeting went well. Team is motivated.', timestamp: addDays(today, -1).toISOString() }
   ] },
@@ -25,7 +25,7 @@ export const initialTasks: Omit<Task, 'start' | 'finish' | 'constraintDate' | 'c
   { id: '3', wbs: '3', level: 0, name: 'Design Phase', start: addDays(today, 1).toISOString(), duration: 10, finish: addDays(today, 11).toISOString(), percentComplete: 50, cost: 5000 },
   
   // Summary Task for Build
-  { id: '4', wbs: '4', level: 0, name: 'Build', start: addDays(today, 8).toISOString(), duration: 0, finish: addDays(today, 23).toISOString(), percentComplete: 0, isCollapsed: false, cost: 0 },
+  { id: '4', wbs: '4', level: 0, name: 'Build', start: addDays(today, 8).toISOString(), duration: 0, finish: addDays(today, 23).toISOString(), percentComplete: 0, isSummary: true, isCollapsed: false, cost: 0 },
   
   // Children of Build
   { id: '4.1', wbs: '4.1', parentId: '4', level: 1, name: 'Workshop Assembly', start: addDays(today, 8).toISOString(), duration: 15, finish: addDays(today, 23).toISOString(), percentComplete: 20, constraintType: 'Must Start On', constraintDate: addDays(today, 15).toISOString(), cost: 15000 },
