@@ -1,10 +1,11 @@
 'use client';
 
-import { useReducer, useEffect, useState } from 'react';
+import { useReducer, useEffect, useState, useRef } from 'react';
 import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
+import { format } from 'date-fns';
 
 const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
     { id: 'wbs', name: 'WBS', defaultWidth: 50, type: 'text' },
@@ -89,7 +90,8 @@ type Action =
   | { type: 'UPDATE_CURRENT_VIEW' }
   | { type: 'DELETE_VIEW', payload: { viewId: string } }
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
-  | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } };
+  | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
+  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string } };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -873,6 +875,72 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         });
         return { ...state, tasks: newTasks };
       }
+       case 'ADD_TASKS_FROM_PASTE': {
+        const { data } = action.payload;
+        const rows = data.split('\n').filter(row => row.trim() !== '');
+        if (rows.length === 0) return state;
+
+        const visibleColumns = state.columns.filter(c => state.visibleColumns.includes(c.id));
+
+        const newTasks: Task[] = [];
+        
+        rows.forEach((row, rowIndex) => {
+            if (!row.trim()) return;
+            
+            const values = row.split('\t');
+            const newTask: Partial<Task> & { start: Date } = {
+                id: `T-paste-${Date.now()}-${rowIndex}`,
+                percentComplete: 0,
+                cost: 0,
+                level: 0,
+                start: new Date(), // default start date
+                duration: 1, // default duration
+            };
+
+            visibleColumns.forEach((col, colIndex) => {
+                const value = values[colIndex]?.trim();
+                if (value === undefined || value === '') return;
+
+                switch(col.id) {
+                    case 'name':
+                        newTask.name = value;
+                        break;
+                    case 'duration':
+                        const duration = parseInt(value, 10);
+                        if (!isNaN(duration) && duration > 0) newTask.duration = duration;
+                        break;
+                    case 'start':
+                        const startDate = new Date(value);
+                        if (!isNaN(startDate.getTime())) newTask.start = startDate;
+                        break;
+                    case 'percentComplete':
+                        const percent = parseInt(value.replace('%', ''), 10);
+                        if (!isNaN(percent)) newTask.percentComplete = Math.max(0, Math.min(100, percent));
+                        break;
+                    case 'cost':
+                        const cost = parseFloat(value.replace(/[^0-9.,$]+/g, "").replace(',', ''));
+                        if (!isNaN(cost)) newTask.cost = cost;
+                        break;
+                    // Note: Pasting relationships (predecessors/successors) is not supported for simplicity.
+                }
+            });
+            
+            if (!newTask.name) {
+                newTask.name = `Pasted Task ${rowIndex + 1}`;
+            }
+            
+            newTask.finish = calendarService.addWorkingDays(newTask.start, newTask.duration! > 0 ? newTask.duration! - 1 : 0);
+            
+            newTasks.push(newTask as Task);
+        });
+        
+        if (newTasks.length === 0) return state;
+        
+        let combinedTasks = [...state.tasks, ...newTasks];
+        let scheduledTasks = runScheduler(combinedTasks, state.links, state.columns);
+
+        return { ...state, tasks: scheduledTasks, selectedTaskIds: newTasks.map(t => t.id) };
+      }
       default:
         return state;
     }
@@ -887,6 +955,11 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 export function useProject() {
   const [state, dispatch] = useReducer(projectReducer, initialState);
   const [isLoaded, setIsLoaded] = useState(false);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
    useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -917,9 +990,80 @@ export function useProject() {
       }
     };
 
+    const handleCopy = (e: ClipboardEvent) => {
+        const currentState = stateRef.current;
+        if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        if (currentState.selectedTaskIds.length === 0) return;
+
+        e.preventDefault();
+
+        const columnsToCopy = currentState.columns.filter(c => currentState.visibleColumns.includes(c.id));
+        const header = columnsToCopy.map(c => c.name).join('\t');
+
+        const idToWbsMap = new Map(currentState.tasks.map(t => [t.id, t.wbs || '']));
+        const resourceMap = new Map(currentState.resources.map(r => [r.id, r.name]));
+
+        const selectedTasks = currentState.tasks.filter(t => currentState.selectedTaskIds.includes(t.id));
+
+        const taskRows = selectedTasks.map(task => {
+            return columnsToCopy.map(col => {
+                switch (col.id) {
+                    case 'wbs': return task.wbs || '';
+                    case 'name': return task.name;
+                    case 'duration': return String(task.duration);
+                    case 'start': return format(task.start, 'MM/dd/yyyy');
+                    case 'finish': return format(task.finish, 'MM/dd/yyyy');
+                    case 'cost': return String(task.cost || 0);
+                    case 'percentComplete': return `${task.percentComplete}%`;
+                    case 'resourceNames': {
+                        const taskAssignments = currentState.assignments.filter(a => a.taskId === task.id);
+                        return taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
+                    }
+                    case 'predecessors': {
+                        const predecessorLinks = currentState.links.filter(l => l.target === task.id);
+                        return predecessorLinks.map(l => {
+                            const sourceWbs = idToWbsMap.get(l.source);
+                            if (!sourceWbs) return '';
+                            let lagString = '';
+                            if (l.type !== 'FS' || l.lag !== 0) {
+                                lagString = l.type;
+                                if (l.lag > 0) lagString += `+${l.lag}d`;
+                                if (l.lag < 0) lagString += `${l.lag}d`;
+                            }
+                            return `${sourceWbs}${lagString}`;
+                        }).join('; ');
+                    }
+                    case 'constraintType': return task.constraintType || '';
+                    case 'constraintDate': return task.constraintDate ? format(task.constraintDate, 'MM/dd/yyyy') : '';
+                    default:
+                        if (col.id.startsWith('custom-')) {
+                            return String(task.customAttributes?.[col.id] || '');
+                        }
+                        return '';
+                }
+            }).join('\t');
+        });
+
+        const data = [header, ...taskRows].join('\n');
+        e.clipboardData?.setData('text/plain', data);
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+        if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+        const data = e.clipboardData?.getData('text/plain');
+        if (data) {
+            e.preventDefault();
+            dispatch({ type: 'ADD_TASKS_FROM_PASTE', payload: { data }});
+        }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('copy', handleCopy);
+    window.addEventListener('paste', handlePaste);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('copy', handleCopy);
+      window.removeEventListener('paste', handlePaste);
     };
   }, []);
 
