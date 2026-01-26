@@ -30,12 +30,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 
 export function ViewManager({ views, currentViewId, dispatch }: { views: View[], currentViewId: string | null, dispatch: any }) {
     const [isSaveAsOpen, setIsSaveAsOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [newViewName, setNewViewName] = useState("");
+    const { toast } = useToast();
 
     const currentView = views.find(v => v.id === currentViewId);
 
@@ -47,8 +49,13 @@ export function ViewManager({ views, currentViewId, dispatch }: { views: View[],
     const handleUpdateView = () => {
         if (currentViewId && currentViewId !== 'default') {
             dispatch({ type: 'UPDATE_CURRENT_VIEW' });
+            toast({
+                title: "View Saved",
+                description: `The view "${currentView?.name}" has been updated.`,
+            });
         } else {
             // If current view is a custom one or default, "Save" should act like "Save As"
+            setNewViewName(currentView ? `${currentView.name} - Copy` : "Custom View");
             setIsSaveAsOpen(true);
         }
     }
@@ -58,17 +65,24 @@ export function ViewManager({ views, currentViewId, dispatch }: { views: View[],
             dispatch({ type: 'SAVE_VIEW_AS', payload: { name: newViewName } });
             setIsSaveAsOpen(false);
             setNewViewName("");
+            toast({
+                title: "View Saved",
+                description: `The new view "${newViewName}" has been created.`,
+            });
         }
     }
 
     const handleDelete = () => {
         if (currentViewId) {
             dispatch({ type: 'DELETE_VIEW', payload: { viewId: currentViewId } });
+            toast({
+                title: "View Deleted",
+                description: `The view "${currentView?.name}" has been deleted.`,
+            });
             setIsDeleteConfirmOpen(false);
         }
     }
 
-    const canUpdate = !!currentViewId && currentViewId !== 'default';
     const canDelete = !!currentViewId && currentViewId !== 'default';
 
     return (
@@ -87,10 +101,10 @@ export function ViewManager({ views, currentViewId, dispatch }: { views: View[],
                     </SelectContent>
                 </Select>
                 <div className="flex gap-1 justify-end">
-                    <Button variant="ghost" size="sm" onClick={handleUpdateView} disabled={!canUpdate}>
+                    <Button variant="ghost" size="sm" onClick={handleUpdateView}>
                         <Save className="h-4 w-4 mr-2" /> Save
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setNewViewName(''); setIsSaveAsOpen(true); }}>
+                    <Button variant="ghost" size="sm" onClick={() => { setNewViewName(currentView ? `${currentView.name} - Copy` : 'Custom View'); setIsSaveAsOpen(true); }}>
                         <CopyPlus className="h-4 w-4 mr-2" /> Save As
                     </Button>
                      <Button variant="ghost" size="sm" onClick={() => setIsDeleteConfirmOpen(true)} disabled={!canDelete}>
