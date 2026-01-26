@@ -128,7 +128,7 @@ export default function Home() {
       headerLeftActions={headerLeftActions}
       headerRightActions={headerRightActions}
     >
-      <div className="flex flex-col h-[calc(100vh-120px)] w-full">
+      <div className="flex flex-col h-full w-full">
         {isLoaded ? (
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel>

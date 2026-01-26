@@ -47,9 +47,9 @@ export function MainLayout({ children, sidebarContent, headerLeftActions, header
               {headerRightActions}
           </div>
         </AppHeader>
-        <main className="flex-1 p-4 md:p-6">
+        <div className="flex-1 p-4 md:p-6">
           {children}
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );
