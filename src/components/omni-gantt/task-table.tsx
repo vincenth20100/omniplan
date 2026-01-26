@@ -49,6 +49,7 @@ const TaskCellRenderer = React.memo(({
     childrenMap,
     handleToggle,
     displayLevel,
+    grouping,
 }: {
     task: Task;
     column: ColumnSpec;
@@ -60,12 +61,14 @@ const TaskCellRenderer = React.memo(({
     childrenMap: Map<string, Task[]>;
     handleToggle: (e: React.MouseEvent, taskId: string) => void;
     displayLevel: number;
+    grouping: string[];
 }) => {
     switch (column.id) {
         case 'wbs':
             return <>{task.wbs}</>;
         case 'name': {
-            const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
+            const isGrouped = grouping.length > 0;
+            const hasChildren = !isGrouped && task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
             const indentLevel = displayLevel;
 
             return (
@@ -75,11 +78,11 @@ const TaskCellRenderer = React.memo(({
                             {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </button>
                     ) : (
-                        <div className="w-5" style={{ marginLeft: '-1.5rem', marginRight: '0.25rem' }}></div>
+                         <div className="w-5" style={{ marginLeft: isGrouped ? '0' : '-1.5rem', marginRight: isGrouped ? '0' : '0.25rem' }}></div>
                     )}
                     {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive" />}
                     <div className="flex-grow">
-                            {task.isSummary ? (
+                            {task.isSummary && !isGrouped ? (
                             <span className="truncate">{task.name}</span>
                             ) : (
                             <EditableCell
@@ -97,7 +100,7 @@ const TaskCellRenderer = React.memo(({
             )
         }
         case 'resourceNames': {
-            if (task.isSummary) return null;
+            if (task.isSummary && grouping.length === 0) return null;
             const taskAssignments = assignments.filter(a => a.taskId === task.id);
             const resourceNames = taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
             return <div className="truncate">{resourceNames}</div>;
@@ -146,10 +149,10 @@ const TaskCellRenderer = React.memo(({
         }
         case 'duration': {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren) return null;
+            if (task.isSummary && !hasChildren && grouping.length === 0) return null;
             
             const displayValue = task.duration ? `${task.duration}d` : '';
-            if (task.isSummary) {
+            if (task.isSummary && grouping.length === 0) {
                 return <div className="text-right pr-4">{displayValue}</div>;
             }
 
@@ -168,8 +171,8 @@ const TaskCellRenderer = React.memo(({
         }
         case 'start': {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren) return null;
-            if (task.isSummary) return <>{format(task.start, 'MMM d, yyyy')}</>;
+            if (task.isSummary && !hasChildren && grouping.length === 0) return null;
+            if (task.isSummary && grouping.length === 0) return <>{format(task.start, 'MMM d, yyyy')}</>;
 
             return (
                 <EditableDateCell
@@ -184,8 +187,8 @@ const TaskCellRenderer = React.memo(({
         }
         case 'finish': {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren) return null;
-            if (task.isSummary) return <>{format(task.finish, 'MMM d, yyyy')}</>;
+            if (task.isSummary && !hasChildren && grouping.length === 0) return null;
+            if (task.isSummary && grouping.length === 0) return <>{format(task.finish, 'MMM d, yyyy')}</>;
 
             return (
                 <EditableDateCell
@@ -200,8 +203,8 @@ const TaskCellRenderer = React.memo(({
         }
         case 'percentComplete': {
             const hasChildren = task.isSummary && childrenMap.has(task.id) && childrenMap.get(task.id)!.length > 0;
-            if (task.isSummary && !hasChildren) return null;
-            if (task.isSummary) return <>{`${task.percentComplete}%`}</>;
+            if (task.isSummary && !hasChildren && grouping.length === 0) return null;
+            if (task.isSummary && grouping.length === 0) return <>{`${task.percentComplete}%`}</>;
 
             return (
                 <EditableCell
@@ -247,7 +250,7 @@ const TaskCellRenderer = React.memo(({
         }
         case 'cost': {
             const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
-            if (task.isSummary) {
+            if (task.isSummary && grouping.length === 0) {
                 return <div className="text-right pr-4">{currencyFormatter.format(task.cost || 0)}</div>;
             }
             return (
@@ -265,7 +268,7 @@ const TaskCellRenderer = React.memo(({
         }
         default: {
             if (column.id.startsWith('custom-')) {
-                if (task.isSummary) {
+                if (task.isSummary && grouping.length === 0) {
                     if (column.type === 'number') {
                         const value = task.customAttributes?.[column.id] || 0;
                         return <div className="text-right pr-4">{value}</div>
@@ -551,6 +554,37 @@ export function TaskTable({
         return columns.filter(c => visibleColumns.includes(c.id));
     }, [columns, visibleColumns]);
 
+    const getTaskPropertyValue = React.useCallback((task: Task, columnId: string): string => {
+        const column = columns.find(c => c.id === columnId);
+        if (!column) return 'None';
+        
+        if (task.isSummary) {
+            // Group summary tasks based on their own properties if available, or a default
+            switch(column.id) {
+                case 'constraintType': return 'N/A';
+                default:
+                     if (column.id.startsWith('custom-')) {
+                        return String(task.customAttributes?.[column.id] || 'None');
+                    }
+                    return 'N/A';
+            }
+        }
+        
+        switch (column.id) {
+            case 'resourceNames': {
+                const taskAssignments = assignments.filter(a => a.taskId === task.id);
+                return taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ') || 'Unassigned';
+            }
+            case 'constraintType': return task.constraintType || 'None';
+            case 'cost': return String(task.cost || 0);
+            default:
+                if (column.id.startsWith('custom-')) {
+                    return String(task.customAttributes?.[column.id] || 'None');
+                }
+                return 'None';
+        }
+    }, [columns, assignments, resourceMap]);
+
     const renderableRows: RenderableRow[] = React.useMemo(() => {
         const taskMap = new Map(tasks.map(t => [t.id, t]));
         
@@ -570,31 +604,12 @@ export function TaskTable({
             return getVisibleHierarchicalTasks().map(task => ({ itemType: 'task', data: task, displayLevel: task.level || 0 }));
         }
 
-        const getTaskPropertyValue = (task: Task, columnId: string): string => {
-            const column = columns.find(c => c.id === columnId);
-            if (!column) return 'None';
-            
-            switch (column.id) {
-                case 'resourceNames': {
-                    const taskAssignments = assignments.filter(a => a.taskId === task.id);
-                    return taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ') || 'Unassigned';
-                }
-                case 'constraintType': return task.constraintType || 'None';
-                case 'cost': return String(task.cost || 0);
-                default:
-                    if (column.id.startsWith('custom-')) {
-                        return String(task.customAttributes?.[column.id] || 'None');
-                    }
-                    return 'None';
-            }
-        };
-
         const finalRows: RenderableRow[] = [];
         
         const groupRecursively = (tasksToGroup: Task[], groupLevel: number) => {
             if (groupLevel >= grouping.length) {
                 tasksToGroup.forEach(task => {
-                    finalRows.push({ itemType: 'task', data: task, displayLevel: (task.level || 0) + groupLevel });
+                    finalRows.push({ itemType: 'task', data: task, displayLevel: groupLevel });
                 });
                 return;
             }
@@ -637,7 +652,7 @@ export function TaskTable({
         
         return finalRows;
 
-    }, [tasks, grouping, collapsedGroups, columns, assignments, resourceMap]);
+    }, [tasks, grouping, collapsedGroups, columns, assignments, resourceMap, getTaskPropertyValue]);
 
     return (
         <>
@@ -775,6 +790,7 @@ export function TaskTable({
                                                     childrenMap={childrenMap}
                                                     handleToggle={handleToggle}
                                                     displayLevel={item.displayLevel}
+                                                    grouping={grouping}
                                             />
                                             </div>
                                         </TableCell>
