@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Columns3, Plus } from "lucide-react";
 import type { ColumnSpec } from "@/lib/types";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ColumnConfigDialog, type ColumnConfig } from "../view-options/column-config-dialog";
 
 export function ColumnSelector({
@@ -24,23 +24,7 @@ export function ColumnSelector({
     dispatch: any;
 }) {
     const [isConfigOpen, setIsConfigOpen] = useState(false);
-    const [pendingColumnConfig, setPendingColumnConfig] = useState<ColumnConfig | null>(null);
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
-
-    useEffect(() => {
-        // When the dialog closes, if there's a pending column to be added, dispatch the action.
-        // This ensures the expensive state update happens AFTER the dialog has been removed from the DOM.
-        if (!isConfigOpen && pendingColumnConfig) {
-            if (editingColumn) {
-                dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...pendingColumnConfig } });
-            } else {
-                dispatch({ type: 'ADD_COLUMN', payload: pendingColumnConfig });
-            }
-            setPendingColumnConfig(null); // Clear the pending config
-            setEditingColumn(null);
-        }
-    }, [isConfigOpen, pendingColumnConfig, editingColumn, dispatch]);
-
 
     const handleCheckedChange = (columnId: string, checked: boolean) => {
         const newVisibleColumns = checked
@@ -50,8 +34,19 @@ export function ColumnSelector({
     };
 
     const handleSaveColumn = (config: ColumnConfig) => {
-        setPendingColumnConfig(config);
-        setIsConfigOpen(false); // Close the dialog, which will trigger the useEffect
+        // Immediately start the dialog closing process
+        setIsConfigOpen(false);
+
+        // Delay the expensive state update to give the dialog time to animate out and unmount.
+        // This prevents its overlay from getting stuck and blocking mouse events.
+        setTimeout(() => {
+            if (editingColumn) {
+                dispatch({ type: 'UPDATE_COLUMN', payload: { id: editingColumn.id, ...config } });
+            } else {
+                dispatch({ type: 'ADD_COLUMN', payload: config });
+            }
+            setEditingColumn(null);
+        }, 200); // The delay should be slightly longer than the dialog's close animation.
     };
 
     const handleOpenNew = () => {
@@ -66,7 +61,6 @@ export function ColumnSelector({
     
     const handleDialogClose = (open: boolean) => {
         if (!open) {
-            setPendingColumnConfig(null);
             setEditingColumn(null);
         }
         setIsConfigOpen(open);
