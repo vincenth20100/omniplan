@@ -93,7 +93,9 @@ type Action =
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
   | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string } }
-  | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null };
+  | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null }
+  | { type: 'EXPAND_ALL' }
+  | { type: 'COLLAPSE_ALL' };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -952,6 +954,58 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       }
       case 'SET_ACTIVE_CELL': {
         return { ...state, activeCell: action.payload };
+      }
+      case 'EXPAND_ALL':
+      case 'COLLAPSE_ALL': {
+        const shouldCollapse = action.type === 'COLLAPSE_ALL';
+        const { tasks, selectedTaskIds } = state;
+
+        const tasksToChange = new Set<string>();
+
+        if (selectedTaskIds.length > 0) {
+            const descendantIds = new Set<string>();
+            const queue: string[] = [...selectedTaskIds];
+            const visited = new Set<string>(); // To prevent infinite loops
+
+            while (queue.length > 0) {
+                const currentId = queue.shift()!;
+                if (visited.has(currentId)) continue;
+                visited.add(currentId);
+
+                // Add children of currentId to the queue
+                tasks.forEach(t => {
+                    if (t.parentId === currentId) {
+                        queue.push(t.id);
+                        descendantIds.add(t.id);
+                    }
+                });
+            }
+            
+            tasks.forEach(task => {
+                if (task.isSummary && (selectedTaskIds.includes(task.id) || descendantIds.has(task.id))) {
+                    tasksToChange.add(task.id);
+                }
+            });
+
+        } else {
+            // No selection, apply to all summary tasks
+            tasks.forEach(task => {
+                if (task.isSummary) {
+                    tasksToChange.add(task.id);
+                }
+            });
+        }
+
+        if (tasksToChange.size === 0) return state; // No change needed
+
+        const newTasks = tasks.map(task => {
+          if (tasksToChange.has(task.id)) {
+            return { ...task, isCollapsed: shouldCollapse };
+          }
+          return task;
+        });
+
+        return { ...state, tasks: newTasks };
       }
       default:
         return state;

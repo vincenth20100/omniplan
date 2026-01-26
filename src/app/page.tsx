@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
@@ -53,6 +53,14 @@ export default function Home() {
 
   const handleToggleMultiSelect = () => {
     dispatch({ type: 'TOGGLE_MULTI_SELECT_MODE' });
+  };
+
+  const handleExpandAll = () => {
+    dispatch({ type: 'EXPAND_ALL' });
+  };
+
+  const handleCollapseAll = () => {
+    dispatch({ type: 'COLLAPSE_ALL' });
   };
 
   const sidebarContent = (
@@ -99,6 +107,16 @@ export default function Home() {
         <Button variant="outline" size="sm" onClick={handleOutdentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
             <Outdent className="h-4 w-4" />
         </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
+        <Button variant="outline" size="sm" onClick={handleCollapseAll} disabled={state.grouping.length > 0}>
+            <ChevronsUp className="h-4 w-4" />
+            <span className="hidden sm:inline ml-2">Collapse All</span>
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleExpandAll} disabled={state.grouping.length > 0}>
+            <ChevronsDown className="h-4 w-4" />
+            <span className="hidden sm:inline ml-2">Expand All</span>
+        </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
         <Button variant="outline" size="sm" onClick={() => setIsResourceDialogOpen(true)}>
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline ml-2">Resources</span>
