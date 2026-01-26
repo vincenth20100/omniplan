@@ -87,7 +87,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
 
     return (
         <ScrollArea className="border rounded-md min-h-0 w-full">
-            <Table style={{ tableLayout: 'fixed' }} className="w-full">
+            <Table style={{ tableLayout: 'fixed' }} className="w-auto">
                  <colgroup>
                     <col style={{ width: `${colWidths.id}px` }} />
                     <col style={{ width: `${colWidths.task}px` }} />

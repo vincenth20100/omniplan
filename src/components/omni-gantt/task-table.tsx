@@ -544,7 +544,7 @@ export function TaskTable({
         <>
         <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
             <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
-                <Table style={{ tableLayout: 'fixed' }} className="w-full">
+                <Table style={{ tableLayout: 'fixed' }} className="w-auto">
                     <colgroup>
                         {orderedAndVisibleColumns.map((col) => (
                             <col key={col.id} style={{ width: `${col.width}px` }} />
