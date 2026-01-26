@@ -6,61 +6,55 @@ import { startOfDay, min, max } from 'date-fns';
 function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpec[]): Task[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
     
-    // We iterate based on the max depth of the project. This ensures values propagate
-    // from the lowest-level children up to the top-level summaries without needing
-    // a `while(changed)` loop, which was the source of the infinite loop.
-    const maxLevels = Math.max(0, ...Array.from(taskMap.values()).map(t => t.level || 0));
+    // Sort tasks by level in descending order. This ensures we process children before their parents.
+    const sortedByLevel = Array.from(taskMap.values()).sort((a, b) => (b.level || 0) - (a.level || 0));
 
-    for (let i = 0; i <= maxLevels; i++) {
-        for (const task of taskMap.values()) {
-            if (!task.isSummary) continue;
+    for (const task of sortedByLevel) {
+        if (!task.isSummary) {
+            continue;
+        }
 
-            const children = Array.from(taskMap.values()).filter(t => t.parentId === task.id);
+        const children = Array.from(taskMap.values()).filter(child => child.parentId === task.id);
+        const summaryTask = taskMap.get(task.id)!; // Get the task from the map to ensure we are modifying the version that parents will see.
+
+        if (children.length > 0) {
+            summaryTask.start = new Date(Math.min(...children.map(c => c.start.getTime())));
+            summaryTask.finish = new Date(Math.max(...children.map(c => c.finish.getTime())));
+            summaryTask.duration = calendarService.getWorkingDaysDuration(summaryTask.start, summaryTask.finish);
+            summaryTask.cost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
             
-            if (children.length > 0) {
-                // Recalculate summary fields based on children
-                task.start = new Date(Math.min(...children.map(c => c.start.getTime())));
-                task.finish = new Date(Math.max(...children.map(c => c.finish.getTime())));
-                task.duration = calendarService.getWorkingDaysDuration(task.start, task.finish);
-                task.cost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
+            const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
+            summaryTask.percentComplete = childrenTotalDuration > 0
+                ? Math.round(children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0) / childrenTotalDuration)
+                : 0;
 
-                const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
-                task.percentComplete = childrenTotalDuration > 0
-                    ? Math.round(children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0) / childrenTotalDuration)
-                    : 0;
-
-                // Recalculate custom number columns
-                if (columns) {
-                    const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
-                    if (numberColumns.length > 0) {
-                        const newCustomAttributes = { ...(task.customAttributes || {}) };
-                        for (const col of numberColumns) {
-                            newCustomAttributes[col.id] = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
-                        }
-                        task.customAttributes = newCustomAttributes;
+            if (columns) {
+                const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
+                if (numberColumns.length > 0) {
+                    const newCustomAttributes = { ...(summaryTask.customAttributes || {}) };
+                    for (const col of numberColumns) {
+                        newCustomAttributes[col.id] = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
                     }
+                    summaryTask.customAttributes = newCustomAttributes;
                 }
-            } else { // Summary task with no children should have zeroed-out values
-                task.duration = 0;
-                task.finish = task.start;
-                task.percentComplete = 0;
-                task.cost = 0;
-                
-                if (columns && task.customAttributes) {
-                    const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
-                    if (numberColumns.length > 0) {
-                        const newCustomAttributes = { ...(task.customAttributes || {}) };
-                        let customChanged = false;
-                        for (const col of numberColumns) {
-                            if (newCustomAttributes[col.id] !== 0 && newCustomAttributes[col.id] !== undefined) {
-                                newCustomAttributes[col.id] = 0;
-                                customChanged = true;
-                            }
-                        }
-                        if (customChanged) {
-                           task.customAttributes = newCustomAttributes;
+            }
+        } else { // Summary task with no children should have zeroed-out values
+            summaryTask.duration = 0;
+            summaryTask.finish = summaryTask.start;
+            summaryTask.percentComplete = 0;
+            summaryTask.cost = 0;
+            
+            if (columns && summaryTask.customAttributes) {
+                const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
+                if (numberColumns.length > 0) {
+                    const newCustomAttributes = { ...(summaryTask.customAttributes || {}) };
+                    for (const col of numberColumns) {
+                        // only update if it exists
+                        if (newCustomAttributes[col.id] !== undefined) {
+                            newCustomAttributes[col.id] = 0;
                         }
                     }
+                    summaryTask.customAttributes = newCustomAttributes;
                 }
             }
         }
