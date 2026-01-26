@@ -45,6 +45,7 @@ type Action =
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
   | { type: 'SELECT_TASK'; payload: { taskId: string | null, ctrlKey?: boolean, shiftKey?: boolean } }
+  | { type: 'LINK_TASKS' }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
   | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } }
@@ -199,22 +200,58 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 const end = Math.max(lastSelectedIndex, currentSelectedIndex);
                 const rangeIds = visibleTasks.slice(start, end + 1).map(t => t.id);
                 
-                const uniqueIds = Array.from(new Set([...state.selectedTaskIds, ...rangeIds]));
-                return { ...state, selectedTaskIds: uniqueIds };
+                const newSelection = [...state.selectedTaskIds];
+                rangeIds.forEach(id => {
+                    if (!newSelection.includes(id)) {
+                        newSelection.push(id);
+                    }
+                });
+
+                return { ...state, selectedTaskIds: newSelection };
             }
         }
 
         if (ctrlKey) {
-            const currentSelection = new Set(state.selectedTaskIds);
-            if (currentSelection.has(taskId)) {
-                currentSelection.delete(taskId);
+            const currentSelection = [...state.selectedTaskIds];
+            const existingIndex = currentSelection.indexOf(taskId);
+            if (existingIndex > -1) {
+                currentSelection.splice(existingIndex, 1);
             } else {
-                currentSelection.add(taskId);
+                currentSelection.push(taskId);
             }
-            return { ...state, selectedTaskIds: Array.from(currentSelection) };
+            return { ...state, selectedTaskIds: currentSelection };
         }
 
         return { ...state, selectedTaskIds: [taskId] };
+      }
+      case 'LINK_TASKS': {
+        if (state.selectedTaskIds.length < 2) {
+            return state;
+        }
+        const newLinks: Link[] = [];
+        for (let i = 0; i < state.selectedTaskIds.length - 1; i++) {
+            const sourceId = state.selectedTaskIds[i];
+            const targetId = state.selectedTaskIds[i + 1];
+
+            const linkExists = state.links.some(l => l.source === sourceId && l.target === targetId);
+            if (!linkExists) {
+                newLinks.push({
+                    id: `l-${sourceId}-${targetId}-${Date.now()}-${i}`,
+                    source: sourceId,
+                    target: targetId,
+                    type: 'FS',
+                    lag: 0,
+                });
+            }
+        }
+
+        if (newLinks.length === 0) {
+            return state;
+        }
+
+        const combinedLinks = [...state.links, ...newLinks];
+        const reScheduledTasks = runScheduler(state.tasks, combinedLinks);
+        return { ...state, tasks: reScheduledTasks, links: combinedLinks };
       }
       case 'SET_CONFLICTS': {
         const conflictIds = new Set(action.payload.map(c => c.taskId));

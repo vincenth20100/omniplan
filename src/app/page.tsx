@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
@@ -33,6 +33,10 @@ export default function Home() {
       // TODO: Add a confirmation dialog
       dispatch({ type: 'REMOVE_TASK' });
     }
+  };
+  
+  const handleLinkTasks = () => {
+    dispatch({ type: 'LINK_TASKS' });
   };
 
   const sidebarContent = (
@@ -62,6 +66,10 @@ export default function Home() {
         <Button variant="outline" size="sm" onClick={handleRemoveTask} disabled={state.selectedTaskIds.length === 0}>
             <Trash2 className="h-4 w-4" />
              <span className="hidden sm:inline ml-2">Remove Task</span>
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleLinkTasks} disabled={state.selectedTaskIds.length < 2}>
+            <LinkIcon className="h-4 w-4" />
+            <span className="hidden sm:inline ml-2">Link</span>
         </Button>
         <Button variant="outline" size="sm" onClick={() => setIsResourceDialogOpen(true)}>
             <Users className="h-4 w-4" />
