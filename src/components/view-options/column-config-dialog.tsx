@@ -54,8 +54,8 @@ export function ColumnConfigDialog({
 
     const handleSave = () => {
         const finalOptions = type === 'selection' ? options.split('\n').map(o => o.trim()).filter(Boolean) : undefined;
-        onSave({ name, type, options: finalOptions });
         onOpenChange(false);
+        onSave({ name, type, options: finalOptions });
     }
 
     return (
