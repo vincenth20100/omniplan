@@ -47,7 +47,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                         )}
                     >
                         <TableHead className="w-[40px] p-0"><div className={cellInnerDivClass}>ID</div></TableHead>
-                        <TableHead className="p-0"><div className={cellInnerDivClass}>Task</div></TableHead>
+                        <TableHead className="w-[150px] p-0"><div className={cellInnerDivClass}>Task</div></TableHead>
                         <TableHead className="w-[80px] p-0"><div className={cellInnerDivClass}>Type</div></TableHead>
                         <TableHead className="w-[60px] p-0"><div className={cellInnerDivClass}>Lag</div></TableHead>
                         <TableHead className="w-[40px] p-0"><div className={cellInnerDivClass}></div></TableHead>
@@ -70,7 +70,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                                 <TableCell className={cellClass}>
                                     <div className={cellInnerDivClass}>{targetTask?.wbs || 'N/A'}</div>
                                 </TableCell>
-                                <TableCell className={cn(cellClass, "max-w-[15ch]")} title={targetTask?.name}>
+                                <TableCell className={cellClass} title={targetTask?.name}>
                                     <div className={cellInnerDivClass}>
                                         <EditableCell 
                                             value={targetTask.name}

@@ -47,7 +47,7 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
                         )}
                     >
                         <TableHead className="w-[40px] p-0"><div className={cellInnerDivClass}>ID</div></TableHead>
-                        <TableHead className="p-0"><div className={cellInnerDivClass}>Task</div></TableHead>
+                        <TableHead className="w-[150px] p-0"><div className={cellInnerDivClass}>Task</div></TableHead>
                         <TableHead className="w-[80px] p-0"><div className={cellInnerDivClass}>Type</div></TableHead>
                         <TableHead className="w-[60px] p-0"><div className={cellInnerDivClass}>Lag</div></TableHead>
                         <TableHead className="w-[40px] p-0"><div className={cellInnerDivClass}></div></TableHead>
@@ -71,7 +71,7 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
                                 <TableCell className={cellClass}>
                                     <div className={cellInnerDivClass}>{sourceTask?.wbs || 'N/A'}</div>
                                 </TableCell>
-                                <TableCell className={cn(cellClass, "max-w-[15ch]")} title={sourceTask?.name}>
+                                <TableCell className={cellClass} title={sourceTask?.name}>
                                     <div className={cellInnerDivClass}>
                                         <EditableCell 
                                             value={sourceTask.name}
