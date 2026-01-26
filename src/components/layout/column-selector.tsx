@@ -25,24 +25,33 @@ export function ColumnSelector({
 }) {
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
+    const [configToDispatch, setConfigToDispatch] = useState<{
+        config: ColumnConfig;
+        columnBeingEdited: ColumnSpec | null;
+    } | null>(null);
 
-    const handleSaveColumn = (config: ColumnConfig) => {
-        // Capture the value of editingColumn before we clear it
-        const columnBeingEdited = editingColumn;
-        
-        // Immediately close the dialog to allow UI to unmount and remove body styles
-        setIsConfigOpen(false);
-        setEditingColumn(null);
-
-        // Use a timeout to dispatch the heavy action after the dialog has had time to fully close.
-        // This prevents the main thread from freezing before the dialog's cleanup logic can run.
-        setTimeout(() => {
+    // This effect handles dispatching the heavy action AFTER the dialog has closed.
+    useEffect(() => {
+        // Only run if there's a config queued and the dialog is confirmed to be closed.
+        if (configToDispatch && !isConfigOpen) {
+            const { config, columnBeingEdited } = configToDispatch;
             if (columnBeingEdited) {
                 dispatch({ type: 'UPDATE_COLUMN', payload: { id: columnBeingEdited.id, ...config } });
             } else {
                 dispatch({ type: 'ADD_COLUMN', payload: config });
             }
-        }, 150); // A small delay to ensure animations and cleanup complete.
+            // Clear the queue after dispatching
+            setConfigToDispatch(null);
+        }
+    }, [configToDispatch, isConfigOpen, dispatch]);
+
+    const handleSaveColumn = (config: ColumnConfig) => {
+        // Step 1: Queue the configuration to be dispatched later.
+        setConfigToDispatch({ config, columnBeingEdited: editingColumn });
+        
+        // Step 2: Close the dialog. This triggers a fast re-render.
+        setIsConfigOpen(false);
+        setEditingColumn(null);
     };
 
     const handleCheckedChange = (columnId: string, checked: boolean) => {
