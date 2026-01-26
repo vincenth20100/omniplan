@@ -1,3 +1,4 @@
+'use client';
 import type { Task, Link, ColumnSpec } from './types';
 import { calendarService } from './calendar';
 import { startOfDay, min, max } from 'date-fns';
@@ -17,12 +18,6 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
             const children = Array.from(taskMap.values()).filter(t => t.parentId === task.id);
             
             if (children.length > 0) {
-                const oldStartMs = task.start?.getTime();
-                const oldFinishMs = task.finish?.getTime();
-                const oldCost = task.cost;
-                const oldPercentComplete = task.percentComplete;
-                const oldCustomAttributes = task.customAttributes || {};
-
                 const newStart = min(children.map(c => c.start));
                 const newFinish = max(children.map(c => c.finish));
                 const newDuration = calendarService.getWorkingDaysDuration(newStart, newFinish);
@@ -33,25 +28,25 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
                 const newPercentComplete = childrenTotalDuration > 0 ? Math.round(childrenWeightedComplete / childrenTotalDuration) : 0;
                 
                 const newCustomAttributes = { ...(task.customAttributes || {}) };
+                let customAttrsModified = false;
                 if (columns) {
                     const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
                     for (const col of numberColumns) {
                         const sum = children.reduce((acc, c) => acc + (Number(c.customAttributes?.[col.id]) || 0), 0);
-                        newCustomAttributes[col.id] = sum;
+                        if ((newCustomAttributes[col.id] || 0) !== sum) {
+                            newCustomAttributes[col.id] = sum;
+                            customAttrsModified = true;
+                        }
                     }
                 }
-
-                const customAttrsChanged = (() => {
-                    const oldKeys = Object.keys(oldCustomAttributes);
-                    const newKeys = Object.keys(newCustomAttributes);
-                    if (oldKeys.length !== newKeys.length) return true;
-                    for (const key of oldKeys) {
-                        if (oldCustomAttributes[key] !== newCustomAttributes[key]) return true;
-                    }
-                    return false;
-                })();
                 
-                if (newStart.getTime() !== oldStartMs || newFinish.getTime() !== oldFinishMs || newCost !== oldCost || newPercentComplete !== oldPercentComplete || customAttrsChanged) {
+                if (task.start.getTime() !== newStart.getTime() || 
+                    task.finish.getTime() !== newFinish.getTime() ||
+                    task.duration !== newDuration ||
+                    task.cost !== newCost || 
+                    task.percentComplete !== newPercentComplete || 
+                    customAttrsModified
+                ) {
                     task.start = newStart;
                     task.finish = newFinish;
                     task.duration = newDuration;
@@ -62,30 +57,24 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
                     changed = true;
                 }
             } else { // Summary task with no children
-                const oldCustomAttributes = task.customAttributes || {};
+                let needsUpdate = false;
+                if (task.duration !== 0) { task.duration = 0; needsUpdate = true; }
+                if (task.percentComplete !== 0) { task.percentComplete = 0; needsUpdate = true; }
+                if (task.cost !== 0) { task.cost = 0; needsUpdate = true; }
                 
                 const newCustomAttributes = { ...(task.customAttributes || {}) };
+                let customAttrsModified = false;
                 if (columns) {
                      const numberColumns = columns.filter(c => c.id.startsWith('custom-') && c.type === 'number');
                      for (const col of numberColumns) {
-                         newCustomAttributes[col.id] = 0;
+                         if ((newCustomAttributes[col.id] || 0) !== 0) {
+                            newCustomAttributes[col.id] = 0;
+                            customAttrsModified = true;
+                         }
                      }
                 }
 
-                const customAttrsChanged = (() => {
-                    const oldKeys = Object.keys(oldCustomAttributes);
-                    const newKeys = Object.keys(newCustomAttributes);
-                    if (oldKeys.length !== newKeys.length) return true;
-                    for (const key of oldKeys) {
-                        if (oldCustomAttributes[key] !== newCustomAttributes[key]) return true;
-                    }
-                    return false;
-                })();
-
-                if (task.duration !== 0 || task.percentComplete !== 0 || task.cost !== 0 || customAttrsChanged) {
-                    task.duration = 0;
-                    task.percentComplete = 0;
-                    task.cost = 0;
+                if (needsUpdate || customAttrsModified) {
                     task.customAttributes = newCustomAttributes;
                     taskMap.set(task.id, task);
                     changed = true;
