@@ -17,7 +17,6 @@ import { ResourceManagementDialog } from '@/components/resources/resource-manage
 import { CalendarManagementDialog } from '@/components/calendars/calendar-management-dialog';
 
 export default function Home() {
-  console.log("--- Home Rerender ---");
   const { state, dispatch, isLoaded } = useProject();
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);

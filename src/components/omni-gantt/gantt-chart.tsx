@@ -6,7 +6,6 @@ import { Timeline } from './timeline';
 import React, { useRef, useCallback } from 'react';
 
 export function GanttChart({ projectState, dispatch, uiDensity }: { projectState: ProjectState, dispatch: any, uiDensity: UiDensity }) {
-    console.log("--- GanttChart Rerender ---");
     const tableViewportRef = useRef<HTMLDivElement>(null);
     const timelineViewportRef = useRef<HTMLDivElement>(null);
     const isSyncingVerticalScroll = useRef(false);
