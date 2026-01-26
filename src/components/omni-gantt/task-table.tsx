@@ -1,5 +1,5 @@
 'use client';
-import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -20,23 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from '../ui/button';
 import { ColumnConfigDialog, type ColumnConfig } from '../view-options/column-config-dialog';
-
-type GroupRow = {
-    itemType: 'group';
-    id: string;
-    level: number;
-    name: string;
-    childCount: number;
-    isCollapsed: boolean;
-};
-
-type TaskRow = {
-    itemType: 'task';
-    data: Task;
-    displayLevel: number;
-};
-
-type RenderableRow = GroupRow | TaskRow;
+import { type RenderableRow } from './gantt-chart';
 
 const TaskCellRenderer = React.memo(({
     task,
@@ -318,43 +302,30 @@ TaskCellRenderer.displayName = 'TaskCellRenderer';
 
 
 export function TaskTable({ 
-    tasks, 
-    links,
-    resources,
-    assignments,
-    selectedTaskIds, 
+    projectState,
+    renderableRows,
     dispatch, 
-    visibleColumns = ['wbs', 'name', 'start', 'finish'],
-    columns,
-    grouping,
     viewportRef,
     onScroll,
+    onToggleGroup,
     uiDensity
 }: { 
-    tasks: Task[], 
-    links: Link[],
-    resources: Resource[],
-    assignments: Assignment[],
-    selectedTaskIds: string[], 
+    projectState: ProjectState,
+    renderableRows: RenderableRow[],
     dispatch: any, 
-    visibleColumns: string[],
-    columns: ColumnSpec[],
-    grouping: string[],
     viewportRef: React.RefObject<HTMLDivElement>,
     onScroll: () => void,
-    uiDensity: UiDensity
+    uiDensity: UiDensity,
+    onToggleGroup: (groupId: string) => void,
 }) {
+    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping } = projectState;
+
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
     const [dropIndicator, setDropIndicator] = React.useState<{ targetId: string; position: 'top' | 'bottom' | 'child' } | null>(null);
 
     const [draggedColId, setDraggedColId] = React.useState<string | null>(null);
     const [dropColIndicator, setDropColIndicator] = React.useState<{ targetId: string } | null>(null);
     const [editingColumn, setEditingColumn] = React.useState<ColumnSpec | null>(null);
-    const [collapsedGroups, setCollapsedGroups] = React.useState<Record<string, boolean>>({});
-
-    const handleToggleGroup = (groupId: string) => {
-        setCollapsedGroups(prev => ({...prev, [groupId]: !prev[groupId]}));
-    }
     
     const childrenMap = React.useMemo(() => {
         const map = new Map<string, Task[]>();
@@ -554,107 +525,6 @@ export function TaskTable({
         return columns.filter(c => visibleColumns.includes(c.id));
     }, [columns, visibleColumns]);
 
-    const getTaskPropertyValue = React.useCallback((task: Task, columnId: string): string => {
-        const column = columns.find(c => c.id === columnId);
-        if (!column) return 'None';
-        
-        switch (column.id) {
-            case 'resourceNames': {
-                const taskAssignments = assignments.filter(a => a.taskId === task.id);
-                const resourceNames = taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
-                return resourceNames || 'Unassigned';
-            }
-            case 'constraintType': 
-                return task.constraintType || 'None';
-            case 'cost': 
-                return String(task.cost || 0);
-            case 'duration':
-                return `${task.duration} day(s)`;
-            case 'start':
-                return format(task.start, 'MMM d, yyyy');
-            case 'finish':
-                return format(task.finish, 'MMM d, yyyy');
-            case 'percentComplete':
-                return `${task.percentComplete}%`;
-            case 'constraintDate':
-                return task.constraintDate ? format(task.constraintDate, 'MMM d, yyyy') : 'None';
-            default:
-                if (column.id.startsWith('custom-')) {
-                    return String(task.customAttributes?.[column.id] || 'None');
-                }
-                return 'N/A';
-        }
-    }, [columns, assignments, resourceMap]);
-
-    const renderableRows: RenderableRow[] = React.useMemo(() => {
-        const taskMap = new Map(tasks.map(t => [t.id, t]));
-        
-        const getVisibleHierarchicalTasks = (): Task[] => {
-            return tasks.filter(task => {
-                if (!task.parentId) return true;
-                let parent = taskMap.get(task.parentId);
-                while(parent) {
-                    if (parent.isCollapsed) return false;
-                    parent = taskMap.get(parent.parentId || '');
-                }
-                return true;
-            });
-        };
-        
-        if (grouping.length === 0) {
-            return getVisibleHierarchicalTasks().map(task => ({ itemType: 'task', data: task, displayLevel: task.level || 0 }));
-        }
-
-        const finalRows: RenderableRow[] = [];
-        
-        const groupRecursively = (tasksToGroup: Task[], groupLevel: number) => {
-            if (groupLevel >= grouping.length) {
-                tasksToGroup.forEach(task => {
-                    finalRows.push({ itemType: 'task', data: task, displayLevel: groupLevel });
-                });
-                return;
-            }
-
-            const groupField = grouping[groupLevel];
-            const grouped = new Map<string, Task[]>();
-
-            for (const task of tasksToGroup) {
-                const groupValue = getTaskPropertyValue(task, groupField);
-                if (!grouped.has(groupValue)) {
-                    grouped.set(groupValue, []);
-                }
-                grouped.get(groupValue)!.push(task);
-            }
-
-            const sortedGroupKeys = Array.from(grouped.keys()).sort();
-
-            for (const key of sortedGroupKeys) {
-                const groupTasks = grouped.get(key)!;
-                const groupColumn = columns.find(c => c.id === groupField);
-                const groupId = `group-${groupLevel}-${key}`;
-                const isCollapsed = collapsedGroups[groupId] || false;
-
-                finalRows.push({
-                    itemType: 'group',
-                    name: `${groupColumn?.name}: ${key}`,
-                    level: groupLevel,
-                    id: groupId,
-                    childCount: groupTasks.length,
-                    isCollapsed: isCollapsed,
-                });
-                
-                if (!isCollapsed) {
-                    groupRecursively(groupTasks, groupLevel + 1);
-                }
-            }
-        }
-        
-        groupRecursively(tasks.filter(t => !t.isSummary), 0);
-        
-        return finalRows;
-
-    }, [tasks, grouping, collapsedGroups, columns, assignments, resourceMap, getTaskPropertyValue]);
-
     return (
         <>
         <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
@@ -728,7 +598,7 @@ export function TaskTable({
                                                 className="flex items-center gap-2 h-full"
                                                 style={{ paddingLeft: `${item.level * 1.5}rem`}}
                                             >
-                                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleToggleGroup(item.id)}>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onToggleGroup(item.id)}>
                                                     {item.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                                 </Button>
                                                 <span>{item.name} ({item.childCount})</span>

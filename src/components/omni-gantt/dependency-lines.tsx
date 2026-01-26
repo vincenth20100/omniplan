@@ -12,12 +12,11 @@ interface LineInfo {
     isDriving: boolean;
 }
 
-export const DependencyLines = React.memo(({ tasks, links, taskBarElements }: { 
-    tasks: Task[];
+export const DependencyLines = React.memo(({ links, taskBarElements, taskIndexMap }: { 
     links: Link[];
     taskBarElements: Record<string, HTMLDivElement | null>;
+    taskIndexMap: Map<string, number>;
 }) => {
-    const taskIndexMap = new Map(tasks.map((t, i) => [t.id, i]));
 
     const lines: LineInfo[] = links.map(link => {
         const sourceEl = taskBarElements[link.source];

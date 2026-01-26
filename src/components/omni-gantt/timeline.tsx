@@ -11,11 +11,12 @@ import { addDays, differenceInDays, min, max, startOfDay } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
+import { type RenderableRow, type TaskRow } from './gantt-chart';
 
 const VIEW_PADDING_DAYS = 30;
 
 export function Timeline({ 
-    tasks, 
+    renderableRows, 
     links, 
     dispatch, 
     selectedTaskIds,
@@ -23,7 +24,7 @@ export function Timeline({
     onScroll,
     uiDensity
 }: { 
-    tasks: Task[], 
+    renderableRows: RenderableRow[], 
     links: Link[], 
     dispatch: any, 
     selectedTaskIds: string[],
@@ -46,10 +47,14 @@ export function Timeline({
       });
   }, []);
 
+  const visibleTasks = useMemo(() => 
+      renderableRows.filter((r): r is TaskRow => r.itemType === 'task').map(r => r.data)
+  , [renderableRows]);
+
   const { viewStartDate, viewEndDate } = useMemo(() => {
-    if (tasks.length > 0) {
-        const minDate = min(tasks.map(t => t.start));
-        const maxDate = max(tasks.map(t => t.finish));
+    if (visibleTasks.length > 0) {
+        const minDate = min(visibleTasks.map(t => t.start));
+        const maxDate = max(visibleTasks.map(t => t.finish));
         return {
           viewStartDate: addDays(minDate, -15),
           viewEndDate: addDays(maxDate, 15),
@@ -64,7 +69,7 @@ export function Timeline({
       viewStartDate: addDays(staticDate, -VIEW_PADDING_DAYS),
       viewEndDate: addDays(staticDate, VIEW_PADDING_DAYS),
     };
-  }, [tasks, defaultDateRange]);
+  }, [visibleTasks, defaultDateRange]);
 
   const totalWidth = useMemo(() => {
     return (differenceInDays(viewEndDate, viewStartDate) + 1) * scale;
@@ -77,24 +82,21 @@ export function Timeline({
   const handleZoomIn = () => setScale(s => Math.min(s * 1.2, 150));
   const handleZoomOut = () => setScale(s => Math.max(s / 1.2, 10));
 
-  const visibleTasks = useMemo(() => {
-    const taskMap = new Map(tasks.map(t => [t.id, t]));
-    return tasks.filter(task => {
-        if (!task.parentId) return true;
-        let parent = taskMap.get(task.parentId);
-        while(parent) {
-            if (parent.isCollapsed) return false;
-            parent = taskMap.get(parent.parentId || '');
+  const taskIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    renderableRows.forEach((row, index) => {
+        if (row.itemType === 'task') {
+            map.set(row.data.id, index);
         }
-        return true;
     });
-  }, [tasks]);
-
-  if (tasks.length === 0 && !defaultDateRange) {
+    return map;
+  }, [renderableRows]);
+  
+  if (visibleTasks.length === 0 && !defaultDateRange) {
     return <div className="flex h-full w-full items-center justify-center"><p>Loading timeline...</p></div>
   }
   
-  const totalHeight = visibleTasks.length * rowHeight;
+  const totalHeight = renderableRows.length * rowHeight;
 
   return (
     <div className="h-full w-full relative">
@@ -111,24 +113,30 @@ export function Timeline({
           <div style={{ width: totalWidth, minHeight: '100%' }} className="relative">
             <TimelineHeader startDate={viewStartDate} endDate={viewEndDate} scale={scale} />
             <div className="relative h-full" style={{height: `${totalHeight}px`}}>
-              {visibleTasks.map((task, index) => (
-                <TaskBar
-                  key={task.id}
-                  task={task}
-                  ganttStartDate={viewStartDate}
-                  scale={scale}
-                  dispatch={dispatch}
-                  row={index}
-                  isSelected={selectedTaskIds.includes(task.id)}
-                  onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
-                  registerBarElement={registerBarElement}
-                  uiDensity={uiDensity}
-                />
-              ))}
+              {renderableRows.map((row, index) => {
+                if (row.itemType === 'task') {
+                    const task = row.data;
+                    return (
+                        <TaskBar
+                        key={task.id}
+                        task={task}
+                        ganttStartDate={viewStartDate}
+                        scale={scale}
+                        dispatch={dispatch}
+                        row={index}
+                        isSelected={selectedTaskIds.includes(task.id)}
+                        onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
+                        registerBarElement={registerBarElement}
+                        uiDensity={uiDensity}
+                        />
+                    );
+                }
+                return null;
+              })}
               <DependencyLines 
-                tasks={visibleTasks}
                 links={links} 
-                taskBarElements={taskBarElements} 
+                taskBarElements={taskBarElements}
+                taskIndexMap={taskIndexMap}
               />
             </div>
           </div>
