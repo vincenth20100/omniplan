@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
@@ -25,6 +25,10 @@ const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, name: c.n
 
 const initialVisibleColumns = ['wbs', 'name', 'resourceNames', 'duration', 'start', 'finish', 'cost', 'predecessors', 'successors'];
 
+const defaultViews: View[] = [
+    { id: 'default', name: 'Default View', grouping: [], visibleColumns: initialVisibleColumns }
+];
+
 const initialState: ProjectState = {
   tasks: [],
   links: [],
@@ -39,6 +43,8 @@ const initialState: ProjectState = {
   columns: initialColumns,
   uiDensity: 'compact',
   grouping: [],
+  views: defaultViews,
+  currentViewId: 'default',
 };
 
 type Action =
@@ -75,7 +81,11 @@ type Action =
   | { type: 'REMOVE_COLUMN', payload: { columnId: string } }
   | { type: 'NEW_PROJECT' }
   | { type: 'LOAD_PROJECT', payload: ProjectState }
-  | { type: 'SET_GROUPING', payload: string[] };
+  | { type: 'SET_GROUPING', payload: string[] }
+  | { type: 'SET_VIEW', payload: { viewId: string } }
+  | { type: 'SAVE_VIEW_AS', payload: { name: string } }
+  | { type: 'UPDATE_CURRENT_VIEW' }
+  | { type: 'DELETE_VIEW', payload: { viewId: string } };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -315,14 +325,14 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, selectedTaskIds: nextTaskId ? [nextTaskId] : [] };
       }
       case 'SET_COLUMNS': {
-        return { ...state, visibleColumns: action.payload };
+        return { ...state, visibleColumns: action.payload, currentViewId: null };
       }
        case 'RESIZE_COLUMN': {
         const { columnId, width } = action.payload;
         const newColumns = state.columns.map(c =>
           c.id === columnId ? { ...c, width } : c
         );
-        return { ...state, columns: newColumns };
+        return { ...state, columns: newColumns, currentViewId: null };
       }
       case 'REORDER_COLUMNS': {
         const { sourceId, targetId } = action.payload;
@@ -335,7 +345,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const [removed] = columns.splice(sourceIndex, 1);
         columns.splice(targetIndex, 0, removed);
         
-        return { ...state, columns };
+        return { ...state, columns, currentViewId: null };
       }
       case 'INDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
@@ -691,13 +701,13 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newColumns = [...state.columns, newColumn];
         const newVisibleColumns = [...state.visibleColumns, newColumn.id];
         
-        return { ...state, columns: newColumns, visibleColumns: newVisibleColumns };
+        return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, currentViewId: null };
       }
       case 'UPDATE_COLUMN': {
         const { id, ...updates } = action.payload;
         const newColumns = state.columns.map(c => c.id === id ? { ...c, ...updates } : c);
         const reScheduledTasks = runScheduler(state.tasks, state.links, newColumns);
-        return { ...state, tasks: reScheduledTasks, columns: newColumns };
+        return { ...state, tasks: reScheduledTasks, columns: newColumns, currentViewId: null };
       }
       case 'REMOVE_COLUMN': {
         const { columnId } = action.payload;
@@ -713,7 +723,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             return task;
         });
 
-        return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, tasks: newTasks };
+        return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, tasks: newTasks, currentViewId: null };
       }
       case 'NEW_PROJECT': {
         const calendarsWithDates: Calendar[] = initialCalendars.map(cal => ({
@@ -737,8 +747,10 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             calendars: calendarsWithDates,
             defaultCalendarId: calendarsWithDates[0]?.id || null,
             columns: state.columns,
-            visibleColumns: state.visibleColumns,
+            visibleColumns: initialVisibleColumns,
             uiDensity: state.uiDensity,
+            views: defaultViews,
+            currentViewId: 'default',
          };
       }
       case 'LOAD_PROJECT': {
@@ -774,7 +786,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 historyLog: [],
                 uiDensity: loadedState.uiDensity || state.uiDensity,
                 columns: loadedState.columns || state.columns,
-                visibleColumns: loadedState.visibleColumns || state.visibleColumns,
+                visibleColumns: loadedState.visibleColumns || initialVisibleColumns,
+                views: loadedState.views || defaultViews,
+                currentViewId: loadedState.currentViewId || 'default',
             };
             const scheduledTasks = runScheduler(newState.tasks, newState.links, newState.columns);
             
@@ -786,7 +800,64 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
           }
       }
       case 'SET_GROUPING':
-        return { ...state, grouping: action.payload };
+        return { ...state, grouping: action.payload, currentViewId: null };
+      case 'SET_VIEW': {
+        const view = state.views.find(v => v.id === action.payload.viewId);
+        if (view) {
+            return {
+                ...state,
+                currentViewId: view.id,
+                grouping: view.grouping,
+                visibleColumns: view.visibleColumns,
+            };
+        }
+        return state;
+      }
+      case 'SAVE_VIEW_AS': {
+        const { name } = action.payload;
+        const newView: View = {
+            id: `view-${Date.now()}`,
+            name,
+            grouping: state.grouping,
+            visibleColumns: state.visibleColumns,
+        };
+        const newViews = [...state.views, newView];
+        return { ...state, views: newViews, currentViewId: newView.id };
+      }
+      case 'UPDATE_CURRENT_VIEW': {
+        if (!state.currentViewId) return state;
+        
+        const newViews = state.views.map(v => 
+            v.id === state.currentViewId 
+            ? { ...v, grouping: state.grouping, visibleColumns: state.visibleColumns }
+            : v
+        );
+        return { ...state, views: newViews };
+      }
+      case 'DELETE_VIEW': {
+        const { viewId } = action.payload;
+        if (viewId === 'default') return state;
+        
+        const newViews = state.views.filter(v => v.id !== viewId);
+        let newCurrentViewId = state.currentViewId;
+        let newGrouping = state.grouping;
+        let newVisibleColumns = state.visibleColumns;
+
+        if (state.currentViewId === viewId) {
+            newCurrentViewId = 'default';
+            const defaultView = newViews.find(v => v.id === 'default')!;
+            newGrouping = defaultView.grouping;
+            newVisibleColumns = defaultView.visibleColumns;
+        }
+        
+        return { 
+            ...state, 
+            views: newViews, 
+            currentViewId: newCurrentViewId,
+            grouping: newGrouping,
+            visibleColumns: newVisibleColumns
+        };
+      }
       default:
         return state;
     }
@@ -865,7 +936,7 @@ export function useProject() {
     }));
     
     const scheduledTasks = calculateSchedule(tasksWithDates, initialLinks, initialColumns);
-    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, resources: initialResources, assignments: initialAssignments, calendars: calendarsWithDates, defaultCalendarId: calendarsWithDates[0]?.id || null, columns: initialColumns, visibleColumns: initialVisibleColumns } });
+    dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, resources: initialResources, assignments: initialAssignments, calendars: calendarsWithDates, defaultCalendarId: calendarsWithDates[0]?.id || null, columns: initialColumns, visibleColumns: initialVisibleColumns, views: defaultViews, currentViewId: 'default' } });
     setIsLoaded(true);
   }, []);
 

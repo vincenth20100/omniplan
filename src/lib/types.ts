@@ -1,3 +1,4 @@
+'use client';
 export type LinkType = "FS" | "SS" | "FF" | "SF";
 
 export type ConstraintType = "Start No Earlier Than" | "Must Start On";
@@ -85,6 +86,13 @@ export interface ColumnSpec {
   options?: string[];
 }
 
+export interface View {
+  id: string;
+  name: string;
+  grouping: string[];
+  visibleColumns: string[];
+}
+
 export interface ProjectState {
     tasks: Task[];
     links: Link[];
@@ -99,4 +107,6 @@ export interface ProjectState {
     columns: ColumnSpec[];
     uiDensity: UiDensity;
     grouping: string[];
+    views: View[];
+    currentViewId: string | null;
 }

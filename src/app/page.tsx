@@ -61,6 +61,8 @@ export default function Home() {
             uiDensity={state.uiDensity}
             grouping={state.grouping}
             onOpenGroupingDialog={() => setIsGroupingDialogOpen(true)}
+            views={state.views}
+            currentViewId={state.currentViewId}
         />
       )}
        <Separator className="my-2" />
