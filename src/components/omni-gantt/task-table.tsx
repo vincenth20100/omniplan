@@ -1,5 +1,5 @@
 'use client';
-import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -34,6 +34,7 @@ const TaskCellRenderer = React.memo(({
     displayLevel,
     grouping,
     tasks,
+    defaultCalendar,
 }: {
     task: Task;
     column: ColumnSpec;
@@ -46,6 +47,7 @@ const TaskCellRenderer = React.memo(({
     displayLevel: number;
     grouping: string[];
     tasks: Task[];
+    defaultCalendar: Calendar | null;
 }) => {
     switch (column.id) {
         case 'wbs':
@@ -169,6 +171,7 @@ const TaskCellRenderer = React.memo(({
                             dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, start: newDate } });
                         }
                     }}
+                    calendar={defaultCalendar}
                 />
             );
         }
@@ -183,6 +186,7 @@ const TaskCellRenderer = React.memo(({
                             dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, finish: newDate } });
                         }
                     }}
+                    calendar={defaultCalendar}
                 />
             );
         }
@@ -228,6 +232,7 @@ const TaskCellRenderer = React.memo(({
                     onSave={(newDate) => {
                         dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintDate: newDate } });
                     }}
+                    calendar={defaultCalendar}
                 />
             );
         }
@@ -317,7 +322,7 @@ export function TaskTable({
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
 }) {
-    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell } = projectState;
+    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell, calendars, defaultCalendarId } = projectState;
 
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
     const [dropIndicator, setDropIndicator] = React.useState<{ targetId: string; position: 'top' | 'bottom' | 'child' } | null>(null);
@@ -511,6 +516,8 @@ export function TaskTable({
         return columns.filter(c => visibleColumns.includes(c.id));
     }, [columns, visibleColumns]);
 
+    const defaultCalendar = React.useMemo(() => calendars.find(c => c.id === defaultCalendarId) || calendars[0] || null, [calendars, defaultCalendarId]);
+
     return (
         <>
         <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
@@ -652,6 +659,7 @@ export function TaskTable({
                                                     displayLevel={item.displayLevel}
                                                     grouping={grouping}
                                                     tasks={tasks}
+                                                    defaultCalendar={defaultCalendar}
                                             />
                                             </div>
                                         </TableCell>
