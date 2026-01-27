@@ -978,33 +978,39 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 duration: 1, // default duration
             };
 
-            visibleColumns.forEach((col, colIndex) => {
-                const value = values[colIndex]?.trim();
-                if (value === undefined || value === '') return;
+            // If only a single column of data is pasted, assume it's the task name.
+            if (values.length === 1 && values[0].trim()) {
+                newTask.name = values[0].trim();
+            } else {
+                // Otherwise, map pasted columns to visible columns
+                visibleColumns.forEach((col, colIndex) => {
+                    const value = values[colIndex]?.trim();
+                    if (value === undefined || value === '') return;
 
-                switch(col.id) {
-                    case 'name':
-                        newTask.name = value;
-                        break;
-                    case 'duration':
-                        const duration = parseInt(value, 10);
-                        if (!isNaN(duration) && duration > 0) newTask.duration = duration;
-                        break;
-                    case 'start':
-                        const startDate = new Date(value);
-                        if (!isNaN(startDate.getTime())) newTask.start = startDate;
-                        break;
-                    case 'percentComplete':
-                        const percent = parseInt(value.replace('%', ''), 10);
-                        if (!isNaN(percent)) newTask.percentComplete = Math.max(0, Math.min(100, percent));
-                        break;
-                    case 'cost':
-                        const cost = parseFloat(value.replace(/[^0-9.,$]+/g, "").replace(',', ''));
-                        if (!isNaN(cost)) newTask.cost = cost;
-                        break;
-                    // Note: Pasting relationships (predecessors/successors) is not supported for simplicity.
-                }
-            });
+                    switch(col.id) {
+                        case 'name':
+                            newTask.name = value;
+                            break;
+                        case 'duration':
+                            const duration = parseInt(value, 10);
+                            if (!isNaN(duration) && duration > 0) newTask.duration = duration;
+                            break;
+                        case 'start':
+                            const startDate = new Date(value);
+                            if (!isNaN(startDate.getTime())) newTask.start = startDate;
+                            break;
+                        case 'percentComplete':
+                            const percent = parseInt(value.replace('%', ''), 10);
+                            if (!isNaN(percent)) newTask.percentComplete = Math.max(0, Math.min(100, percent));
+                            break;
+                        case 'cost':
+                            const cost = parseFloat(value.replace(/[^0-9.,$]+/g, "").replace(',', ''));
+                            if (!isNaN(cost)) newTask.cost = cost;
+                            break;
+                        // Note: Pasting relationships (predecessors/successors) is not supported for simplicity.
+                    }
+                });
+            }
             
             if (!newTask.name) {
                 newTask.name = `Pasted Task ${rowIndex + 1}`;
