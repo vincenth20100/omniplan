@@ -62,6 +62,7 @@ const initialState: ProjectState = {
   calendars: [],
   defaultCalendarId: null,
   selectedTaskIds: [],
+  selectionAnchor: null,
   visibleColumns: initialVisibleColumns,
   columns: initialColumns,
   uiDensity: 'compact',
@@ -250,21 +251,24 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       const { taskId, ctrlKey, shiftKey } = action.payload;
 
       if (taskId === null) {
-        return { ...state, selectedTaskIds: [] };
+        return { ...state, selectedTaskIds: [], selectionAnchor: null };
       }
 
       const visibleTasks = getVisibleTasks(state.tasks);
       
-      if (shiftKey && state.selectedTaskIds.length > 0) {
-          const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
-          const lastSelectedIndex = visibleTasks.findIndex(t => t.id === lastSelectedId);
+      // The anchor is the task that was active when shift was first pressed.
+      const anchorId = state.selectionAnchor || state.selectedTaskIds[0] || null;
+
+      if (shiftKey && anchorId) {
+          const anchorIndex = visibleTasks.findIndex(t => t.id === anchorId);
           const currentSelectedIndex = visibleTasks.findIndex(t => t.id === taskId);
           
-          if (lastSelectedIndex !== -1 && currentSelectedIndex !== -1) {
-              const start = Math.min(lastSelectedIndex, currentSelectedIndex);
-              const end = Math.max(lastSelectedIndex, currentSelectedIndex);
+          if (anchorIndex !== -1 && currentSelectedIndex !== -1) {
+              const start = Math.min(anchorIndex, currentSelectedIndex);
+              const end = Math.max(anchorIndex, currentSelectedIndex);
               const rangeIds = visibleTasks.slice(start, end + 1).map(t => t.id);
               
+              // Don't change the anchor during a shift-select
               return { ...state, selectedTaskIds: rangeIds };
           }
       }
@@ -277,10 +281,12 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
           } else {
               currentSelection.push(taskId);
           }
-          return { ...state, selectedTaskIds: currentSelection };
+          // When ctrl-clicking, the last clicked item becomes the new anchor for subsequent shift-clicks.
+          return { ...state, selectedTaskIds: currentSelection, selectionAnchor: taskId };
       }
 
-      return { ...state, selectedTaskIds: [taskId] };
+      // Default case: simple click. Reset selection and set the anchor.
+      return { ...state, selectedTaskIds: [taskId], selectionAnchor: taskId };
     }
     case 'TOGGLE_TASK_COLLAPSE': {
       const newTasks = state.tasks.map(task => 
@@ -735,7 +741,7 @@ export function useProject(user: User) {
   useEffect(() => {
     const { data: tasks, isLoading: tasksLoading } = collections.tasks;
     const { data: links, isLoading: linksLoading } = collections.links;
-    const { data: resources, isLoading: resourcesLoading } = collections.resources;
+    const { data: resources, isLoading: resourcesLoading } = collections.assignments;
     const { data: assignments, isLoading: assignmentsLoading } = collections.assignments;
     const { data: calendars, isLoading: calendarsLoading } = collections.calendars;
 

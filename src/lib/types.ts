@@ -162,6 +162,7 @@ export interface ProjectState {
     calendars: Calendar[];
     defaultCalendarId: string | null;
     selectedTaskIds: string[];
+    selectionAnchor?: string | null;
     visibleColumns: string[];
     columns: ColumnSpec[];
     uiDensity: UiDensity;
