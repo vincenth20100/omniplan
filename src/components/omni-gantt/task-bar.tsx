@@ -73,6 +73,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
 
 
     const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
+    const left = offsetDays * scale;
     const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
     const top = row * rowHeight + (rowHeight - (isSummary ? summaryBarHeight : barHeight)) / 2;
 
