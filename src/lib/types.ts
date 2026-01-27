@@ -163,5 +163,6 @@ export interface ProjectState {
     isDirty?: boolean;
     multiSelectMode?: boolean;
     activeCell?: { taskId: string, columnId: string } | null;
+    editingCell?: { taskId: string, columnId: string, initialValue?: string } | null;
     ganttSettings: GanttSettings;
 }

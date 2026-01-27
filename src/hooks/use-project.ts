@@ -68,6 +68,7 @@ const initialState: ProjectState = {
   isDirty: false,
   multiSelectMode: false,
   activeCell: null,
+  editingCell: null,
   ganttSettings: initialGanttSettings,
 };
 
@@ -115,6 +116,8 @@ type Action =
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
   | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string } }
   | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null }
+  | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
+  | { type: 'STOP_EDITING_CELL' }
   | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
   | { type: 'EXPAND_ALL' }
   | { type: 'COLLAPSE_ALL' };
@@ -799,6 +802,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             currentViewId: 'default',
             isDirty: false,
             activeCell: null,
+            editingCell: null,
             ganttSettings: initialGanttSettings,
          };
       }
@@ -849,6 +853,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 currentViewId: loadedState.currentViewId || 'default',
                 isDirty: false,
                 activeCell: null,
+                editingCell: null,
                 ganttSettings: loadedState.ganttSettings || initialGanttSettings,
             };
             const scheduledTasks = runScheduler(newState.tasks, newState.links, newState.columns, newState.calendars, newState.defaultCalendarId);
@@ -1020,7 +1025,13 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, tasks: scheduledTasks, selectedTaskIds: newTasks.map(t => t.id) };
       }
       case 'SET_ACTIVE_CELL': {
-        return { ...state, activeCell: action.payload };
+        return { ...state, activeCell: action.payload, editingCell: null };
+      }
+      case 'START_EDITING_CELL': {
+        return { ...state, activeCell: action.payload, editingCell: action.payload };
+      }
+      case 'STOP_EDITING_CELL': {
+        return { ...state, editingCell: null };
       }
       case 'UPDATE_GANTT_SETTINGS': {
         return { ...state, ganttSettings: action.payload, isDirty: true };
@@ -1097,6 +1108,7 @@ export function useProject() {
 
    useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const currentState = stateRef.current;
       if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
         return;
       }
@@ -1121,6 +1133,22 @@ export function useProject() {
       } else if (event.key === 'Insert') {
         event.preventDefault();
         dispatch({ type: 'ADD_TASK' });
+      }
+
+      if (currentState.activeCell && !currentState.editingCell) {
+        if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault();
+            dispatch({
+                type: 'START_EDITING_CELL',
+                payload: { ...currentState.activeCell, initialValue: event.key }
+            });
+        } else if (event.key === 'Backspace') {
+            event.preventDefault();
+            dispatch({
+                type: 'START_EDITING_CELL',
+                payload: { ...currentState.activeCell, initialValue: '' }
+            });
+        }
       }
     };
 

@@ -6,7 +6,7 @@ import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag } from 'lucide-react';
-import React from 'react';
+import React, { useCallback } from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
 import { EditableSelectCell } from './editable-select-cell';
@@ -35,6 +35,9 @@ const TaskCellRenderer = React.memo(({
     grouping,
     tasks,
     defaultCalendar,
+    isEditing,
+    editingInitialValue,
+    onStopEditing
 }: {
     task: Task;
     column: ColumnSpec;
@@ -48,7 +51,12 @@ const TaskCellRenderer = React.memo(({
     grouping: string[];
     tasks: Task[];
     defaultCalendar: Calendar | null;
+    isEditing: boolean;
+    editingInitialValue?: string;
+    onStopEditing: () => void;
 }) => {
+    const isEditable = !task.isSummary || grouping.length > 0;
+
     switch (column.id) {
         case 'wbs':
             return <>{task.wbs}</>;
@@ -105,6 +113,9 @@ const TaskCellRenderer = React.memo(({
                                     }
                                 }}
                                 className="truncate"
+                                isEditing={isEditing}
+                                initialValue={editingInitialValue}
+                                onStopEditing={onStopEditing}
                             />
                             )}
                     </div>
@@ -135,6 +146,9 @@ const TaskCellRenderer = React.memo(({
                     onSave={(newValue) => {
                         dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId: task.id, field: 'predecessors', value: newValue } });
                     }}
+                    isEditing={isEditing}
+                    initialValue={editingInitialValue}
+                    onStopEditing={onStopEditing}
                 />
             );
         }
@@ -156,11 +170,14 @@ const TaskCellRenderer = React.memo(({
                     onSave={(newValue) => {
                         dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId: task.id, field: 'successors', value: newValue } });
                     }}
+                    isEditing={isEditing}
+                    initialValue={editingInitialValue}
+                    onStopEditing={onStopEditing}
                 />
             );
         }
         case 'duration': {
-            if (task.isSummary && grouping.length === 0) {
+            if (!isEditable) {
                 return <div className="text-right pr-4">{task.duration ? `${task.duration}d` : ''}</div>;
             }
 
@@ -174,11 +191,14 @@ const TaskCellRenderer = React.memo(({
                         }
                     }}
                     className="text-right pr-4"
+                    isEditing={isEditing}
+                    initialValue={editingInitialValue}
+                    onStopEditing={onStopEditing}
                 />
             );
         }
         case 'start': {
-            if (task.isSummary && grouping.length === 0) return <>{format(task.start, 'MMM d, yyyy')}</>;
+            if (!isEditable) return <>{format(task.start, 'MMM d, yyyy')}</>;
 
             return (
                 <EditableDateCell
@@ -193,7 +213,7 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'finish': {
-            if (task.isSummary && grouping.length === 0) return <>{format(task.finish, 'MMM d, yyyy')}</>;
+            if (!isEditable) return <>{format(task.finish, 'MMM d, yyyy')}</>;
 
             return (
                 <EditableDateCell
@@ -208,7 +228,7 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'percentComplete': {
-            if (task.isSummary && grouping.length === 0) return <>{`${task.percentComplete}%`}</>;
+            if (!isEditable) return <>{`${task.percentComplete}%`}</>;
 
             return (
                 <EditableCell
@@ -220,6 +240,9 @@ const TaskCellRenderer = React.memo(({
                         }
                     }}
                     className="text-right pr-4"
+                    isEditing={isEditing}
+                    initialValue={editingInitialValue}
+                    onStopEditing={onStopEditing}
                 />
             );
         }
@@ -262,7 +285,7 @@ const TaskCellRenderer = React.memo(({
         }
         case 'cost': {
             const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
-            if (task.isSummary && grouping.length === 0) {
+            if (!isEditable) {
                 return <div className="text-right pr-4">{currencyFormatter.format(task.cost || 0)}</div>;
             }
             return (
@@ -275,6 +298,9 @@ const TaskCellRenderer = React.memo(({
                         }
                     }}
                     className="text-right pr-4"
+                    isEditing={isEditing}
+                    initialValue={editingInitialValue}
+                    onStopEditing={onStopEditing}
                 />
             );
         }
@@ -319,6 +345,9 @@ const TaskCellRenderer = React.memo(({
                             });
                         }}
                         className={cn("w-full", column.type === 'number' && "text-right pr-4")}
+                        isEditing={isEditing}
+                        initialValue={editingInitialValue}
+                        onStopEditing={onStopEditing}
                     />
                 );
             }
@@ -346,7 +375,7 @@ export function TaskTable({
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
 }) {
-    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell, calendars, defaultCalendarId } = projectState;
+    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell, calendars, defaultCalendarId, editingCell } = projectState;
 
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
     const [dropIndicator, setDropIndicator] = React.useState<{ targetId: string; position: 'top' | 'bottom' | 'child' } | null>(null);
@@ -362,6 +391,10 @@ export function TaskTable({
     const handleToggle = React.useCallback((e: React.MouseEvent, taskId: string) => {
       e.stopPropagation();
       dispatch({ type: 'TOGGLE_TASK_COLLAPSE', payload: { taskId } });
+    }, [dispatch]);
+
+    const onStopEditing = useCallback(() => {
+        dispatch({ type: 'STOP_EDITING_CELL' });
     }, [dispatch]);
 
     // Row Drag & Drop
@@ -648,46 +681,52 @@ export function TaskTable({
                                         }
                                     )}
                                 >
-                                    {orderedAndVisibleColumns.map(column => (
-                                        <TableCell 
-                                            key={column.id} 
-                                            data-density={uiDensity}
-                                            className={cn(
-                                                "font-medium truncate p-0",
-                                                "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                                activeCell?.taskId === task.id && activeCell?.columnId === column.id && "ring-2 ring-inset ring-primary"
-                                            )}
-                                            onClick={(e) => {
-                                                dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: task.id, columnId: column.id } });
-                                                handleSelectTask(e, task.id);
-                                            }}
-                                        >
-                                            <div 
-                                                className={cn(
-                                                    "flex items-center h-full",
-                                                    "data-[density=large]:px-4 data-[density=large]:text-sm",
-                                                    "data-[density=medium]:px-3 data-[density=medium]:text-sm",
-                                                    "data-[density=compact]:px-2 data-[density=compact]:text-xs",
-                                                )}
+                                    {orderedAndVisibleColumns.map(column => {
+                                        const isEditing = editingCell?.taskId === task.id && editingCell?.columnId === column.id;
+                                        return (
+                                            <TableCell 
+                                                key={column.id} 
                                                 data-density={uiDensity}
+                                                className={cn(
+                                                    "font-medium truncate p-0",
+                                                    "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
+                                                    activeCell?.taskId === task.id && activeCell?.columnId === column.id && !isEditing && "ring-2 ring-inset ring-primary"
+                                                )}
+                                                onClick={(e) => {
+                                                    dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: task.id, columnId: column.id } });
+                                                    handleSelectTask(e, task.id);
+                                                }}
                                             >
-                                            <TaskCellRenderer
-                                                    task={task}
-                                                    column={column}
-                                                    dispatch={dispatch}
-                                                    links={links}
-                                                    idToWbsMap={idToWbsMap}
-                                                    resourceMap={resourceMap}
-                                                    assignments={assignments}
-                                                    handleToggle={handleToggle}
-                                                    displayLevel={item.displayLevel}
-                                                    grouping={grouping}
-                                                    tasks={tasks}
-                                                    defaultCalendar={defaultCalendar}
-                                            />
-                                            </div>
-                                        </TableCell>
-                                    ))}
+                                                <div 
+                                                    className={cn(
+                                                        "flex items-center h-full",
+                                                        "data-[density=large]:px-4 data-[density=large]:text-sm",
+                                                        "data-[density=medium]:px-3 data-[density=medium]:text-sm",
+                                                        "data-[density=compact]:px-2 data-[density=compact]:text-xs",
+                                                    )}
+                                                    data-density={uiDensity}
+                                                >
+                                                <TaskCellRenderer
+                                                        task={task}
+                                                        column={column}
+                                                        dispatch={dispatch}
+                                                        links={links}
+                                                        idToWbsMap={idToWbsMap}
+                                                        resourceMap={resourceMap}
+                                                        assignments={assignments}
+                                                        handleToggle={handleToggle}
+                                                        displayLevel={item.displayLevel}
+                                                        grouping={grouping}
+                                                        tasks={tasks}
+                                                        defaultCalendar={defaultCalendar}
+                                                        isEditing={isEditing}
+                                                        editingInitialValue={editingCell?.initialValue}
+                                                        onStopEditing={onStopEditing}
+                                                />
+                                                </div>
+                                            </TableCell>
+                                        )
+                                    })}
                                 </TableRow>
                             )
                         })}

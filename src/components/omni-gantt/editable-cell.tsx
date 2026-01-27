@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -8,57 +8,74 @@ export function EditableCell({
     value,
     onSave,
     className,
+    isEditing,
+    onStopEditing,
+    initialValue,
 }: {
     value: string;
     onSave: (newValue: string) => void;
     className?: string;
+    isEditing: boolean;
+    onStopEditing: () => void;
+    initialValue?: string;
 }) {
-    const [isEditing, setIsEditing] = useState(false);
     const [currentValue, setCurrentValue] = useState(value);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        setCurrentValue(value);
-    }, [value]);
+        if (isEditing) {
+            setCurrentValue(initialValue !== undefined ? initialValue : value);
+        }
+    }, [isEditing, initialValue, value]);
 
-    const handleClick = (e: React.MouseEvent) => {
-        setIsEditing(true);
-    };
+    useEffect(() => {
+        if (isEditing) {
+            inputRef.current?.focus();
+            if (initialValue !== undefined && initialValue !== '') {
+                 setTimeout(() => {
+                    if(inputRef.current) {
+                        inputRef.current.selectionStart = inputRef.current.selectionEnd = inputRef.current.value.length;
+                    }
+                }, 0);
+            } else {
+                inputRef.current?.select();
+            }
+        }
+    }, [isEditing, initialValue]);
+
 
     const handleBlur = () => {
-        setIsEditing(false);
-        if (currentValue.trim() && currentValue !== value) {
+        if (currentValue !== value) {
             onSave(currentValue);
-        } else {
-            setCurrentValue(value);
         }
+        onStopEditing();
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             e.currentTarget.blur();
         } else if (e.key === 'Escape') {
-            setIsEditing(false);
             setCurrentValue(value);
+            onStopEditing();
         }
     };
 
     if (isEditing) {
         return (
             <Input
+                ref={inputRef}
                 type="text"
                 value={currentValue}
                 onChange={(e) => setCurrentValue(e.target.value)}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
-                onClick={(e) => e.stopPropagation()}
-                autoFocus
-                className={cn("h-8 p-1 w-full", className)}
+                className={cn("h-full p-0 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring", className)}
             />
         );
     }
 
     return (
-        <div onClick={handleClick} className={cn("w-full h-full flex items-center", className)}>
+        <div className={cn("w-full h-full flex items-center", className)}>
             {value}
         </div>
     );
