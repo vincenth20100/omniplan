@@ -6,7 +6,7 @@ import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag } from 'lucide-react';
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
 import { EditableSelectCell } from './editable-select-cell';
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from '../ui/button';
 import { ColumnConfigDialog, type ColumnConfig } from '../view-options/column-config-dialog';
-import { type RenderableRow } from './gantt-chart';
+import { type RenderableRow, type TaskRow } from './gantt-chart';
 import { parseDuration, formatDuration } from '@/lib/duration';
 
 const TaskCellRenderer = React.memo(({
@@ -377,6 +377,106 @@ export function TaskTable({
     onToggleGroup: (groupId: string) => void,
 }) {
     const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell, calendars, defaultCalendarId, editingCell } = projectState;
+    const stateRef = useRef(projectState);
+
+    useEffect(() => {
+        stateRef.current = projectState;
+    }, [projectState]);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            const { activeCell, columns, visibleColumns, editingCell } = stateRef.current;
+            if (!activeCell) return;
+
+            // Don't interfere if an input is focused outside the table or we are actively editing a cell.
+            if ((document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) || editingCell) {
+              return;
+            }
+
+            if (event.key.startsWith('Arrow')) {
+                event.preventDefault();
+
+                const orderedVisibleColumns = columns.filter(c => visibleColumns.includes(c.id));
+                const activeRowIndex = renderableRows.findIndex(r => r.itemType === 'task' && r.data.id === activeCell.taskId);
+                const activeColIndex = orderedVisibleColumns.findIndex(c => c.id === activeCell.columnId);
+
+                if (activeRowIndex === -1 || activeColIndex === -1) return;
+
+                if (event.shiftKey) {
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                        let nextRowIndex = activeRowIndex + (event.key === 'ArrowDown' ? 1 : -1);
+                        // Find next actual task row, skipping groups
+                        while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
+                            nextRowIndex += (event.key === 'ArrowDown' ? 1 : -1);
+                        }
+
+                        if (nextRowIndex >= 0 && nextRowIndex < renderableRows.length) {
+                            const nextTaskRow = renderableRows[nextRowIndex] as TaskRow;
+                            // Move active cell
+                            dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskRow.data.id, columnId: activeCell.columnId }});
+                            // Extend selection
+                            dispatch({ type: 'SELECT_TASK', payload: { taskId: nextTaskRow.data.id, shiftKey: true } });
+                        }
+                    }
+                } else { // Not holding shift
+                    let nextTaskId = activeCell.taskId;
+                    let nextColId = activeCell.columnId;
+
+                    switch (event.key) {
+                        case 'ArrowDown': {
+                            let nextRowIndex = activeRowIndex + 1;
+                            while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
+                                nextRowIndex++;
+                            }
+                            if (nextRowIndex < renderableRows.length) {
+                                const row = renderableRows[nextRowIndex];
+                                if (row.itemType === 'task') {
+                                    nextTaskId = row.data.id;
+                                    dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskId, columnId: nextColId }});
+                                    dispatch({ type: 'SELECT_TASK', payload: { taskId: nextTaskId }});
+                                }
+                            }
+                            break;
+                        }
+                        case 'ArrowUp': {
+                            let nextRowIndex = activeRowIndex - 1;
+                            while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
+                                nextRowIndex--;
+                            }
+                            if (nextRowIndex >= 0) {
+                                const row = renderableRows[nextRowIndex];
+                                if (row.itemType === 'task') {
+                                    nextTaskId = row.data.id;
+                                    dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskId, columnId: nextColId }});
+                                    dispatch({ type: 'SELECT_TASK', payload: { taskId: nextTaskId }});
+                                }
+                            }
+                            break;
+                        }
+                        case 'ArrowRight': {
+                            if (activeColIndex < orderedVisibleColumns.length - 1) {
+                                nextColId = orderedVisibleColumns[activeColIndex + 1].id;
+                                dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskId, columnId: nextColId }});
+                            }
+                            break;
+                        }
+                        case 'ArrowLeft': {
+                            if (activeColIndex > 0) {
+                                nextColId = orderedVisibleColumns[activeColIndex - 1].id;
+                                dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskId, columnId: nextColId }});
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [renderableRows, dispatch]);
 
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
     const [dropIndicator, setDropIndicator] = React.useState<{ targetId: string; position: 'top' | 'bottom' | 'child' } | null>(null);

@@ -1276,12 +1276,6 @@ export function useProject() {
           event.preventDefault();
           dispatch({ type: 'OUTDENT_TASK' });
         }
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        dispatch({ type: 'MOVE_SELECTION', payload: { direction: 'up' } });
-      } else if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        dispatch({ type: 'MOVE_SELECTION', payload: { direction: 'down' } });
       } else if (event.key === 'Delete') {
         event.preventDefault();
         dispatch({ type: 'REMOVE_TASK' });
