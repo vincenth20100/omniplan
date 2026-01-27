@@ -53,6 +53,7 @@ export interface Task {
   duration: number; // in the unit specified by durationUnit
   durationUnit?: DurationUnit; // d: working days, m: months, ed: elapsed days, em: elapsed months
   percentComplete: number;
+  order?: number;
   cost?: number;
   
   // New properties for hierarchy

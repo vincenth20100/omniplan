@@ -8,7 +8,7 @@ import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
 import { parseDuration, formatDuration } from '@/lib/duration';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch } from 'firebase/firestore';
+import { collection, doc, writeBatch, query, orderBy } from 'firebase/firestore';
 import { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { User } from 'firebase/auth';
 
@@ -442,6 +442,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                     duration: 1,
                     percentComplete: 0,
                     level: 0,
+                    order: state.tasks.length + index,
                 };
             });
 
@@ -669,7 +670,7 @@ export function useProject(user: User) {
   const firestore = useFirestore();
 
   const collections = {
-    tasks: useCollection<Task>(useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'tasks') : null, [firestore, user])),
+    tasks: useCollection<Task>(useMemoFirebase(() => user ? query(collection(firestore, 'users', user.uid, 'tasks'), orderBy('order')) : null, [firestore, user])),
     links: useCollection<Link>(useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'links') : null, [firestore, user])),
     resources: useCollection<Resource>(useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'resources') : null, [firestore, user])),
     assignments: useCollection<Assignment>(useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'assignments') : null, [firestore, user])),
@@ -684,6 +685,27 @@ export function useProject(user: User) {
     
     if (action.type === 'ADD_TASK') {
         const newId = `task-${Date.now()}`;
+        const { tasks, selectedTaskIds } = historyState.present;
+        const lastSelectedId = selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : null;
+
+        let newOrder: number;
+
+        if (lastSelectedId) {
+            const selectedIndex = tasks.findIndex(t => t.id === lastSelectedId);
+            if (selectedIndex > -1) {
+                const orderBefore = tasks[selectedIndex].order ?? selectedIndex;
+                const nextTask = tasks[selectedIndex + 1];
+                const orderAfter = nextTask ? (nextTask.order ?? selectedIndex + 1) : orderBefore + 1;
+                newOrder = (orderBefore + orderAfter) / 2;
+            } else {
+                 const maxOrder = tasks.length > 0 ? Math.max(...tasks.map(t => t.order ?? 0)) : -1;
+                 newOrder = maxOrder + 1;
+            }
+        } else {
+            const maxOrder = tasks.length > 0 ? Math.max(...tasks.map(t => t.order ?? 0)) : -1;
+            newOrder = maxOrder + 1;
+        }
+
         const newTask: Task = {
             id: newId,
             name: 'New Task',
@@ -693,6 +715,7 @@ export function useProject(user: User) {
             durationUnit: 'd',
             percentComplete: 0,
             level: 0,
+            order: newOrder,
         };
         const docRef = doc(firestore, 'users', user.uid, 'tasks', newTask.id);
         setDocumentNonBlocking(docRef, newTask, {});
@@ -775,14 +798,18 @@ export function useProject(user: User) {
     const { data: calendars, isLoading: calendarsLoading } = collections.calendars;
 
     const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading;
+    
+    if (isSeeding || isLoading) return;
 
-    if (!isLoading && !isLoaded && !isSeeding) {
-        if (!tasks || tasks.length === 0 || !calendars || calendars.length === 0) {
+    if (!isLoaded) { // This block runs only once after initial loading finishes
+        const needsSeeding = !tasks || tasks.length === 0 || !calendars || calendars.length === 0;
+
+        if (needsSeeding) {
              setIsSeeding(true);
              const batch = writeBatch(firestore);
-             initialTasks.forEach(task => {
+             initialTasks.forEach((task, index) => {
                  const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
-                 batch.set(docRef, task);
+                 batch.set(docRef, { ...task, order: index });
              });
               initialLinks.forEach(link => {
                  const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
@@ -801,53 +828,55 @@ export function useProject(user: User) {
                  batch.set(docRef, calendar);
              });
              batch.commit().then(() => {
-                 // After seeding, we rely on the hooks to refetch the data.
-                 // We don't need to manually dispatch here. The hooks will trigger a re-render.
-             }).finally(() => {
-                 setIsSeeding(false);
+                // The hooks will automatically pick up the new data.
+                // We set isSeeding to false to allow the next effect run to process the data.
+                setIsSeeding(false);
+                setIsLoaded(true); // Mark as loaded after seeding is confirmed.
              });
-             return;
+             return; // Exit effect, will re-run when hooks update.
+        } else {
+             // If no seeding is needed, mark as loaded immediately.
+             setIsLoaded(true);
         }
     }
 
-    if (!isLoading && !isSeeding) {
-        setIsLoaded(true);
-        const safeToDate = (value: any): Date | null => {
-            if (!value) return null;
-            if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
-                return value.toDate();
-            }
-            const d = new Date(value);
-            if (!isNaN(d.getTime())) {
-                return d;
-            }
-            return null;
+    // This part runs on subsequent data updates from Firestore
+    const safeToDate = (value: any): Date | null => {
+        if (!value) return null;
+        if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
+            return value.toDate();
         }
-
-        dispatch({
-            type: 'SET_PROJECT_DATA',
-            payload: {
-                tasks: (tasks || []).map(t => ({
-                    ...t, 
-                    start: safeToDate(t.start)!, 
-                    finish: safeToDate(t.finish)!, 
-                    constraintDate: safeToDate(t.constraintDate), 
-                    deadline: safeToDate(t.deadline)
-                })),
-                links: links || [],
-                resources: resources || [],
-                assignments: assignments || [],
-                calendars: (calendars || []).map(c => ({
-                    ...c, 
-                    exceptions: (c.exceptions || []).map(e => ({
-                        ...e, 
-                        start: safeToDate(e.start)!, 
-                        finish: safeToDate(e.finish)!
-                    }))
-                })),
-            }
-        });
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) {
+            return d;
+        }
+        return null;
     }
+
+    dispatch({
+        type: 'SET_PROJECT_DATA',
+        payload: {
+            tasks: (tasks || []).map(t => ({
+                ...t, 
+                start: safeToDate(t.start)!, 
+                finish: safeToDate(t.finish)!, 
+                constraintDate: safeToDate(t.constraintDate), 
+                deadline: safeToDate(t.deadline)
+            })),
+            links: links || [],
+            resources: resources || [],
+            assignments: assignments || [],
+            calendars: (calendars || []).map(c => ({
+                ...c, 
+                exceptions: (c.exceptions || []).map(e => ({
+                    ...e, 
+                    start: safeToDate(e.start)!, 
+                    finish: safeToDate(e.finish)!
+                }))
+            })),
+        }
+    });
+
 }, [
     collections.tasks.data, 
     collections.links.data, 
