@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Paperclip, Send } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 
 export function NotesSection({ task, dispatch }: { task: Task; dispatch: any }) {
@@ -26,35 +25,8 @@ export function NotesSection({ task, dispatch }: { task: Task; dispatch: any }) 
     }
   };
   
-  const handleAdditionalNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    dispatch({
-      type: 'UPDATE_TASK',
-      payload: {
-        id: task.id,
-        additionalNotes: e.target.value,
-      },
-    });
-  };
-
   return (
     <div className="flex flex-col h-full gap-4">
-      
-      <div>
-        <Label htmlFor="additional-notes" className="text-xs font-semibold text-muted-foreground">
-          ADDITIONAL INFORMATION
-        </Label>
-        <Textarea
-          id="additional-notes"
-          value={task.additionalNotes || ''}
-          onChange={handleAdditionalNotesChange}
-          placeholder="Add any persistent, high-level information about this task here..."
-          className="mt-1"
-          rows={3}
-        />
-      </div>
-
-      <Separator />
-
       <div className="flex-grow flex flex-col gap-2 overflow-hidden">
         <Label className="text-xs font-semibold text-muted-foreground shrink-0">ACTIVITY LOG</Label>
         

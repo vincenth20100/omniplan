@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NotesSection } from './notes-section';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { InfoSection } from './info-section';
 
 export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDensity }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void, uiDensity: UiDensity }) {
 
@@ -53,7 +54,8 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                 )}>
                     <TabsList className="bg-transparent p-0">
                         <TabsTrigger value="links" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Links</TabsTrigger>
-                        <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Notes</TabsTrigger>
+                        <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Info</TabsTrigger>
+                        <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Activity Log</TabsTrigger>
                     </TabsList>
                 </div>
                 
@@ -80,6 +82,16 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                                     </div>
                                 </ResizablePanel>
                            </ResizablePanelGroup>
+                        </div>
+                    </TabsContent>
+                    <TabsContent value="info" className="m-0 h-full">
+                         <div className={cn(
+                            "h-full",
+                            uiDensity === 'large' && 'p-4',
+                            uiDensity === 'medium' && 'p-3',
+                            uiDensity === 'compact' && 'p-2'
+                        )}>
+                            <InfoSection task={task} dispatch={dispatch} />
                         </div>
                     </TabsContent>
                     <TabsContent value="notes" className="m-0 h-full">

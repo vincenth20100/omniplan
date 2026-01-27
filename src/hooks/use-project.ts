@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 
 const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
     { id: 'wbs', name: 'WBS', defaultWidth: 50, type: 'text' },
+    { id: 'schedulingMode', name: 'I', defaultWidth: 30, type: 'text' },
     { id: 'name', name: 'Task Name', defaultWidth: 250, type: 'text' },
     { id: 'resourceNames', name: 'Resource Names', defaultWidth: 150, type: 'text' },
     { id: 'duration', name: 'Duration', defaultWidth: 80, type: 'number' },
@@ -24,7 +25,7 @@ const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, name: c.name, width: c.defaultWidth, type: c.type, options: c.options }));
 
-const initialVisibleColumns = ['wbs', 'name', 'duration', 'start', 'finish'];
+const initialVisibleColumns = ['wbs', 'schedulingMode', 'name', 'duration', 'start', 'finish'];
 
 const defaultViews: View[] = [
     { id: 'default', name: 'Default View', grouping: [], visibleColumns: initialVisibleColumns, filters: [] }
@@ -191,6 +192,18 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
       case 'UPDATE_TASK': {
         const { id, ...updates } = action.payload;
+        
+        const taskBeingUpdated = state.tasks.find(t => t.id === id);
+        if (taskBeingUpdated && !taskBeingUpdated.isSummary && updates.start && !updates.duration && !updates.finish) {
+            const hasPredecessors = state.links.some(l => l.target === id);
+            if (hasPredecessors) {
+                updates.constraintType = 'Start No Earlier Than';
+            } else {
+                updates.constraintType = 'Must Start On';
+            }
+            updates.constraintDate = updates.start;
+        }
+
         let newTasks = state.tasks.map(task =>
           task.id === id ? { ...task, ...updates } : task
         );

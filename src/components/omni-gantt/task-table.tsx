@@ -5,7 +5,7 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare } from 'lucide-react';
+import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowLeft, ArrowRight, Calendar as CalendarIndicatorIcon } from 'lucide-react';
 import React from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
@@ -49,9 +49,37 @@ const TaskCellRenderer = React.memo(({
     tasks: Task[];
     defaultCalendar: Calendar | null;
 }) => {
+    const getSchedulingMode = () => {
+        if (task.constraintDate) {
+            return 'constraint';
+        }
+        if (links.some(l => l.target === task.id && l.isDriving)) {
+            return 'predecessor';
+        }
+        if (links.some(l => l.source === task.id)) {
+            return 'successor';
+        }
+        return 'asap'; // As soon as possible
+    };
+    const schedulingMode = getSchedulingMode();
+
     switch (column.id) {
         case 'wbs':
             return <>{task.wbs}</>;
+        case 'schedulingMode': {
+            if (task.isSummary) return null;
+
+            switch(schedulingMode) {
+                case 'constraint':
+                    return <CalendarIndicatorIcon className="h-4 w-4 text-blue-500" title="Scheduled by constraint"/>
+                case 'predecessor':
+                    return <ArrowRight className="h-4 w-4 text-muted-foreground" title="Scheduled by predecessor"/>
+                case 'successor':
+                    return <ArrowLeft className="h-4 w-4 text-muted-foreground" title="Scheduled by successor"/>
+                default:
+                    return <div className="w-4 h-4" />;
+            }
+        }
         case 'name': {
             const isGrouped = grouping.length > 0;
             const hasChildren = !isGrouped && task.isSummary;
@@ -226,6 +254,8 @@ const TaskCellRenderer = React.memo(({
         case 'constraintDate': {
             if (task.isSummary || !task.constraintType) return null;
 
+            const isConstraintDriven = schedulingMode === 'constraint';
+
             return (
                 <EditableDateCell
                     value={task.constraintDate}
@@ -233,6 +263,7 @@ const TaskCellRenderer = React.memo(({
                         dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintDate: newDate } });
                     }}
                     calendar={defaultCalendar}
+                    className={cn(isConstraintDriven && "text-blue-500 font-semibold")}
                 />
             );
         }
@@ -311,8 +342,8 @@ export function TaskTable({
     dispatch, 
     viewportRef,
     onScroll,
+    uiDensity,
     onToggleGroup,
-    uiDensity
 }: { 
     projectState: ProjectState,
     renderableRows: RenderableRow[],
