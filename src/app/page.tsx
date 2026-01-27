@@ -20,6 +20,7 @@ import { FilterDialog } from '@/components/view-options/filter-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ColumnSelector } from '@/components/layout/column-selector';
 import { GanttSettingsPanel } from '@/components/gantt-settings/gantt-settings-panel';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
@@ -160,29 +161,33 @@ export default function Home() {
       headerLeftActions={headerLeftActions}
       headerRightActions={headerRightActions}
     >
-      <main className="flex-1 flex flex-col h-full min-w-0">
+      <main className="flex-1 flex flex-col h-full">
         {isLoaded ? (
-          <ResizablePanelGroup direction="vertical">
-            <ResizablePanel>
-              <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />
-            </ResizablePanel>
-            {selectedTask && (
-              <>
-                <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={35} minSize={20}>
-                  <TaskDetailsPanel 
-                    task={selectedTask} 
-                    links={state.links} 
-                    tasks={state.tasks}
-                    dispatch={dispatch}
-                    onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
-                    uiDensity={state.uiDensity}
-                    defaultCalendar={defaultCalendar}
-                  />
-                </ResizablePanel>
-              </>
-            )}
-          </ResizablePanelGroup>
+          isMobile ? (
+            <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />
+          ) : (
+            <ResizablePanelGroup direction="vertical">
+              <ResizablePanel>
+                <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />
+              </ResizablePanel>
+              {selectedTask && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={35} minSize={20}>
+                    <TaskDetailsPanel 
+                      task={selectedTask} 
+                      links={state.links} 
+                      tasks={state.tasks}
+                      dispatch={dispatch}
+                      onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
+                      uiDensity={state.uiDensity}
+                      defaultCalendar={defaultCalendar}
+                    />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+          )
         ) : (
           <div className="flex items-center justify-center h-full">
             <p>Loading Project...</p>
@@ -191,6 +196,23 @@ export default function Home() {
       </main>
       {isLoaded && (
         <>
+          {isMobile && (
+            <Sheet open={!!selectedTask} onOpenChange={(open) => !open && dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}>
+                <SheetContent side="bottom" className="h-[80vh] p-0">
+                {selectedTask && (
+                    <TaskDetailsPanel 
+                        task={selectedTask} 
+                        links={state.links} 
+                        tasks={state.tasks}
+                        dispatch={dispatch}
+                        onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
+                        uiDensity={state.uiDensity}
+                        defaultCalendar={defaultCalendar}
+                    />
+                )}
+                </SheetContent>
+            </Sheet>
+          )}
           <ResourceManagementDialog
             open={isResourceDialogOpen}
             onOpenChange={setIsResourceDialogOpen}
