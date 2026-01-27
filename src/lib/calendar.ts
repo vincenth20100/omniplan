@@ -1,15 +1,54 @@
-import { addDays, isWeekend, startOfDay, differenceInCalendarDays } from 'date-fns';
+'use client';
+import { addDays, startOfDay, differenceInCalendarDays, formatISO, isSameDay } from 'date-fns';
+import type { Calendar, Exception } from './types';
 
 class CalendarService {
-  private workingDays: number[] = [1, 2, 3, 4, 5]; // Mon-Fri
 
-  public addWorkingDays(startDate: Date, days: number): Date {
+  public isWorkingDay(date: Date, calendar: Calendar): boolean {
+    const sDate = startOfDay(date);
+
+    // Check exceptions first. Exceptions are non-working days.
+    if (calendar.exceptions) {
+      for (const ex of calendar.exceptions) {
+        if (ex.isActive && ex.start && ex.finish) {
+          const exStart = startOfDay(ex.start);
+          const exFinish = startOfDay(ex.finish);
+          if (sDate >= exStart && sDate <= exFinish) {
+            return false;
+          }
+        }
+      }
+    }
+    
+    const isoDate = formatISO(sDate, { representation: 'date' });
+    
+    // Check overrides
+    if (calendar.workingDayOverrides?.includes(isoDate)) {
+        return true;
+    }
+    if (calendar.nonWorkingDayOverrides?.includes(isoDate)) {
+        return false;
+    }
+
+    // Check default working days
+    return calendar.workingDays.includes(sDate.getDay());
+  }
+  
+  public findNextWorkingDay(date: Date, calendar: Calendar, direction: 1 | -1 = 1): Date {
+    let nextDay = date;
+    while (!this.isWorkingDay(nextDay, calendar)) {
+      nextDay = addDays(nextDay, direction);
+    }
+    return nextDay;
+  }
+  
+  public addWorkingDays(startDate: Date, days: number, calendar: Calendar): Date {
     let currentDate = startDate;
     let daysToAdd = Math.floor(days);
 
     if (daysToAdd === 0) {
-      if (!this.isWorkingDay(currentDate)) {
-         return this.findNextWorkingDay(currentDate, 1);
+      if (!this.isWorkingDay(currentDate, calendar)) {
+         return this.findNextWorkingDay(currentDate, calendar, 1);
       }
       return currentDate;
     }
@@ -19,7 +58,7 @@ class CalendarService {
 
     while (remainingDays > 0) {
       currentDate = addDays(currentDate, direction);
-      if (this.isWorkingDay(currentDate)) {
+      if (this.isWorkingDay(currentDate, calendar)) {
         remainingDays--;
       }
     }
@@ -27,33 +66,21 @@ class CalendarService {
     return currentDate;
   }
   
-  public getWorkingDaysDuration(start: Date, end: Date): number {
+  public getWorkingDaysDuration(start: Date, end: Date, calendar: Calendar): number {
     let duration = 0;
     let currentDate = startOfDay(start);
     const endDate = startOfDay(end);
 
-    if (currentDate >= endDate) return 1;
+    if (currentDate > endDate) return 1;
     
     const totalDays = differenceInCalendarDays(endDate, currentDate);
     for (let i = 0; i <= totalDays; i++) {
-        if (this.isWorkingDay(addDays(currentDate, i))) {
+        if (this.isWorkingDay(addDays(currentDate, i), calendar)) {
             duration++;
         }
     }
     
     return duration > 0 ? duration : 1;
-  }
-
-  public isWorkingDay(date: Date): boolean {
-    return !isWeekend(date);
-  }
-
-  public findNextWorkingDay(date: Date, direction: 1 | -1 = 1): Date {
-    let nextDay = date;
-    while (!this.isWorkingDay(nextDay)) {
-      nextDay = addDays(nextDay, direction);
-    }
-    return nextDay;
   }
 }
 

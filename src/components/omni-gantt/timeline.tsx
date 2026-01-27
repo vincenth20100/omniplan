@@ -1,17 +1,18 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import type { Task, Link, UiDensity } from '@/lib/types';
+import type { Task, Link, UiDensity, Calendar } from '@/lib/types';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { TimelineHeader } from './timeline-header';
 import { TaskBar } from './task-bar';
 import { DependencyLines } from './dependency-lines';
-import { addDays, differenceInDays, min, max, startOfDay, differenceInCalendarDays } from 'date-fns';
+import { addDays, differenceInDays, min, max, startOfDay, differenceInCalendarDays, eachDayOfInterval } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
 import { type RenderableRow, type TaskRow } from './gantt-chart';
+import { calendarService } from '@/lib/calendar';
 
 const VIEW_PADDING_DAYS = 30;
 
@@ -22,7 +23,8 @@ export function Timeline({
     selectedTaskIds,
     viewportRef,
     onScroll,
-    uiDensity
+    uiDensity,
+    defaultCalendar
 }: { 
     renderableRows: RenderableRow[], 
     links: Link[], 
@@ -30,7 +32,8 @@ export function Timeline({
     selectedTaskIds: string[],
     viewportRef: React.RefObject<HTMLDivElement>,
     onScroll: () => void,
-    uiDensity: UiDensity
+    uiDensity: UiDensity,
+    defaultCalendar: Calendar | null
 }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
@@ -70,6 +73,8 @@ export function Timeline({
       viewEndDate: addDays(staticDate, VIEW_PADDING_DAYS),
     };
   }, [visibleTasks, defaultDateRange]);
+  
+  const days = useMemo(() => eachDayOfInterval({ start: viewStartDate, end: viewEndDate }), [viewStartDate, viewEndDate]);
 
   const totalWidth = useMemo(() => {
     return (differenceInCalendarDays(viewEndDate, viewStartDate) + 1) * scale;
@@ -113,6 +118,23 @@ export function Timeline({
           <div style={{ width: totalWidth, minHeight: '100%' }} className="relative">
             <TimelineHeader startDate={viewStartDate} endDate={viewEndDate} scale={scale} />
             <div className="relative h-full" style={{height: `${totalHeight}px`}}>
+              <div className="absolute top-0 left-0 h-full w-full pointer-events-none">
+                {defaultCalendar && days.map((day, index) => {
+                    if (!calendarService.isWorkingDay(day, defaultCalendar)) {
+                        return (
+                            <div
+                                key={index}
+                                className="absolute top-0 h-full bg-muted/20"
+                                style={{
+                                    left: `${index * scale}px`,
+                                    width: `${scale}px`,
+                                }}
+                            />
+                        );
+                    }
+                    return null;
+                })}
+              </div>
               {renderableRows.map((row, index) => {
                 if (row.itemType === 'task') {
                     const task = row.data;

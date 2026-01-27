@@ -1,9 +1,9 @@
 'use client';
-import type { Task, Link, ColumnSpec } from './types';
+import type { Task, Link, ColumnSpec, Calendar } from './types';
 import { calendarService } from './calendar';
 import { startOfDay, max } from 'date-fns';
 
-function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpec[]): Task[] {
+function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec[] | undefined, calendar: Calendar): Task[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
     
     // Create a map of children for each parent
@@ -29,7 +29,7 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
         if (children.length > 0) {
             summaryTask.start = new Date(Math.min(...children.map(c => c.start.getTime())));
             summaryTask.finish = new Date(Math.max(...children.map(c => c.finish.getTime())));
-            summaryTask.duration = calendarService.getWorkingDaysDuration(summaryTask.start, summaryTask.finish);
+            summaryTask.duration = calendarService.getWorkingDaysDuration(summaryTask.start, summaryTask.finish, calendar);
             summaryTask.cost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
             
             const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
@@ -61,7 +61,7 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns?: ColumnSpe
 }
 
 
-export function calculateSchedule(tasks: Task[], links: Link[], columns?: ColumnSpec[]): Task[] {
+export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnSpec[] | undefined, calendar: Calendar): Task[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
     const predecessorsMap = new Map<string, Link[]>();
     const successorsMap = new Map<string, Link[]>();
@@ -125,16 +125,16 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns?: Column
                 let potentialStart: Date;
                  switch (link.type) {
                     case 'FS':
-                        potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag + 1);
+                        potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag + 1, calendar);
                         break;
                     case 'SS':
-                        potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag);
+                        potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
                         break;
                     case 'FF':
-                        potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag - (task.duration > 0 ? task.duration - 1 : 0));
+                        potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag - (task.duration > 0 ? task.duration - 1 : 0), calendar);
                         break;
                     case 'SF':
-                        potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag - (task.duration > 0 ? task.duration - 1 : 0));
+                        potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag - (task.duration > 0 ? task.duration - 1 : 0), calendar);
                         break;
                     default:
                         potentialStart = new Date(0);
@@ -152,8 +152,8 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns?: Column
             earlyStart = max([earlyStart, startOfDay(task.constraintDate)]);
         }
 
-        task.start = calendarService.isWorkingDay(earlyStart) ? earlyStart : calendarService.findNextWorkingDay(earlyStart);
-        task.finish = calendarService.addWorkingDays(task.start, task.duration > 0 ? task.duration - 1 : 0);
+        task.start = calendarService.isWorkingDay(earlyStart, calendar) ? earlyStart : calendarService.findNextWorkingDay(earlyStart, calendar);
+        task.finish = calendarService.addWorkingDays(task.start, task.duration > 0 ? task.duration - 1 : 0, calendar);
     }
     
     // Update driving status on links
@@ -166,21 +166,21 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns?: Column
         let potentialStart: Date;
         switch (link.type) {
             case 'FS':
-                potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag + 1);
+                potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag + 1, calendar);
                 break;
             case 'SS':
-                potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag);
+                potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
                 break;
             case 'FF':
-                 potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag - (targetTask.duration > 0 ? targetTask.duration - 1 : 0));
+                 potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag - (targetTask.duration > 0 ? targetTask.duration - 1 : 0), calendar);
                 break;
             case 'SF':
-                 potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag - (targetTask.duration > 0 ? targetTask.duration - 1 : 0));
+                 potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag - (targetTask.duration > 0 ? targetTask.duration - 1 : 0), calendar);
                 break;
             default:
                 potentialStart = new Date(0);
         }
-        potentialStart = calendarService.isWorkingDay(potentialStart) ? potentialStart : calendarService.findNextWorkingDay(potentialStart);
+        potentialStart = calendarService.isWorkingDay(potentialStart, calendar) ? potentialStart : calendarService.findNextWorkingDay(potentialStart, calendar);
         
         if (potentialStart.getTime() >= targetTask.start.getTime()) {
              link.isDriving = true;
@@ -188,7 +188,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns?: Column
     }
     
     // Update summary tasks
-    const finalTasksWithSummaries = updateAllSummaryTasks(Array.from(taskMap.values()), links, columns);
+    const finalTasksWithSummaries = updateAllSummaryTasks(Array.from(taskMap.values()), links, columns, calendar);
     
     // Sort final task list by WBS to maintain original-like order in the UI
     finalTasksWithSummaries.sort((a, b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true, sensitivity: 'base' }));

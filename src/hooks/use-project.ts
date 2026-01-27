@@ -156,9 +156,14 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
 }
 
 function projectReducer(state: ProjectState, action: Action): ProjectState {
-  const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[]): Task[] => {
+  const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null): Task[] => {
+      const defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
+      if (!defaultCalendar) {
+          console.error("No default calendar found for scheduling.");
+          return tasks;
+      }
       const hierarchicalTasks = updateHierarchyAndSort(tasks);
-      return calculateSchedule(hierarchicalTasks, links, columns);
+      return calculateSchedule(hierarchicalTasks, links, columns, defaultCalendar);
   };
 
   const getVisibleTasks = (tasks: Task[]): Task[] => {
@@ -180,7 +185,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return action.payload;
 
       case 'SCHEDULE_PROJECT': {
-        const scheduledTasks = runScheduler(state.tasks, state.links, state.columns);
+        const scheduledTasks = runScheduler(state.tasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: scheduledTasks };
       }
 
@@ -191,25 +196,27 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         );
         
         const updatedTask = newTasks.find(t => t.id === id);
-        if (updatedTask && !updatedTask.isSummary) {
+        const defaultCalendar = state.calendars.find(c => c.id === state.defaultCalendarId) || state.calendars[0];
+
+        if (updatedTask && !updatedTask.isSummary && defaultCalendar) {
           // If start date is changed (e.g., by moving), update finish date to preserve duration
           if (updates.start !== undefined && updates.duration === undefined && updates.finish === undefined) {
-            updatedTask.finish = calendarService.addWorkingDays(updatedTask.start, updatedTask.duration > 0 ? updatedTask.duration - 1 : 0);
+            updatedTask.finish = calendarService.addWorkingDays(updatedTask.start, updatedTask.duration > 0 ? updatedTask.duration - 1 : 0, defaultCalendar);
           }
           // If duration is explicitly changed, update finish date
           else if (updates.duration !== undefined) {
-            updatedTask.finish = calendarService.addWorkingDays(updatedTask.start, updatedTask.duration > 0 ? updatedTask.duration - 1 : 0);
+            updatedTask.finish = calendarService.addWorkingDays(updatedTask.start, updatedTask.duration > 0 ? updatedTask.duration - 1 : 0, defaultCalendar);
           } 
           // If finish date is changed, update duration
           else if (updates.finish !== undefined) {
             if (updatedTask.start > updatedTask.finish) {
               updatedTask.start = updatedTask.finish; // Prevent finish from being before start
             }
-            updatedTask.duration = calendarService.getWorkingDaysDuration(updatedTask.start, updatedTask.finish);
+            updatedTask.duration = calendarService.getWorkingDaysDuration(updatedTask.start, updatedTask.finish, defaultCalendar);
           }
         }
         
-        const reScheduledTasks = runScheduler(newTasks, state.links, state.columns);
+        const reScheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: reScheduledTasks };
       }
       case 'UPDATE_LINK': {
@@ -217,7 +224,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newLinks = state.links.map(link =>
           link.id === id ? { ...link, ...updates } : link
         );
-        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns);
+        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: reScheduledTasks, links: newLinks };
       }
       case 'SELECT_TASK': {
@@ -289,7 +296,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
 
         const combinedLinks = [...state.links, ...newLinks];
-        const reScheduledTasks = runScheduler(state.tasks, combinedLinks, state.columns);
+        const reScheduledTasks = runScheduler(state.tasks, combinedLinks, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: reScheduledTasks, links: combinedLinks };
       }
       case 'ADD_LINK': {
@@ -309,7 +316,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         };
 
         const newLinks = [...state.links, newLink];
-        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns);
+        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: reScheduledTasks, links: newLinks };
       }
       case 'SET_CONFLICTS': {
@@ -404,7 +411,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
 
         const newTasks = Array.from(taskMap.values());
-        const reScheduledTasks = runScheduler(newTasks, state.links, state.columns);
+        const reScheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: reScheduledTasks };
       }
       case 'OUTDENT_TASK': {
@@ -425,7 +432,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         });
         
         const newTasks = Array.from(taskMap.values());
-        const reScheduledTasks = runScheduler(newTasks, state.links, state.columns);
+        const reScheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: reScheduledTasks };
       }
        case 'ADD_TASK': {
@@ -460,7 +467,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             newTasks.push(newTask);
         }
 
-        const reScheduledTasks = runScheduler(newTasks, state.links, state.columns);
+        const reScheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: reScheduledTasks, selectedTaskIds: newSelectedIds };
       }
       case 'REMOVE_TASK': {
@@ -489,7 +496,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newTasks = state.tasks.filter(t => !idsToRemove.has(t.id));
         const newLinks = state.links.filter(l => !idsToRemove.has(l.source) && !idsToRemove.has(l.target));
         
-        const reScheduledTasks = runScheduler(newTasks, newLinks, state.columns);
+        const reScheduledTasks = runScheduler(newTasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
 
         let activeCell = state.activeCell;
         if (activeCell && idsToRemove.has(activeCell.taskId)) {
@@ -501,7 +508,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       case 'REMOVE_LINK': {
         const { linkId } = action.payload;
         const newLinks = state.links.filter(l => l.id !== linkId);
-        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns);
+        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: reScheduledTasks, links: newLinks };
       }
       case 'REORDER_TASKS': {
@@ -530,7 +537,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         remainingTasks.splice(targetIndex, 0, ...sourceTasks);
 
-        const reScheduledTasks = runScheduler(remainingTasks, state.links, state.columns);
+        const reScheduledTasks = runScheduler(remainingTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
         
         return { ...state, tasks: reScheduledTasks };
       }
@@ -577,7 +584,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         remainingTasks.splice(insertAfterIndex + 1, 0, ...sourceTasks);
         
-        const reScheduledTasks = runScheduler(remainingTasks, state.links, state.columns);
+        const reScheduledTasks = runScheduler(remainingTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
         
         return { ...state, tasks: reScheduledTasks };
       }
@@ -633,7 +640,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
         
         const newLinks = [...otherLinks, ...newLinksForTask];
-        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns);
+        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
         
         return { ...state, tasks: reScheduledTasks, links: newLinks };
       }
@@ -689,7 +696,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newCalendars = state.calendars.map(cal =>
           cal.id === id ? { ...cal, ...updates } : cal
         );
-        return { ...state, calendars: newCalendars };
+        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, state.defaultCalendarId);
+        return { ...state, calendars: newCalendars, tasks: reScheduledTasks };
       }
       case 'ADD_COLUMN': {
         const { name, type, options, width } = action.payload;
@@ -708,7 +716,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       case 'UPDATE_COLUMN': {
         const { id, ...updates } = action.payload;
         const newColumns = state.columns.map(c => c.id === id ? { ...c, ...updates } : c);
-        const reScheduledTasks = runScheduler(state.tasks, state.links, newColumns);
+        const reScheduledTasks = runScheduler(state.tasks, state.links, newColumns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: reScheduledTasks, columns: newColumns, isDirty: true };
       }
       case 'REMOVE_COLUMN': {
@@ -742,7 +750,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             workingDayOverrides: [],
         }));
 
-        const scheduledTasks = runScheduler([], [], state.columns);
+        const scheduledTasks = runScheduler([], [], state.columns, calendarsWithDates, calendarsWithDates[0]?.id || null);
         return { 
             ...initialState,
             tasks: scheduledTasks,
@@ -808,7 +816,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 isDirty: false,
                 activeCell: null,
             };
-            const scheduledTasks = runScheduler(newState.tasks, newState.links, newState.columns);
+            const scheduledTasks = runScheduler(newState.tasks, newState.links, newState.columns, newState.calendars, newState.defaultCalendarId);
             
             return { ...newState, tasks: scheduledTasks };
 
@@ -913,6 +921,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const visibleColumns = state.columns.filter(c => state.visibleColumns.includes(c.id));
 
         const newTasks: Task[] = [];
+        const defaultCalendar = state.calendars.find(c => c.id === state.defaultCalendarId) || state.calendars[0];
         
         rows.forEach((row, rowIndex) => {
             if (!row.trim()) return;
@@ -959,7 +968,11 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 newTask.name = `Pasted Task ${rowIndex + 1}`;
             }
             
-            newTask.finish = calendarService.addWorkingDays(newTask.start, newTask.duration! > 0 ? newTask.duration! - 1 : 0);
+            if (defaultCalendar) {
+                newTask.finish = calendarService.addWorkingDays(newTask.start, newTask.duration! > 0 ? newTask.duration! - 1 : 0, defaultCalendar);
+            } else {
+                newTask.finish = new Date(newTask.start);
+            }
             
             newTasks.push(newTask as Task);
         });
@@ -967,7 +980,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         if (newTasks.length === 0) return state;
         
         let combinedTasks = [...state.tasks, ...newTasks];
-        let scheduledTasks = runScheduler(combinedTasks, state.links, state.columns);
+        let scheduledTasks = runScheduler(combinedTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
 
         return { ...state, tasks: scheduledTasks, selectedTaskIds: newTasks.map(t => t.id) };
       }
@@ -1280,8 +1293,9 @@ export function useProject() {
         workingDayOverrides: [],
     }));
     
+    const defaultCalendar = calendarsWithDates.find(c => c.id === initialCalendars[0].id) || calendarsWithDates[0];
     const hierarchicalTasks = updateHierarchyAndSort(tasksWithDates);
-    const scheduledTasks = calculateSchedule(hierarchicalTasks, initialLinks, initialColumns);
+    const scheduledTasks = calculateSchedule(hierarchicalTasks, initialLinks, initialColumns, defaultCalendar);
 
     dispatch({ type: 'INIT_STATE', payload: { ...initialState, tasks: scheduledTasks, links: initialLinks, resources: initialResources, assignments: initialAssignments, calendars: calendarsWithDates, defaultCalendarId: calendarsWithDates[0]?.id || null, columns: initialColumns, visibleColumns: initialVisibleColumns, views: defaultViews, currentViewId: 'default' } });
     setIsLoaded(true);
