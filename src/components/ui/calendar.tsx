@@ -20,7 +20,7 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn("p-0", className)}
       classNames={{
-        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+        months: "flex flex-row space-x-4",
         month: "space-y-2",
         caption: "flex justify-center pt-1 relative items-center",
         caption_label: "text-sm font-medium",
