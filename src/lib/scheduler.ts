@@ -36,6 +36,9 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec
             summaryTask.percentComplete = childrenTotalDuration > 0
                 ? Math.round(children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0) / childrenTotalDuration)
                 : 0;
+
+            // A summary task is critical if any of its children are critical.
+            summaryTask.isCritical = children.some(c => c.isCritical);
             
             if (columns) {
                 columns.forEach(col => {
@@ -52,6 +55,7 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec
             summaryTask.finish = summaryTask.start;
             summaryTask.percentComplete = 100; // No children to complete
             summaryTask.cost = 0;
+            summaryTask.isCritical = false;
         }
 
         taskMap.set(summaryTask.id, summaryTask);
@@ -71,6 +75,9 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         predecessorsMap.set(task.id, []);
         successorsMap.set(task.id, []);
         inDegree.set(task.id, 0);
+        // Reset critical path fields
+        task.isCritical = false;
+        task.totalFloat = undefined;
     }
 
     for (const link of links) {
@@ -106,7 +113,6 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     
     if (sortedTasks.length !== tasks.length) {
         console.error("Scheduling conflict detected: A circular dependency exists in your project links.");
-        // Return original tasks to prevent further errors, maybe flag the cyclic tasks
         return tasks;
     }
 
@@ -199,6 +205,66 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         }
     }
     
+    // Backward Pass: Calculate Late Start (LS) and Late Finish (LF)
+    const reversedSortedTasks = [...sortedTasks].reverse();
+    const relevantTasks = Array.from(taskMap.values()).filter(t => !t.isSummary && t.finish);
+    const projectFinishDate = relevantTasks.length > 0 ? new Date(Math.max(...relevantTasks.map(t => t.finish.getTime()))) : new Date();
+
+    // Initialize LF for all tasks.
+    for (const task of taskMap.values()) {
+        task.lateFinish = projectFinishDate;
+    }
+    
+    for (const taskId of reversedSortedTasks) {
+        const task = taskMap.get(taskId)!;
+        if (task.isSummary) continue;
+
+        const successors = successorsMap.get(taskId) || [];
+        if (successors.length > 0) {
+            const potentialLateFinishes = successors.map(link => {
+                const successorTask = taskMap.get(link.target)!;
+                const successorLateFinish = successorTask.lateFinish!;
+                const successorLateStart = successorTask.lateStart!;
+                
+                let constrainedLateFinish: Date;
+                switch (link.type) {
+                    case 'FS': // Finish-to-Start
+                        constrainedLateFinish = calendarService.addWorkingDays(successorLateStart, -(link.lag + 1), calendar);
+                        break;
+                    case 'FF': // Finish-to-Finish
+                        constrainedLateFinish = calendarService.addWorkingDays(successorLateFinish, -link.lag, calendar);
+                        break;
+                    case 'SS': // Start-to-Start
+                        const tempLS_ss = calendarService.addWorkingDays(successorLateStart, -link.lag, calendar);
+                        constrainedLateFinish = calendarService.addWorkingDays(tempLS_ss, task.duration > 0 ? task.duration - 1 : 0, calendar);
+                        break;
+                    case 'SF': // Start-to-Finish
+                        const tempLS_sf = calendarService.addWorkingDays(successorLateFinish, -link.lag, calendar);
+                        constrainedLateFinish = calendarService.addWorkingDays(tempLS_sf, task.duration > 0 ? task.duration - 1 : 0, calendar);
+                        break;
+                    default:
+                        constrainedLateFinish = projectFinishDate;
+                }
+                return constrainedLateFinish;
+            });
+            task.lateFinish = new Date(Math.min(...potentialLateFinishes.map(d => d.getTime())));
+        }
+        
+        task.lateStart = calendarService.addWorkingDays(task.lateFinish!, -(task.duration > 0 ? task.duration - 1 : 0), calendar);
+    }
+    
+    // Calculate Float and Critical Path
+    for (const taskId of sortedTasks) {
+        const task = taskMap.get(taskId)!;
+        if (task.isSummary) continue;
+        if (task.lateStart && task.start) {
+            task.totalFloat = calendarService.getWorkingDaysDuration(task.start, task.lateStart, calendar) - 1;
+        } else {
+            task.totalFloat = 0;
+        }
+        task.isCritical = task.totalFloat <= 0;
+    }
+
     // Update driving status on links
     for(const link of links) {
         link.isDriving = false;

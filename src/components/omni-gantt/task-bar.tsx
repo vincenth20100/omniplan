@@ -123,8 +123,9 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 "absolute flex items-center group transition-all duration-200",
                 !isSummary && "cursor-pointer",
                 isSelected ? "ring-2 ring-offset-2 ring-accent ring-offset-card" : "hover:ring-1 hover:ring-accent",
-                isSummary ? "bg-card border-2 border-primary/90 rounded-sm" : 
-                    (task.schedulingConflict ? "bg-destructive/70 rounded-md" : "bg-primary/80 rounded-md")
+                isSummary ? 
+                    (task.isCritical ? "bg-destructive/15 border-2 border-destructive/90 rounded-sm" : "bg-card border-2 border-primary/90 rounded-sm")
+                    : (task.isCritical ? "bg-destructive/90 rounded-md" : (task.schedulingConflict ? "bg-destructive/70 rounded-md" : "bg-primary/80 rounded-md"))
             )}
             style={{
                 top: `${top}px`,
@@ -138,13 +139,16 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         >
             {!isSummary && showProgress && ( 
                 <div 
-                    className="absolute top-0 left-0 h-full bg-primary rounded-l-md"
+                    className={cn(
+                        "absolute top-0 left-0 h-full rounded-l-md",
+                        task.isCritical ? "bg-destructive" : "bg-primary"
+                    )}
                     style={{ width: `${task.percentComplete}%`}}
                 />
             )}
              <div className={cn(
                 "relative px-2 text-sm truncate w-full flex justify-between items-center",
-                isSummary ? "text-primary font-medium" : "text-primary-foreground",
+                isSummary ? (task.isCritical ? "text-destructive font-medium" : "text-primary font-medium") : "text-primary-foreground",
                 !showTaskLabels && "text-transparent"
             )}>
                 <span>{task.name}</span>
@@ -159,8 +163,14 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
             )}
             {isSummary && (
             <>
-                <div className="absolute -left-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-t-[7px] border-t-primary/90 border-r-[7px] border-r-transparent"></div>
-                <div className="absolute -right-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-t-[7px] border-t-primary/90 border-r-[7px] border-r-transparent"></div>
+                <div className={cn(
+                    "absolute -left-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
+                    task.isCritical ? "border-t-[7px] border-t-destructive/90" : "border-t-[7px] border-t-primary/90"
+                )}></div>
+                <div className={cn(
+                    "absolute -right-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
+                    task.isCritical ? "border-t-[7px] border-t-destructive/90" : "border-t-[7px] border-t-primary/90"
+                )}></div>
             </>
         )}
         </div>

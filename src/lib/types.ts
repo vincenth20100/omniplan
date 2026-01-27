@@ -71,6 +71,10 @@ export interface Task {
   // Calculated fields
   schedulingConflict?: boolean;
   deadlineMissed?: boolean;
+  isCritical?: boolean;
+  totalFloat?: number; // in working days
+  lateStart?: Date;
+  lateFinish?: Date;
 }
 
 export interface Link {
