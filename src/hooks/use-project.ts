@@ -70,6 +70,9 @@ const defaultAppSettings = {
     uiDensity: 'compact' as UiDensity,
     currentViewId: 'default',
     ganttSettings: initialGanttSettings,
+    visibleColumns: initialVisibleColumns,
+    grouping: [],
+    filters: [],
 };
 
 const initialState: ProjectState = {
@@ -271,8 +274,17 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     case 'SET_PERSISTED_STATE': {
         const { views, settings } = action.payload;
         const newViews = views.length > 0 ? views : defaultViews;
-        const newSettings = settings || defaultAppSettings;
+        const newSettings = settings ? { ...defaultAppSettings, ...settings } : defaultAppSettings;
         const currentView = newViews.find(v => v.id === newSettings.currentViewId) || newViews[0];
+
+        const tempStateForDirtyCheck = { 
+            ...state, 
+            views: newViews, 
+            currentViewId: currentView.id, 
+            grouping: newSettings.grouping, 
+            visibleColumns: newSettings.visibleColumns, 
+            filters: newSettings.filters 
+        };
 
         return {
             ...state,
@@ -281,10 +293,10 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             uiDensity: newSettings.uiDensity,
             ganttSettings: newSettings.ganttSettings,
             currentViewId: currentView.id,
-            grouping: currentView.grouping,
-            visibleColumns: currentView.visibleColumns,
-            filters: currentView.filters || [],
-            isDirty: false,
+            grouping: newSettings.grouping,
+            visibleColumns: newSettings.visibleColumns,
+            filters: newSettings.filters,
+            isDirty: checkDirty(tempStateForDirtyCheck),
         };
     }
     case 'UPDATE_TASK': {
@@ -1193,10 +1205,19 @@ export function useProject(user: User) {
              break;
         }
         case 'SET_VIEW': {
+            const newState = projectReducer(historyState.present, action);
+            const settingsToUpdate = {
+                currentViewId: action.payload.viewId,
+                grouping: newState.grouping,
+                visibleColumns: newState.visibleColumns,
+                filters: newState.filters,
+            };
             const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
-            updateDocumentNonBlocking(docRef, { currentViewId: action.payload.viewId });
+            updateDocumentNonBlocking(docRef, settingsToUpdate);
             break;
         }
+        case 'SET_GROUPING':
+        case 'SET_FILTERS':
         case 'SET_COLUMNS':
         case 'RESIZE_COLUMN':
         case 'REORDER_COLUMNS':
@@ -1210,7 +1231,9 @@ export function useProject(user: User) {
                 columns: newState.columns,
                 uiDensity: newState.uiDensity,
                 ganttSettings: newState.ganttSettings,
-                visibleColumns: newState.visibleColumns, // Though this is part of a view...
+                visibleColumns: newState.visibleColumns,
+                grouping: newState.grouping,
+                filters: newState.filters,
             }
             const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
             updateDocumentNonBlocking(docRef, settingsToUpdate);
