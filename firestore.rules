@@ -68,22 +68,6 @@ service cloud.firestore {
     }
 
     /**
-     * Validates that the internal `id` field of a document is not being
-     * changed during an update. Enforces immutability of the primary key.
-     */
-    function hasImmutableId() {
-      // The id field cannot be changed.
-      // If the incoming data map contains an 'id' key, its value
-      // must match the id of the document already in the database.
-      if ('id' in request.resource.data) {
-        return request.resource.data.id == resource.data.id;
-      }
-      // If the 'id' key is not in the incoming data, the update is allowed
-      // as it doesn't modify the id.
-      return true;
-    }
-
-    /**
      * @description Rules for the user's root document.
      * @path /users/{userId}
      * @allow (create) An authenticated user can create their own user document.
@@ -109,7 +93,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(taskId);
-      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
       allow delete: if isExistingOwner(userId);
     }
 
@@ -124,7 +108,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(linkId);
-      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
       allow delete: if isExistingOwner(userId);
     }
 
@@ -139,7 +123,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(zoneId);
-      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
       allow delete: if isExistingOwner(userId);
     }
 
@@ -154,7 +138,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(historyLogId);
-      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
       allow delete: if isExistingOwner(userId);
     }
 
@@ -167,7 +151,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(resourceId);
-      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
       allow delete: if isExistingOwner(userId);
     }
 
@@ -180,7 +164,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(assignmentId);
-      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
       allow delete: if isExistingOwner(userId);
     }
 
@@ -193,7 +177,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(calendarId);
-      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
       allow delete: if isExistingOwner(userId);
     }
   }
