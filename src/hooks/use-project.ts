@@ -6,7 +6,7 @@ import { initialTasks, initialLinks, initialResources, initialAssignments, initi
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
-import { parseDuration } from '@/lib/duration';
+import { parseDuration, formatDuration } from '@/lib/duration';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, writeBatch } from 'firebase/firestore';
 import { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -742,7 +742,7 @@ export function useProject(user: User) {
     const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading;
 
     if (!isLoading && !isLoaded) {
-        if (!tasks || tasks.length === 0) {
+        if ((!tasks || tasks.length === 0) || (!calendars || calendars.length === 0)) {
              const batch = writeBatch(firestore);
              initialTasks.forEach(task => {
                  const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
