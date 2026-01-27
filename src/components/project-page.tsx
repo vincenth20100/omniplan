@@ -100,10 +100,10 @@ export function ProjectPage({ user }: { user: User }) {
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
         
-        <Button variant="outline" size="icon" disabled title="Collapse All">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'COLLAPSE_ALL' })} title="Collapse Selection/All">
             <ChevronsUp />
         </Button>
-        <Button variant="outline" size="icon" disabled title="Expand All">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'EXPAND_ALL' })} title="Expand Selection/All">
             <ChevronsDown />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />

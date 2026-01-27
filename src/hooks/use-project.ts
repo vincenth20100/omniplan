@@ -87,6 +87,8 @@ type Action =
   | { type: 'ADD_LINK'; payload: { source: string, target: string, type: LinkType, lag: number } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
+  | { type: 'COLLAPSE_ALL' }
+  | { type: 'EXPAND_ALL' }
   | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } }
   | { type: 'SET_COLUMNS'; payload: string[] }
   | { type: 'RESIZE_COLUMN'; payload: { columnId: string, width: number } }
@@ -102,7 +104,7 @@ type Action =
   | { type: 'SET_UI_DENSITY', payload: UiDensity }
   | { type: 'UPDATE_RELATIONSHIPS', payload: { taskId: string, field: 'predecessors' | 'successors', value: string }}
   | { type: 'ADD_RESOURCE' }
-  | { type: 'ADD_RESOURCE_OPTIMISTIC', payload: { resource: Resource } }
+  | { type: 'ADD_RESOURCE_OPTIMISTIC'; payload: { resource: Resource } }
   | { type: 'REMOVE_RESOURCE', payload: { resourceId: string } }
   | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } }
   | { type: 'ADD_CALENDAR' }
@@ -238,18 +240,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, resources: newResources, isDirty: true };
     }
     case 'ADD_RESOURCE': {
-        const newResource: Resource = {
-            id: `res-${Date.now()}`,
-            name: 'New Resource',
-            type: 'Work',
-            availability: 1,
-            costPerHour: 0
-        };
-        return {
-            ...state,
-            resources: [...state.resources, newResource],
-            isDirty: true
-        };
+        // This is now an optimistic action, see useProject hook
+        return state;
     }
     case 'ADD_RESOURCE_OPTIMISTIC': {
         const newResources = [...state.resources, action.payload.resource];
@@ -317,6 +309,38 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         task.id === action.payload.taskId ? { ...task, isCollapsed: !task.isCollapsed } : task
       );
       return { ...state, tasks: newTasks };
+    }
+    case 'COLLAPSE_ALL': {
+        const shouldCollapseSelected = state.selectedTaskIds.length > 0;
+        const newTasks = state.tasks.map(task => {
+            if (task.isSummary) {
+                if (shouldCollapseSelected) {
+                    if (state.selectedTaskIds.includes(task.id)) {
+                        return { ...task, isCollapsed: true };
+                    }
+                } else {
+                    return { ...task, isCollapsed: true };
+                }
+            }
+            return task;
+        });
+        return { ...state, tasks: newTasks, isDirty: true };
+    }
+    case 'EXPAND_ALL': {
+        const shouldExpandSelected = state.selectedTaskIds.length > 0;
+        const newTasks = state.tasks.map(task => {
+            if (task.isSummary) {
+                if (shouldExpandSelected) {
+                    if (state.selectedTaskIds.includes(task.id)) {
+                        return { ...task, isCollapsed: false };
+                    }
+                } else {
+                    return { ...task, isCollapsed: false };
+                }
+            }
+            return task;
+        });
+        return { ...state, tasks: newTasks, isDirty: true };
     }
     case 'SET_COLUMNS': {
       return { ...state, visibleColumns: action.payload, isDirty: true };
@@ -499,8 +523,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, ganttSettings: action.payload, isDirty: true };
     }
      case 'ADD_TASK': {
-        // This case is now effectively obsolete, as the logic is handled by ADD_TASK_OPTIMISTIC.
-        // It's kept here to prevent breaking if an old ADD_TASK action is somehow dispatched.
+        // This case is now effectively an optimistic action trigger.
+        // The actual logic is handled by the handleFirestoreAction wrapper.
         return state;
     }
     case 'ADD_TASK_OPTIMISTIC': {
@@ -705,7 +729,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
         
         const newPresent = reducer(present, action);
 
-        if (nonHistoricActions.includes(action.type) || action.type === 'ADD_TASK') {
+        if (nonHistoricActions.includes(action.type) || action.type.endsWith('_OPTIMISTIC')) {
             return { ...state, present: newPresent };
         }
 
@@ -885,7 +909,7 @@ export function useProject(user: User) {
     
     if (isSeeding || isLoading) return;
 
-    if (!isLoaded) { // This block runs only once after initial loading finishes
+    if (!isLoaded && user) { // This block runs only once after initial loading finishes
         const needsSeeding = !tasks || tasks.length === 0 || !calendars || calendars.length === 0;
 
         if (needsSeeding) {
@@ -911,10 +935,9 @@ export function useProject(user: User) {
                  const docRef = doc(firestore, 'users', user.uid, 'calendars', calendar.id);
                  batch.set(docRef, calendar);
              });
-             batch.commit().then(() => {
-                // The hooks will automatically pick up the new data.
-                // We set isSeeding to false to allow the next effect run to process the data.
+             batch.commit().finally(() => {
                 setIsSeeding(false);
+                setIsLoaded(true);
              });
              return; // Exit effect, will re-run when hooks update.
         } else {
@@ -923,42 +946,44 @@ export function useProject(user: User) {
         }
     }
 
-    // This part runs on subsequent data updates from Firestore
-    const safeToDate = (value: any): Date | null => {
-        if (!value) return null;
-        if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
-            return value.toDate();
+    if (isLoaded) {
+        // This part runs on subsequent data updates from Firestore
+        const safeToDate = (value: any): Date | null => {
+            if (!value) return null;
+            if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
+                return value.toDate();
+            }
+            const d = new Date(value);
+            if (!isNaN(d.getTime())) {
+                return d;
+            }
+            return null;
         }
-        const d = new Date(value);
-        if (!isNaN(d.getTime())) {
-            return d;
-        }
-        return null;
-    }
 
-    dispatch({
-        type: 'SET_PROJECT_DATA',
-        payload: {
-            tasks: (tasks || []).map(t => ({
-                ...t, 
-                start: safeToDate(t.start)!, 
-                finish: safeToDate(t.finish)!, 
-                constraintDate: safeToDate(t.constraintDate), 
-                deadline: safeToDate(t.deadline)
-            })),
-            links: links || [],
-            resources: resources || [],
-            assignments: assignments || [],
-            calendars: (calendars || []).map(c => ({
-                ...c, 
-                exceptions: (c.exceptions || []).map(e => ({
-                    ...e, 
-                    start: safeToDate(e.start)!, 
-                    finish: safeToDate(e.finish)!
-                }))
-            })),
-        }
-    });
+        dispatch({
+            type: 'SET_PROJECT_DATA',
+            payload: {
+                tasks: (tasks || []).map(t => ({
+                    ...t, 
+                    start: safeToDate(t.start)!, 
+                    finish: safeToDate(t.finish)!, 
+                    constraintDate: safeToDate(t.constraintDate), 
+                    deadline: safeToDate(t.deadline)
+                })),
+                links: links || [],
+                resources: resources || [],
+                assignments: assignments || [],
+                calendars: (calendars || []).map(c => ({
+                    ...c, 
+                    exceptions: (c.exceptions || []).map(e => ({
+                        ...e, 
+                        start: safeToDate(e.start)!, 
+                        finish: safeToDate(e.finish)!
+                    }))
+                })),
+            }
+        });
+    }
 
 }, [
     collections.tasks.data, 
