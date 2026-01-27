@@ -1366,8 +1366,16 @@ export function useProject() {
         if (!data) return;
 
         const currentState = stateRef.current.present;
+        const hasMultipleLines = data.includes('\n');
+        
+        // If pasting multiple lines, always treat it as adding new tasks.
+        if (hasMultipleLines) {
+            e.preventDefault();
+            dispatch({ type: 'ADD_TASKS_FROM_PASTE', payload: { data }});
+            return;
+        }
 
-        // Single cell paste
+        // Single line paste logic for an active cell
         if (currentState.activeCell) {
             e.preventDefault();
             const { taskId, columnId } = currentState.activeCell;
@@ -1437,10 +1445,6 @@ export function useProject() {
             }
             return;
         }
-
-        // Row paste (fallback)
-        e.preventDefault();
-        dispatch({ type: 'ADD_TASKS_FROM_PASTE', payload: { data }});
     };
 
     window.addEventListener('keydown', handleKeyDown);
