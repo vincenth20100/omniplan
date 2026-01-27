@@ -256,7 +256,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
       const visibleTasks = getVisibleTasks(state.tasks);
       
-      // The anchor is the task that was active when shift was first pressed.
       const anchorId = state.selectionAnchor || state.selectedTaskIds[0] || null;
 
       if (shiftKey && anchorId) {
@@ -268,7 +267,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
               const end = Math.max(anchorIndex, currentSelectedIndex);
               const rangeIds = visibleTasks.slice(start, end + 1).map(t => t.id);
               
-              // Don't change the anchor during a shift-select
               return { ...state, selectedTaskIds: rangeIds };
           }
       }
@@ -281,11 +279,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
           } else {
               currentSelection.push(taskId);
           }
-          // When ctrl-clicking, the last clicked item becomes the new anchor for subsequent shift-clicks.
           return { ...state, selectedTaskIds: currentSelection, selectionAnchor: taskId };
       }
 
-      // Default case: simple click. Reset selection and set the anchor.
       return { ...state, selectedTaskIds: [taskId], selectionAnchor: taskId };
     }
     case 'TOGGLE_TASK_COLLAPSE': {
@@ -607,7 +603,6 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
     return (state: HistoryState, action: Action): HistoryState => {
         const { past, present, future } = state;
         
-        // Actions that don't get recorded in history
         const nonHistoricActions = [
             'SET_PROJECT_DATA', 
             'SELECT_TASK', 
@@ -647,25 +642,22 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
                 const newPast = past.slice(0, index);
                 const newFuture = [
                     ...past.slice(index),
-                    { state: present, action: past[past.length - 1]?.action } // a bit of a guess for the action
+                    { state: present, action: past[past.length - 1]?.action }
                 ];
                 return {
                     past: newPast,
-                    present: newPast.length > 0 ? newPast[newPast.length-1].state : initialState, // Need to handle this better
+                    present: newPast.length > 0 ? newPast[newPast.length-1].state : initialState,
                     future: newFuture
                 }
             }
         }
         
-        // For all other actions, run the main reducer
         const newPresent = reducer(present, action);
 
         if (nonHistoricActions.includes(action.type)) {
-            // Just update the present state without affecting history
             return { ...state, present: newPresent };
         }
 
-        // For historic actions, add to past and clear future
         return {
             past: [ ...past, { state: present, action } ],
             present: newPresent,
@@ -688,12 +680,10 @@ export function useProject(user: User) {
   };
   
   const handleFirestoreAction = (action: Action) => {
-    // Optimistically update the UI first
     dispatch(action);
 
     if (!user) return;
     
-    // Then, commit the change to Firestore for historic actions
     switch (action.type) {
         case 'UPDATE_TASK': {
             const { id, ...payload } = action.payload;
@@ -748,7 +738,7 @@ export function useProject(user: User) {
     const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading;
 
     if (!isLoading && !isLoaded) {
-        if ((!tasks || tasks.length === 0) || (!calendars || calendars.length === 0)) {
+        if (!tasks || tasks.length === 0 || !calendars || calendars.length === 0) {
              const batch = writeBatch(firestore);
              initialTasks.forEach(task => {
                  const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
@@ -771,6 +761,9 @@ export function useProject(user: User) {
                  batch.set(docRef, calendar);
              });
              batch.commit();
+             // After seeding, we must wait for the data to come back through the hooks.
+             // Returning here prevents the rest of the effect from running with empty data.
+             return;
         }
     }
 
@@ -778,11 +771,9 @@ export function useProject(user: User) {
         setIsLoaded(true);
         const safeToDate = (value: any): Date | null => {
             if (!value) return null;
-            // Check for Firestore Timestamp
             if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
                 return value.toDate();
             }
-            // Handle ISO string or existing Date object
             const d = new Date(value);
             if (!isNaN(d.getTime())) {
                 return d;
@@ -814,7 +805,21 @@ export function useProject(user: User) {
             }
         });
     }
-}, [collections.tasks.data, collections.links.data, collections.resources.data, collections.assignments.data, collections.calendars.data, collections.tasks.isLoading, collections.links.isLoading, collections.resources.isLoading, collections.assignments.isLoading, collections.calendars.isLoading]);
+}, [
+    collections.tasks.data, 
+    collections.links.data, 
+    collections.resources.data, 
+    collections.assignments.data, 
+    collections.calendars.data, 
+    collections.tasks.isLoading, 
+    collections.links.isLoading, 
+    collections.resources.isLoading, 
+    collections.assignments.isLoading, 
+    collections.calendars.isLoading,
+    isLoaded,
+    firestore,
+    user
+]);
 
 
   useEffect(() => {
@@ -854,7 +859,7 @@ export function useProject(user: User) {
         log: historyState.past.map(h => ({
             actionType: h.action.type,
             payloadDescription: getPayloadDescription(h.action),
-            timestamp: new Date() // Placeholder, ideally this is stored with the action
+            timestamp: new Date()
         })),
         index: historyState.past.length -1
     }
