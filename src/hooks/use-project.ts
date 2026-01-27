@@ -35,7 +35,18 @@ const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
     { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110, type: 'date' },
 ];
 
-const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, name: c.name, width: c.defaultWidth, type: c.type, options: c.options }));
+const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => {
+    const column: ColumnSpec = {
+        id: c.id,
+        name: c.name,
+        width: c.defaultWidth,
+        type: c.type,
+    };
+    if (c.options) {
+        column.options = c.options;
+    }
+    return column;
+});
 
 const initialVisibleColumns = ['wbs', 'schedulingMode', 'name', 'duration', 'start', 'finish'];
 
@@ -120,7 +131,7 @@ type Action =
   | { type: 'REMOVE_RESOURCE', payload: { resourceId: string } }
   | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } }
   | { type: 'ADD_CALENDAR' }
-  | { type: 'ADD_CALENDAR_OPTIMISTIC', payload: Calendar }
+  | { type: 'ADD_CALENDAR_OPTIMISTIC'; payload: Calendar }
   | { type: 'REMOVE_CALENDAR', payload: { calendarId: string } }
   | { type: 'UPDATE_CALENDAR', payload: Partial<Calendar> & { id: string } }
   | { type: 'ADD_COLUMN', payload: Omit<ColumnSpec, 'id'|'width'> & { width?: number } }
@@ -215,8 +226,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null): Task[] => {
       const defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
       if (!defaultCalendar) {
-          // This can happen during initial load before calendars are seeded.
-          // It's safe to return tasks as is, scheduler will run again once calendars are loaded.
           return tasks;
       }
       const hierarchicalTasks = updateHierarchyAndSort(tasks);
@@ -437,24 +446,35 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, uiDensity: action.payload };
     }
     case 'ADD_COLUMN': {
-      const { name, type, options, width } = action.payload;
-      const newColumn: ColumnSpec = {
-          id: `custom-${Date.now()}`,
-          name: name,
-          width: width || 150,
-          type: type,
-          options: options,
-      };
-      const newColumns = [...state.columns, newColumn];
-      const newVisibleColumns = [...state.visibleColumns, newColumn.id];
-      const newState = { ...state, columns: newColumns, visibleColumns: newVisibleColumns };
-      return { ...newState, isDirty: checkDirty(newState) };
+        const { name, type, options, width } = action.payload;
+        const newColumn: ColumnSpec = {
+            id: `custom-${Date.now()}`,
+            name: name,
+            width: width || 150,
+            type: type,
+        };
+        if (options) {
+            newColumn.options = options;
+        }
+        const newColumns = [...state.columns, newColumn];
+        const newVisibleColumns = [...state.visibleColumns, newColumn.id];
+        const newState = { ...state, columns: newColumns, visibleColumns: newVisibleColumns };
+        return { ...newState, isDirty: checkDirty(newState) };
     }
     case 'UPDATE_COLUMN': {
-      const { id, ...updates } = action.payload;
-      const newColumns = state.columns.map(c => c.id === id ? { ...c, ...updates } : c);
-      const reScheduledTasks = runScheduler(state.tasks, state.links, newColumns, state.calendars, state.defaultCalendarId);
-      return { ...state, tasks: reScheduledTasks, columns: newColumns };
+        const { id, ...updates } = action.payload;
+        const newColumns = state.columns.map(c => {
+            if (c.id === id) {
+                const updatedColumn = { ...c, ...updates };
+                if (updatedColumn.type !== 'selection') {
+                    delete updatedColumn.options;
+                }
+                return updatedColumn;
+            }
+            return c;
+        });
+        const reScheduledTasks = runScheduler(state.tasks, state.links, newColumns, state.calendars, state.defaultCalendarId);
+        return { ...state, tasks: reScheduledTasks, columns: newColumns };
     }
     case 'REMOVE_COLUMN': {
       const { columnId } = action.payload;
