@@ -2,18 +2,17 @@
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { signInAnonymously } from "firebase/auth";
 import { GanttChartSquare } from "lucide-react";
 
 export function LoginPage() {
     const auth = useAuth();
 
-    const handleGoogleSignIn = async () => {
-        const provider = new GoogleAuthProvider();
+    const handleAnonymousSignIn = async () => {
         try {
-            await signInWithPopup(auth, provider);
+            await signInAnonymously(auth);
         } catch (error) {
-            console.error("Error signing in with Google: ", error);
+            console.error("Error signing in anonymously: ", error);
         }
     };
 
@@ -27,11 +26,11 @@ export function LoginPage() {
                 <h2 className="text-xl font-semibold text-center text-card-foreground">
                     Sign In
                 </h2>
-                <Button onClick={handleGoogleSignIn} className="w-full">
-                    Sign in with Google
+                <Button onClick={handleAnonymousSignIn} className="w-full">
+                    Enter Project
                 </Button>
                 <p className="text-xs text-center text-muted-foreground">
-                    More sign-in options coming soon.
+                    You are signing in anonymously.
                 </p>
             </div>
         </div>
