@@ -3,19 +3,18 @@ import React from 'react';
 import type { Link, Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-const BAR_HEIGHT = 28;
-
 interface LineInfo {
     id: string;
     path: string;
     isDriving: boolean;
 }
 
-export const DependencyLines = React.memo(({ links, taskBarElements, taskIndexMap, rowHeight }: { 
+export const DependencyLines = React.memo(({ links, taskBarElements, taskIndexMap, rowHeight, scale }: { 
     links: Link[];
     taskBarElements: Record<string, HTMLDivElement | null>;
     taskIndexMap: Map<string, number>;
     rowHeight: number;
+    scale: number;
 }) => {
 
     const lines: LineInfo[] = links.map(link => {

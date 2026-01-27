@@ -7,7 +7,7 @@ import { ScrollBar } from "@/components/ui/scroll-area";
 import { TimelineHeader } from './timeline-header';
 import { TaskBar } from './task-bar';
 import { DependencyLines } from './dependency-lines';
-import { addDays, differenceInDays, min, max, startOfDay } from 'date-fns';
+import { addDays, differenceInDays, min, max, startOfDay, differenceInCalendarDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
@@ -72,7 +72,7 @@ export function Timeline({
   }, [visibleTasks, defaultDateRange]);
 
   const totalWidth = useMemo(() => {
-    return (differenceInDays(viewEndDate, viewStartDate) + 1) * scale;
+    return (differenceInCalendarDays(viewEndDate, viewStartDate) + 1) * scale;
   }, [viewStartDate, viewEndDate, scale]);
 
   const registerBarElement = useCallback((taskId: string, element: HTMLDivElement | null) => {
@@ -138,6 +138,7 @@ export function Timeline({
                 taskBarElements={taskBarElements}
                 taskIndexMap={taskIndexMap}
                 rowHeight={rowHeight}
+                scale={scale}
               />
             </div>
           </div>
