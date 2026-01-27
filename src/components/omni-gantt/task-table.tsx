@@ -59,11 +59,20 @@ const TaskCellRenderer = React.memo(({
             return (
                 <div className="flex items-center gap-1" style={{ paddingLeft: `${indentLevel * 1.5}rem` }}>
                     {hasChildren ? (
-                        <button onClick={(e) => handleToggle(e, task.id)} className="p-0.5 rounded-sm hover:bg-muted -ml-6 mr-1">
+                        <button
+                          onClick={(e) => handleToggle(e, task.id)}
+                          className={cn(
+                            "p-0.5 rounded-sm hover:bg-muted",
+                            indentLevel > 0 && "-ml-6"
+                          )}
+                        >
                             {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </button>
                     ) : (
-                         <div className="w-5" style={{ marginLeft: isGrouped ? '0' : '-1.5rem', marginRight: isGrouped ? '0' : '0.25rem' }}></div>
+                         <div className={cn(
+                            "w-5",
+                            !isGrouped && indentLevel > 0 && "-ml-6"
+                         )}></div>
                     )}
                     {hasNotes && <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
                     {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive flex-shrink-0" />}
