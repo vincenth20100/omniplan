@@ -62,6 +62,16 @@ export function ProjectPage({ user }: { user: User }) {
     </>
   );
 
+  const canRemove = state.selectedTaskIds.length > 0;
+  const canLink = state.selectedTaskIds.length > 1;
+  
+  // A task can be indented if it's selected and it's not the first task in the project.
+  const firstSelectedTaskIndex = canRemove ? state.tasks.findIndex(t => t.id === state.selectedTaskIds[0]) : -1;
+  const canIndent = canRemove && firstSelectedTaskIndex > 0;
+  
+  // A task can be outdented if it's selected and has a parent.
+  const canOutdent = state.selectedTaskIds.some(id => !!state.tasks.find(t => t.id === id)?.parentId);
+
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo} title="Undo (Ctrl+Z)">
@@ -71,22 +81,23 @@ export function ProjectPage({ user }: { user: User }) {
             <Redo2 />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
-        <Button variant="outline" size="icon" disabled title="Add Task">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK' })} title="Add Task">
             <Plus />
         </Button>
-        <Button variant="outline" size="icon" disabled title="Remove Selected Tasks">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REMOVE_TASK' })} disabled={!canRemove} title="Remove Selected Tasks">
             <Trash2 />
         </Button>
-        <Button variant="outline" size="icon" disabled title="Link Selected Tasks">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink} title="Link Selected Tasks">
             <LinkIcon />
         </Button>
-        <Button variant="outline" size="icon" disabled title="Indent Task">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'INDENT_TASK' })} disabled={!canIndent} title="Indent Task">
             <Indent />
         </Button>
-        <Button variant="outline" size="icon" disabled title="Outdent Task">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'OUTDENT_TASK' })} disabled={!canOutdent} title="Outdent Task">
             <Outdent />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
+        
         <Button variant="outline" size="icon" disabled title="Collapse All">
             <ChevronsUp />
         </Button>

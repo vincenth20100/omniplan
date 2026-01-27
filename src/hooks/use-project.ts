@@ -467,6 +467,118 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     case 'UPDATE_GANTT_SETTINGS': {
       return { ...state, ganttSettings: action.payload, isDirty: true };
     }
+     case 'ADD_TASK': {
+        const newId = `task-${Date.now()}`;
+        const newTask: Task = {
+            id: newId,
+            name: 'New Task',
+            start: new Date(),
+            finish: new Date(),
+            duration: 1,
+            durationUnit: 'd',
+            percentComplete: 0,
+            level: 0,
+        };
+        
+        let newTasks = [...state.tasks];
+        const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
+        if (lastSelectedId) {
+            const selectedIndex = newTasks.findIndex(t => t.id === lastSelectedId);
+            newTasks.splice(selectedIndex + 1, 0, newTask);
+        } else {
+            newTasks.push(newTask);
+        }
+        
+        const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, tasks: scheduledTasks, isDirty: true, selectedTaskIds: [newId] };
+    }
+    case 'REMOVE_TASK': {
+        const idsToRemove = new Set(state.selectedTaskIds);
+        if (idsToRemove.size === 0) return state;
+
+        const tasksToRemove = new Set<string>();
+        const findChildren = (parentId: string) => {
+            state.tasks.forEach(t => {
+                if (t.parentId === parentId) {
+                    tasksToRemove.add(t.id);
+                    findChildren(t.id);
+                }
+            });
+        };
+        idsToRemove.forEach(id => {
+            tasksToRemove.add(id);
+            findChildren(id);
+        });
+
+        const newTasks = state.tasks.filter(t => !tasksToRemove.has(t.id));
+        const newLinks = state.links.filter(l => !tasksToRemove.has(l.source) && !tasksToRemove.has(l.target));
+        
+        const scheduledTasks = runScheduler(newTasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, tasks: scheduledTasks, links: newLinks, isDirty: true, selectedTaskIds: [] };
+    }
+    case 'LINK_TASKS': {
+        if (state.selectedTaskIds.length < 2) return state;
+        
+        const newLinks: Link[] = [];
+        for (let i = 0; i < state.selectedTaskIds.length - 1; i++) {
+            newLinks.push({
+                id: `link-${Date.now()}-${i}`,
+                source: state.selectedTaskIds[i],
+                target: state.selectedTaskIds[i + 1],
+                type: 'FS',
+                lag: 0,
+            });
+        }
+
+        const allLinks = [...state.links, ...newLinks];
+        const scheduledTasks = runScheduler(state.tasks, allLinks, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, links: allLinks, tasks: scheduledTasks, isDirty: true };
+    }
+    case 'INDENT_TASK': {
+        if (state.selectedTaskIds.length === 0) return state;
+        
+        const tasks = [...state.tasks];
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        
+        const sortedSelectedIds = tasks
+            .filter(t => state.selectedTaskIds.includes(t.id))
+            .map(t => t.id);
+
+        for (const taskId of sortedSelectedIds) {
+            const taskIndex = tasks.findIndex(t => t.id === taskId);
+            if (taskIndex > 0) {
+                let potentialParent = tasks[taskIndex - 1];
+                if (sortedSelectedIds.includes(potentialParent.id)) continue;
+
+                const taskToIndent = taskMap.get(taskId)!;
+                taskToIndent.parentId = potentialParent.id;
+            }
+        }
+
+        const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, tasks: scheduledTasks, isDirty: true };
+    }
+    case 'OUTDENT_TASK': {
+        if (state.selectedTaskIds.length === 0) return state;
+
+        const tasks = [...state.tasks];
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+
+        const sortedSelectedIds = tasks
+            .filter(t => state.selectedTaskIds.includes(t.id))
+            .map(t => t.id);
+            
+        for (const taskId of sortedSelectedIds) {
+            const taskToOutdent = taskMap.get(taskId)!;
+            if (taskToOutdent.parentId) {
+                const parent = taskMap.get(taskToOutdent.parentId);
+                taskToOutdent.parentId = parent?.parentId || null;
+            }
+        }
+
+        const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, tasks: scheduledTasks, isDirty: true };
+    }
     default:
       return state;
   }
@@ -623,14 +735,13 @@ export function useProject(user: User) {
   useEffect(() => {
     const { data: tasks, isLoading: tasksLoading } = collections.tasks;
     const { data: links, isLoading: linksLoading } = collections.links;
-    const { data: resources, isLoading: resourcesLoading } = collections.assignments;
+    const { data: resources, isLoading: resourcesLoading } = collections.resources;
     const { data: assignments, isLoading: assignmentsLoading } = collections.assignments;
     const { data: calendars, isLoading: calendarsLoading } = collections.calendars;
 
     const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading;
-    setIsLoaded(!isLoading);
 
-    if (!isLoading) {
+    if (!isLoading && !isLoaded) {
         if (!tasks || tasks.length === 0) {
              const batch = writeBatch(firestore);
              initialTasks.forEach(task => {
@@ -654,39 +765,42 @@ export function useProject(user: User) {
                  batch.set(docRef, calendar);
              });
              batch.commit();
-        } else {
-            const safeToDate = (value: any): Date | null => {
-                if (!value) return null;
-                if (typeof value.toDate === 'function') {
-                    return value.toDate();
-                }
-                return new Date(value);
-            }
-
-            dispatch({
-                type: 'SET_PROJECT_DATA',
-                payload: {
-                    tasks: (tasks || []).map(t => ({
-                        ...t, 
-                        start: safeToDate(t.start)!, 
-                        finish: safeToDate(t.finish)!, 
-                        constraintDate: safeToDate(t.constraintDate), 
-                        deadline: safeToDate(t.deadline)
-                    })),
-                    links: links || [],
-                    resources: resources || [],
-                    assignments: assignments || [],
-                    calendars: (calendars || []).map(c => ({
-                        ...c, 
-                        exceptions: (c.exceptions || []).map(e => ({
-                            ...e, 
-                            start: safeToDate(e.start)!, 
-                            finish: safeToDate(e.finish)!
-                        }))
-                    })),
-                }
-            });
         }
+    }
+
+    if (!isLoading) {
+        setIsLoaded(true);
+        const safeToDate = (value: any): Date | null => {
+            if (!value) return null;
+            if (typeof value.toDate === 'function') {
+                return value.toDate();
+            }
+            return new Date(value);
+        }
+
+        dispatch({
+            type: 'SET_PROJECT_DATA',
+            payload: {
+                tasks: (tasks || []).map(t => ({
+                    ...t, 
+                    start: safeToDate(t.start)!, 
+                    finish: safeToDate(t.finish)!, 
+                    constraintDate: safeToDate(t.constraintDate), 
+                    deadline: safeToDate(t.deadline)
+                })),
+                links: links || [],
+                resources: resources || [],
+                assignments: assignments || [],
+                calendars: (calendars || []).map(c => ({
+                    ...c, 
+                    exceptions: (c.exceptions || []).map(e => ({
+                        ...e, 
+                        start: safeToDate(e.start)!, 
+                        finish: safeToDate(e.finish)!
+                    }))
+                })),
+            }
+        });
     }
 }, [collections.tasks.data, collections.links.data, collections.resources.data, collections.assignments.data, collections.calendars.data, collections.tasks.isLoading, collections.links.isLoading, collections.resources.isLoading, collections.assignments.isLoading, collections.calendars.isLoading]);
 
