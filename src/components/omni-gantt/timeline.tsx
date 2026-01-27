@@ -165,6 +165,7 @@ export function Timeline({
                         uiDensity={uiDensity}
                         showProgress={ganttSettings.showProgress}
                         showTaskLabels={ganttSettings.showTaskLabels}
+                        highlightCriticalPath={ganttSettings.highlightCriticalPath}
                         />
                     );
                 }

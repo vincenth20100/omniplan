@@ -140,6 +140,7 @@ export interface GanttSettings {
   highlightNonWorkingTime: boolean;
   showTodayLine: boolean;
   showTaskLabels: boolean;
+  highlightCriticalPath: boolean;
 }
 
 export interface ProjectState {

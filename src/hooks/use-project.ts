@@ -45,6 +45,7 @@ const initialGanttSettings: GanttSettings = {
   highlightNonWorkingTime: true,
   showTodayLine: true,
   showTaskLabels: true,
+  highlightCriticalPath: true,
 };
 
 const initialState: ProjectState = {

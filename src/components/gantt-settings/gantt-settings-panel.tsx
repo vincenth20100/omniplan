@@ -130,11 +130,15 @@ export function GanttSettingsPanel({
           <div>
             <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Conditional Styling</h4>
              <div className="space-y-4">
-                <div className="flex items-center justify-between opacity-50">
+                <div className="flex items-center justify-between">
                     <Label htmlFor="critical-path">Highlight Critical Path</Label>
-                    <Switch id="critical-path" disabled />
+                    <Switch
+                        id="critical-path"
+                        checked={settings.highlightCriticalPath}
+                        onCheckedChange={(checked) => handleSettingChange('highlightCriticalPath', checked)}
+                    />
                 </div>
-                 <p className="text-xs text-muted-foreground -mt-2">Critical path calculation and custom color coding are coming soon.</p>
+                 <p className="text-xs text-muted-foreground -mt-2">Custom color coding rules are coming soon.</p>
             </div>
           </div>
 
