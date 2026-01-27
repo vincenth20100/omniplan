@@ -67,30 +67,23 @@ class CalendarService {
   }
   
   public getWorkingDaysDuration(start: Date, end: Date, calendar: Calendar): number {
-    let duration = 0;
-    let currentDate = startOfDay(start);
-    const endDate = startOfDay(end);
+    const d1 = startOfDay(start);
+    const d2 = startOfDay(end);
 
-    if (currentDate > endDate) {
-        let negDuration = 0;
-        let tempCurrent = startOfDay(end);
-        while(tempCurrent < currentDate) {
-            if(this.isWorkingDay(tempCurrent, calendar)) {
-                negDuration--;
-            }
-            tempCurrent = addDays(tempCurrent, 1);
-        }
-        return negDuration;
+    if (d1 > d2) {
+      // If start is after end, calculate negative duration. The count will be inclusive.
+      return -this.getWorkingDaysDuration(d2, d1, calendar);
     }
 
-    while(currentDate <= endDate) {
-        if (this.isWorkingDay(currentDate, calendar)) {
-            duration++;
-        }
-        currentDate = addDays(currentDate, 1);
+    let count = 0;
+    let currentDate = d1;
+    while(currentDate <= d2) {
+      if (this.isWorkingDay(currentDate, calendar)) {
+        count++;
+      }
+      currentDate = addDays(currentDate, 1);
     }
-    
-    return duration;
+    return count;
   }
 
   public calculateFinishDate(startDate: Date, duration: number, unit: DurationUnit, calendar: Calendar): Date {
