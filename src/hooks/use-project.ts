@@ -496,7 +496,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
         
         const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: scheduledTasks, isDirty: true, selectedTaskIds: [newId] };
+        return { ...state, tasks: scheduledTasks, isDirty: true, selectedTaskIds: [newId], activeCell: { taskId: newId, columnId: 'name' } };
     }
     case 'REMOVE_TASK': {
         const idsToRemove = new Set(state.selectedTaskIds);
@@ -748,7 +748,7 @@ export function useProject(user: User) {
     const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading;
 
     if (!isLoading && !isLoaded) {
-        if ((!tasks || tasks.length === 0) || (!calendars || calendars.length === 0)) {
+        if ((!tasks || tasks.length === 0) && (!calendars || calendars.length === 0)) {
              const batch = writeBatch(firestore);
              initialTasks.forEach(task => {
                  const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
