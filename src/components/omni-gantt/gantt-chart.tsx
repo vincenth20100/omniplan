@@ -1,5 +1,5 @@
 'use client';
-import type { ProjectState, UiDensity, Task, Link, ColumnSpec, Assignment, Resource, Filter, Calendar } from '@/lib/types';
+import type { ProjectState, UiDensity, Task, Link, ColumnSpec, Assignment, Resource, Filter, Calendar, GanttSettings } from '@/lib/types';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { TaskTable } from './task-table';
 import { Timeline } from './timeline';
@@ -49,7 +49,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         }
     }, []);
 
-    const { tasks, links, resources, assignments, columns, grouping, filters, calendars, defaultCalendarId } = projectState;
+    const { tasks, links, resources, assignments, columns, grouping, filters, calendars, defaultCalendarId, ganttSettings } = projectState;
     const defaultCalendar = useMemo(() => calendars.find(c => c.id === defaultCalendarId) || (calendars.length > 0 ? calendars[0] : null), [calendars, defaultCalendarId]);
     const resourceMap = useMemo(() => new Map(resources.map(r => [r.id, r.name])), [resources]);
 
@@ -301,6 +301,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
                         onScroll={() => handleVerticalScroll('timeline')}
                         uiDensity={uiDensity}
                         defaultCalendar={defaultCalendar}
+                        ganttSettings={ganttSettings}
                     />
                 </ResizablePanel>
             </ResizablePanelGroup>

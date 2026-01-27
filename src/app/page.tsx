@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
@@ -19,6 +19,7 @@ import { GroupingDialog } from '@/components/view-options/grouping-dialog';
 import { FilterDialog } from '@/components/view-options/filter-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ColumnSelector } from '@/components/layout/column-selector';
+import { GanttSettingsPanel } from '@/components/gantt-settings/gantt-settings-panel';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
@@ -26,6 +27,7 @@ export default function Home() {
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [isGanttSettingsOpen, setIsGanttSettingsOpen] = useState(false);
   const isMobile = useIsMobile();
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
@@ -133,6 +135,9 @@ export default function Home() {
         <Button variant="outline" size="icon" onClick={() => setIsCalendarDialogOpen(true)} title="Manage Calendars">
             <CalendarDays />
         </Button>
+        <Button variant="outline" size="icon" onClick={() => setIsGanttSettingsOpen(true)} title="Gantt Display Options">
+            <Settings />
+        </Button>
         {isMobile && (
             <Button
                 variant={state.multiSelectMode ? "secondary" : "outline"}
@@ -217,6 +222,12 @@ export default function Home() {
             views={state.views}
             currentViewId={state.currentViewId}
             isDirty={state.isDirty}
+          />
+          <GanttSettingsPanel
+            open={isGanttSettingsOpen}
+            onOpenChange={setIsGanttSettingsOpen}
+            settings={state.ganttSettings}
+            dispatch={dispatch}
           />
         </>
       )}

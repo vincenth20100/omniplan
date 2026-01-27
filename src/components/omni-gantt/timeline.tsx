@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import type { Task, Link, UiDensity, Calendar } from '@/lib/types';
+import type { Task, Link, UiDensity, Calendar, GanttSettings } from '@/lib/types';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { TimelineHeader } from './timeline-header';
 import { TaskBar } from './task-bar';
 import { DependencyLines } from './dependency-lines';
-import { addDays, differenceInDays, min, max, startOfDay, differenceInCalendarDays, eachDayOfInterval } from 'date-fns';
+import { addDays, differenceInDays, min, max, startOfDay, differenceInCalendarDays, eachDayOfInterval, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
@@ -24,7 +24,8 @@ export function Timeline({
     viewportRef,
     onScroll,
     uiDensity,
-    defaultCalendar
+    defaultCalendar,
+    ganttSettings
 }: { 
     renderableRows: RenderableRow[], 
     links: Link[], 
@@ -33,13 +34,24 @@ export function Timeline({
     viewportRef: React.RefObject<HTMLDivElement>,
     onScroll: () => void,
     uiDensity: UiDensity,
-    defaultCalendar: Calendar | null
+    defaultCalendar: Calendar | null,
+    ganttSettings: GanttSettings
 }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
-  const [scale, setScale] = useState(35); // pixels per day
 
   const { rowHeight } = DENSITY_SETTINGS[uiDensity];
+
+  const scale = useMemo(() => {
+    switch (ganttSettings.viewMode) {
+      case 'month': return 5;
+      case 'week': return 15;
+      case 'day':
+      default:
+        return 40;
+    }
+  }, [ganttSettings.viewMode]);
+
 
   React.useEffect(() => {
       // This will only run on the client, preventing hydration mismatch
@@ -84,9 +96,6 @@ export function Timeline({
     setTaskBarElements(prev => ({ ...prev, [taskId]: element }));
   }, []);
   
-  const handleZoomIn = () => setScale(s => Math.min(s * 1.2, 150));
-  const handleZoomOut = () => setScale(s => Math.max(s / 1.2, 10));
-
   const taskIndexMap = useMemo(() => {
     const map = new Map<string, number>();
     renderableRows.forEach((row, index) => {
@@ -96,6 +105,9 @@ export function Timeline({
     });
     return map;
   }, [renderableRows]);
+
+  const today = useMemo(() => startOfDay(new Date()), []);
+  const todayOffset = useMemo(() => differenceInCalendarDays(today, viewStartDate) * scale, [today, viewStartDate, scale]);
   
   if (visibleTasks.length === 0 && !defaultDateRange) {
     return <div className="flex h-full w-full items-center justify-center"><p>Loading timeline...</p></div>
@@ -105,21 +117,12 @@ export function Timeline({
 
   return (
     <div className="h-full w-full relative">
-       <div className="absolute top-2 left-2 z-30 flex items-center gap-1">
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomIn}>
-                <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomOut}>
-                <ZoomOut className="h-4 w-4" />
-            </Button>
-        </div>
       <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
         <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
           <div style={{ width: totalWidth, minHeight: '100%' }} className="relative">
             <TimelineHeader startDate={viewStartDate} endDate={viewEndDate} scale={scale} />
             <div className="relative h-full" style={{height: `${totalHeight}px`}}>
-              <div className="absolute top-0 left-0 h-full w-full pointer-events-none">
-                {defaultCalendar && days.map((day, index) => {
+              {defaultCalendar && ganttSettings.highlightNonWorkingTime && days.map((day, index) => {
                     if (!calendarService.isWorkingDay(day, defaultCalendar)) {
                         return (
                             <div
@@ -134,7 +137,17 @@ export function Timeline({
                     }
                     return null;
                 })}
-              </div>
+              
+              {ganttSettings.showTodayLine && todayOffset >= 0 && todayOffset <= totalWidth && (
+                <div
+                    className="absolute top-0 h-full w-0.5 bg-accent z-10"
+                    style={{ left: `${todayOffset}px` }}
+                    title={`Today: ${format(today, 'MMM d, yyyy')}`}
+                >
+                  <div className="absolute -top-1.5 -ml-1.5 h-3 w-3 rounded-full bg-accent" />
+                </div>
+              )}
+
               {renderableRows.map((row, index) => {
                 if (row.itemType === 'task') {
                     const task = row.data;
@@ -150,18 +163,20 @@ export function Timeline({
                         onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
                         registerBarElement={registerBarElement}
                         uiDensity={uiDensity}
+                        showProgress={ganttSettings.showProgress}
+                        showTaskLabels={ganttSettings.showTaskLabels}
                         />
                     );
                 }
                 return null;
               })}
-              <DependencyLines 
+              {ganttSettings.showDependencies && <DependencyLines 
                 links={links} 
                 taskBarElements={taskBarElements}
                 taskIndexMap={taskIndexMap}
                 rowHeight={rowHeight}
                 scale={scale}
-              />
+              />}
             </div>
           </div>
         </ScrollAreaPrimitive.Viewport>

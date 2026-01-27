@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState, useRef } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
@@ -38,6 +38,15 @@ const defaultViews: View[] = [
     { id: 'default', name: 'Default View', grouping: [], visibleColumns: initialVisibleColumns, filters: [] }
 ];
 
+const initialGanttSettings: GanttSettings = {
+  viewMode: 'day',
+  showDependencies: true,
+  showProgress: true,
+  highlightNonWorkingTime: true,
+  showTodayLine: true,
+  showTaskLabels: true,
+};
+
 const initialState: ProjectState = {
   tasks: [],
   links: [],
@@ -58,6 +67,7 @@ const initialState: ProjectState = {
   isDirty: false,
   multiSelectMode: false,
   activeCell: null,
+  ganttSettings: initialGanttSettings,
 };
 
 type Action =
@@ -104,6 +114,7 @@ type Action =
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
   | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string } }
   | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null }
+  | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
   | { type: 'EXPAND_ALL' }
   | { type: 'COLLAPSE_ALL' };
 
@@ -787,6 +798,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             currentViewId: 'default',
             isDirty: false,
             activeCell: null,
+            ganttSettings: initialGanttSettings,
          };
       }
       case 'LOAD_PROJECT': {
@@ -836,6 +848,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 currentViewId: loadedState.currentViewId || 'default',
                 isDirty: false,
                 activeCell: null,
+                ganttSettings: loadedState.ganttSettings || initialGanttSettings,
             };
             const scheduledTasks = runScheduler(newState.tasks, newState.links, newState.columns, newState.calendars, newState.defaultCalendarId);
             
@@ -1007,6 +1020,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       }
       case 'SET_ACTIVE_CELL': {
         return { ...state, activeCell: action.payload };
+      }
+      case 'UPDATE_GANTT_SETTINGS': {
+        return { ...state, ganttSettings: action.payload, isDirty: true };
       }
       case 'EXPAND_ALL':
       case 'COLLAPSE_ALL': {

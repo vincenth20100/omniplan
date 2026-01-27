@@ -1,6 +1,6 @@
 'use client';
 import React, { useRef, useEffect } from 'react';
-import { differenceInDays, addDays } from 'date-fns';
+import { differenceInCalendarDays, addDays } from 'date-fns';
 import type { Task, UiDensity } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
@@ -9,7 +9,7 @@ import { DENSITY_SETTINGS } from '@/lib/settings';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
@@ -19,6 +19,8 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     onSelect: (event: React.MouseEvent) => void;
     registerBarElement: (taskId: string, element: HTMLDivElement | null) => void;
     uiDensity: UiDensity;
+    showProgress: boolean;
+    showTaskLabels: boolean;
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
     const isSummary = task.isSummary;
@@ -30,9 +32,9 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         return () => registerBarElement(task.id, null);
     }, [task.id, registerBarElement]);
 
-    const offsetDays = differenceInDays(task.start, ganttStartDate);
+    const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
     const left = offsetDays * scale;
-    const width = (differenceInDays(task.finish, task.start) + 1) * scale;
+    const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
     const top = row * rowHeight + (rowHeight - (isSummary ? summaryBarHeight : barHeight)) / 2;
 
     const dragStartInfo = useRef<{
@@ -134,7 +136,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
             onTouchStart={(e) => handleTouchStart(e, 'move')}
             onClick={onSelect}
         >
-            {!isSummary && ( 
+            {!isSummary && showProgress && ( 
                 <div 
                     className="absolute top-0 left-0 h-full bg-primary rounded-l-md"
                     style={{ width: `${task.percentComplete}%`}}
@@ -142,7 +144,8 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
             )}
              <div className={cn(
                 "relative px-2 text-sm truncate w-full flex justify-between items-center",
-                isSummary ? "text-primary font-medium" : "text-primary-foreground"
+                isSummary ? "text-primary font-medium" : "text-primary-foreground",
+                !showTaskLabels && "text-transparent"
             )}>
                 <span>{task.name}</span>
                 {!isSummary && task.schedulingConflict && <Flame className="h-4 w-4 text-destructive-foreground flex-shrink-0" />}

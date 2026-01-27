@@ -129,6 +129,15 @@ export interface View {
   filters: Filter[];
 }
 
+export interface GanttSettings {
+  viewMode: 'day' | 'week' | 'month';
+  showDependencies: boolean;
+  showProgress: boolean;
+  highlightNonWorkingTime: boolean;
+  showTodayLine: boolean;
+  showTaskLabels: boolean;
+}
+
 export interface ProjectState {
     tasks: Task[];
     links: Link[];
@@ -149,4 +158,5 @@ export interface ProjectState {
     isDirty?: boolean;
     multiSelectMode?: boolean;
     activeCell?: { taskId: string, columnId: string } | null;
+    ganttSettings: GanttSettings;
 }
