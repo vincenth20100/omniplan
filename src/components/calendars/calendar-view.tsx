@@ -16,7 +16,7 @@ import { EditableDateCell } from '../omni-gantt/editable-date-cell';
 import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { DayPicker } from "react-day-picker";
-import { format, addDays, addYears } from 'date-fns';
+import { format, addDays, addMonths, addYears } from 'date-fns';
 import { calendarService } from '@/lib/calendar';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -39,12 +39,12 @@ export function CalendarView({
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const isMobile = useIsMobile();
 
-  const handlePrevYear = () => {
-    setCurrentMonth(prev => addYears(prev, -1));
+  const handlePrevMonth = () => {
+    setCurrentMonth(prev => addMonths(prev, -1));
   };
 
-  const handleNextYear = () => {
-    setCurrentMonth(prev => addYears(prev, 1));
+  const handleNextMonth = () => {
+    setCurrentMonth(prev => addMonths(prev, 1));
   };
 
   const handleAddCalendar = () => {
@@ -232,7 +232,7 @@ export function CalendarView({
             </div>
         )}
         <div className="flex items-center justify-center">
-          <Button variant="ghost" size="icon" onClick={handlePrevYear} className="self-center">
+          <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="self-center">
               <ChevronsLeft className="h-5 w-5" />
           </Button>
           <DayPicker
@@ -248,7 +248,7 @@ export function CalendarView({
                   IconRight: () => <ChevronRight className="h-4 w-4" />,
               }}
           />
-          <Button variant="ghost" size="icon" onClick={handleNextYear} className="self-center">
+          <Button variant="ghost" size="icon" onClick={handleNextMonth} className="self-center">
               <ChevronsRight className="h-5 w-5" />
           </Button>
         </div>
