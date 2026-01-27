@@ -599,48 +599,6 @@ export function useProject(user: User) {
     stateRef.current = state;
   }, [state]);
 
-   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const currentState = stateRef.current;
-      if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
-        return;
-      }
-
-      if (event.shiftKey && event.altKey) {
-        if (event.key === 'ArrowRight') {
-          event.preventDefault();
-        } else if (event.key === 'ArrowLeft') {
-          event.preventDefault();
-        }
-      } else if (event.key === 'Delete') {
-        event.preventDefault();
-      } else if (event.key === 'Insert') {
-        event.preventDefault();
-      }
-
-      if (currentState.activeCell && !currentState.editingCell) {
-        if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-            event.preventDefault();
-            dispatch({
-                type: 'START_EDITING_CELL',
-                payload: { ...currentState.activeCell, initialValue: event.key }
-            });
-        } else if (event.key === 'Backspace') {
-            event.preventDefault();
-            dispatch({
-                type: 'START_EDITING_CELL',
-                payload: { ...currentState.activeCell, initialValue: '' }
-            });
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
-  
   return { 
     state, 
     dispatch: handleFirestoreAction,

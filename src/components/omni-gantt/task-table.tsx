@@ -383,14 +383,90 @@ export function TaskTable({
         stateRef.current = projectState;
     }, [projectState]);
 
+    const idToWbsMap = React.useMemo(() => new Map(tasks.map(t => [t.id, t.wbs || ''])), [tasks]);
+    
+    const getCellValueForEditing = useCallback((taskId: string, columnId: string): string => {
+        const { tasks, links } = stateRef.current;
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return '';
+        switch (columnId) {
+            case 'name':
+                return task.name;
+            case 'duration':
+                return formatDuration(task.duration, task.durationUnit);
+            case 'percentComplete':
+                return String(task.percentComplete);
+            case 'cost':
+                return String(task.cost || 0);
+            case 'predecessors': {
+                const predecessorLinks = links.filter(l => l.target === task.id);
+                return predecessorLinks.map(l => {
+                    const sourceWbs = idToWbsMap.get(l.source);
+                    if (!sourceWbs) return '';
+                    let lagString = '';
+                    if (l.lag > 0) lagString = `+${l.lag}d`;
+                    else if (l.lag < 0) lagString = `${l.lag}d`;
+                    return `${sourceWbs}${l.type}${lagString}`;
+                }).join(', ');
+            }
+            case 'successors': {
+                 const successorLinks = links.filter(l => l.source === task.id);
+                return successorLinks.map(l => {
+                    const targetWbs = idToWbsMap.get(l.target);
+                    if (!targetWbs) return '';
+                    let lagString = '';
+                    if (l.lag > 0) lagString = `+${l.lag}d`;
+                    else if (l.lag < 0) lagString = `${l.lag}d`;
+                    return `${targetWbs}${l.type}${lagString}`;
+                }).join(', ');
+            }
+            default:
+                if (columnId.startsWith('custom-')) {
+                    return String(task.customAttributes?.[columnId] || '');
+                }
+                return '';
+        }
+    }, [idToWbsMap]);
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const { activeCell, columns, visibleColumns, editingCell } = stateRef.current;
             if (!activeCell) return;
 
+             // F2 key to start editing without clearing content
+            if (event.key === 'F2') {
+              event.preventDefault();
+              if (!editingCell) {
+                const value = getCellValueForEditing(activeCell.taskId, activeCell.columnId);
+                dispatch({
+                    type: 'START_EDITING_CELL',
+                    payload: { ...activeCell, initialValue: value }
+                });
+              }
+              return;
+            }
+
             // Don't interfere if an input is focused outside the table or we are actively editing a cell.
             if ((document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) || editingCell) {
               return;
+            }
+
+            // Type-to-edit logic
+            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                event.preventDefault();
+                dispatch({
+                    type: 'START_EDITING_CELL',
+                    payload: { ...activeCell, initialValue: event.key }
+                });
+                return;
+            }
+            if (event.key === 'Backspace') {
+                event.preventDefault();
+                dispatch({
+                    type: 'START_EDITING_CELL',
+                    payload: { ...activeCell, initialValue: '' }
+                });
+                return;
             }
 
             if (event.key.startsWith('Arrow')) {
@@ -476,7 +552,7 @@ export function TaskTable({
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [renderableRows, dispatch]);
+    }, [renderableRows, dispatch, getCellValueForEditing]);
 
     const [draggedIds, setDraggedIds] = React.useState<string[] | null>(null);
     const [dropIndicator, setDropIndicator] = React.useState<{ targetId: string; position: 'top' | 'bottom' | 'child' } | null>(null);
@@ -667,7 +743,6 @@ export function TaskTable({
         dispatch({ type: 'REMOVE_COLUMN', payload: { columnId }});
     }
 
-    const idToWbsMap = React.useMemo(() => new Map(tasks.map(t => [t.id, t.wbs || ''])), [tasks]);
     const resourceMap = React.useMemo(() => new Map(resources.map(r => [r.id, r.name])), [resources]);
 
     const orderedAndVisibleColumns = React.useMemo(() => {
