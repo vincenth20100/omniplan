@@ -26,7 +26,20 @@ export function NotesSection({ task, dispatch }: { task: Task; dispatch: any }) 
   };
   
   return (
-    <div className="flex flex-col h-full gap-4">
+    <div className="flex flex-col h-full gap-6">
+      <div>
+          <Label htmlFor="additional-notes" className="text-xs font-semibold text-muted-foreground uppercase">
+              Additional Information
+          </Label>
+          <Textarea
+              id="additional-notes"
+              value={task.additionalNotes || ''}
+              onChange={(e) => dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, additionalNotes: e.target.value } })}
+              placeholder="Add any persistent, high-level information about this task here..."
+              className="mt-2"
+              rows={5}
+          />
+      </div>
       <div className="flex-grow flex flex-col gap-2 overflow-hidden">
         <Label className="text-xs font-semibold text-muted-foreground shrink-0">ACTIVITY LOG</Label>
         

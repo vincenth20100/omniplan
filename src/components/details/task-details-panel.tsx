@@ -54,7 +54,7 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                 )}>
                     <TabsList className="bg-transparent p-0">
                         <TabsTrigger value="links" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Links</TabsTrigger>
-                        <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Info</TabsTrigger>
+                        <TabsTrigger value="dates" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Dates</TabsTrigger>
                         <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Activity Log</TabsTrigger>
                     </TabsList>
                 </div>
@@ -84,7 +84,7 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                            </ResizablePanelGroup>
                         </div>
                     </TabsContent>
-                    <TabsContent value="info" className="m-0 h-full">
+                    <TabsContent value="dates" className="m-0 h-full">
                          <div className={cn(
                             "h-full",
                             uiDensity === 'large' && 'p-4',

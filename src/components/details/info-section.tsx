@@ -2,7 +2,6 @@
 
 import type { Task, ConstraintType, Calendar } from '@/lib/types';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { EditableSelectCell } from '@/components/omni-gantt/editable-select-cell';
 import { EditableDateCell } from '@/components/omni-gantt/editable-date-cell';
 
@@ -81,19 +80,6 @@ export function InfoSection({ task, dispatch, defaultCalendar }: { task: Task; d
                 </div>
                  <div />
             </div>
-        </div>
-        <div>
-            <Label htmlFor="additional-notes" className="text-xs font-semibold text-muted-foreground uppercase">
-                Additional Information
-            </Label>
-            <Textarea
-                id="additional-notes"
-                value={task.additionalNotes || ''}
-                onChange={(e) => dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, additionalNotes: e.target.value } })}
-                placeholder="Add any persistent, high-level information about this task here..."
-                className="mt-2"
-                rows={5}
-            />
         </div>
     </div>
   );
