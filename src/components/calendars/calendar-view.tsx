@@ -16,9 +16,9 @@ import { EditableDateCell } from '../omni-gantt/editable-date-cell';
 import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { DayPicker } from "react-day-picker";
-import { format, addDays } from 'date-fns';
+import { format, addDays, addYears } from 'date-fns';
 import { calendarService } from '@/lib/calendar';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Label } from '@/components/ui/label';
 
@@ -38,6 +38,14 @@ export function CalendarView({
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const isMobile = useIsMobile();
+
+  const handlePrevYear = () => {
+    setCurrentMonth(prev => addYears(prev, -1));
+  };
+
+  const handleNextYear = () => {
+    setCurrentMonth(prev => addYears(prev, 1));
+  };
 
   const handleAddCalendar = () => {
     dispatch({ type: 'ADD_CALENDAR' });
@@ -223,22 +231,31 @@ export function CalendarView({
                 </div>
             </div>
         )}
-        <div className="flex flex-col items-center">
-         <DayPicker
-            numberOfMonths={isMobile ? 1 : 3}
-            month={currentMonth}
-            onMonthChange={setCurrentMonth}
-            showOutsideDays
-            modifiers={modifiers}
-            modifiersClassNames={modifiersClassNames}
-            onDayClick={handleDayClick}
-            components={{
-                IconLeft: () => <ChevronLeft className="h-4 w-4" />,
-                IconRight: () => <ChevronRight className="h-4 w-4" />,
-            }}
-            className="w-full"
-         />
-      </div>
+        <div className="flex items-center">
+          {!isMobile && (
+              <Button variant="ghost" size="icon" onClick={handlePrevYear} className="self-center">
+                  <ChevronsLeft className="h-5 w-5" />
+              </Button>
+          )}
+          <DayPicker
+              numberOfMonths={isMobile ? 1 : 3}
+              month={currentMonth}
+              onMonthChange={setCurrentMonth}
+              showOutsideDays
+              modifiers={modifiers}
+              modifiersClassNames={modifiersClassNames}
+              onDayClick={handleDayClick}
+              components={{
+                  IconLeft: () => <ChevronLeft className="h-4 w-4" />,
+                  IconRight: () => <ChevronRight className="h-4 w-4" />,
+              }}
+          />
+          {!isMobile && (
+              <Button variant="ghost" size="icon" onClick={handleNextYear} className="self-center">
+                  <ChevronsRight className="h-5 w-5" />
+              </Button>
+          )}
+        </div>
       </div>
 
       <div>
