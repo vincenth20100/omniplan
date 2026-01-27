@@ -241,11 +241,12 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         const task = taskMap.get(taskId)!;
         if (task.isSummary) continue;
 
+        let lateFinish = projectFinishDate; // Start with project end
+
         const successors = successorsMap.get(taskId) || [];
         if (successors.length > 0) {
             const potentialLateFinishes = successors.map(link => {
                 const successorTask = taskMap.get(link.target)!;
-                const successorLateFinish = successorTask.lateFinish!;
                 const successorLateStart = successorTask.lateStart!;
                 
                 let constrainedLateFinish: Date;
@@ -254,25 +255,36 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                         constrainedLateFinish = calendarService.addWorkingDays(successorLateStart, -(link.lag + 1), calendar);
                         break;
                     case 'FF': // Finish-to-Finish
-                        constrainedLateFinish = calendarService.addWorkingDays(successorLateFinish, -link.lag, calendar);
+                        constrainedLateFinish = calendarService.addWorkingDays(successorTask.lateFinish!, -link.lag, calendar);
                         break;
                     case 'SS': // Start-to-Start
                         const tempLS_ss = calendarService.addWorkingDays(successorLateStart, -link.lag, calendar);
                         constrainedLateFinish = calendarService.calculateFinishDate(tempLS_ss, task.duration, task.durationUnit || 'd', calendar);
                         break;
-                    case 'SF': // Start-to-Finish
-                        const tempLS_sf = calendarService.addWorkingDays(successorLateFinish, -link.lag, calendar);
-                        constrainedLateFinish = calendarService.calculateFinishDate(tempLS_sf, task.duration, task.durationUnit || 'd', calendar);
-                        break;
+                    case 'SF': // Start-to-Finish - this logic is complex, fallback to avoid errors
                     default:
                         constrainedLateFinish = projectFinishDate;
                 }
                 return constrainedLateFinish;
             });
-            task.lateFinish = new Date(Math.min(...potentialLateFinishes.map(d => d.getTime())));
+            lateFinish = new Date(Math.min(...potentialLateFinishes.map(d => d.getTime())));
         }
         
+        // Also constrain by the task's own deadline or late-finish constraints
+        if (task.constraintType && task.constraintDate) {
+            if (task.constraintType === 'Finish No Later Than' || task.constraintType === 'Must Finish On') {
+                lateFinish = new Date(Math.min(lateFinish.getTime(), startOfDay(task.constraintDate).getTime()));
+            }
+        }
+        if (task.deadline) {
+            lateFinish = new Date(Math.min(lateFinish.getTime(), startOfDay(task.deadline).getTime()));
+        }
+
+        task.lateFinish = lateFinish;
         task.lateStart = calendarService.calculateFinishDate(task.lateFinish!, -task.duration, task.durationUnit || 'd', calendar);
+         if (task.constraintType === 'Must Start On' && task.constraintDate) {
+            task.lateStart = new Date(Math.min(task.lateStart.getTime(), startOfDay(task.constraintDate).getTime()));
+        }
     }
     
     // Calculate Float and Critical Path
