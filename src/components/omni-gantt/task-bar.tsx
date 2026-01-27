@@ -1,6 +1,6 @@
 'use client';
 import React, { useRef, useEffect } from 'react';
-import { differenceInCalendarDays, addDays } from 'date-fns';
+import { differenceInCalendarDays, addDays, format } from 'date-fns';
 import type { Task, UiDensity } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
@@ -32,9 +32,47 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         registerBarElement(task.id, barRef.current);
         return () => registerBarElement(task.id, null);
     }, [task.id, registerBarElement]);
+    
+    // Milestone rendering
+    if (task.duration === 0 && !isSummary) {
+        const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
+        const milestoneSize = 20;
+        const left = offsetDays * scale + scale / 2 - milestoneSize / 2;
+        const top = row * rowHeight + (rowHeight - milestoneSize) / 2;
+
+        return (
+            <div
+                ref={barRef}
+                className={cn("absolute flex items-center justify-center cursor-pointer", isSelected ? "z-10" : "")}
+                style={{
+                    top: `${top}px`,
+                    left: `${left}px`,
+                    width: `${milestoneSize}px`,
+                    height: `${milestoneSize}px`,
+                }}
+                onClick={onSelect}
+                title={`${task.name}\n${format(task.start, 'MMM d, yyyy')}`}
+            >
+                <svg width={milestoneSize} height={milestoneSize} viewBox="0 0 24 24" className={cn(
+                    "drop-shadow-md",
+                    task.isCritical && highlightCriticalPath ? "fill-destructive" : "fill-primary",
+                )}>
+                    <path d="M12 2L2 12L12 22L22 12L12 2Z"
+                        stroke={isSelected ? 'hsl(var(--accent))' : 'hsl(var(--card))'}
+                        strokeWidth="2"
+                    />
+                </svg>
+                 {showTaskLabels && (
+                    <span className="absolute text-xs whitespace-nowrap pl-2" style={{ left: `${milestoneSize}px`}}>
+                        {task.name}
+                    </span>
+                )}
+            </div>
+        );
+    }
+
 
     const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
-    const left = offsetDays * scale;
     const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
     const top = row * rowHeight + (rowHeight - (isSummary ? summaryBarHeight : barHeight)) / 2;
 

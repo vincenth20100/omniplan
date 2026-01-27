@@ -169,7 +169,7 @@ const TaskCellRenderer = React.memo(({
                     value={`${task.duration}`}
                     onSave={(newValue) => {
                         const newDuration = parseInt(newValue, 10);
-                        if (!isNaN(newDuration) && newDuration > 0) {
+                        if (!isNaN(newDuration) && newDuration >= 0) {
                             dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, duration: newDuration } });
                         }
                     }}
