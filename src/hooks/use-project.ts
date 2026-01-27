@@ -94,6 +94,7 @@ type Action =
   | { type: 'INDENT_TASK' }
   | { type: 'OUTDENT_TASK' }
   | { type: 'ADD_TASK' }
+  | { type: 'ADD_TASK_OPTIMISTIC'; payload: { task: Task } }
   | { type: 'REMOVE_TASK' }
   | { type: 'REMOVE_LINK'; payload: { linkId: string } }
   | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string; position: 'top' | 'bottom' } }
@@ -470,17 +471,12 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, ganttSettings: action.payload, isDirty: true };
     }
      case 'ADD_TASK': {
-        const newId = `task-${Date.now()}`;
-        const newTask: Task = {
-            id: newId,
-            name: 'New Task',
-            start: new Date(),
-            finish: new Date(),
-            duration: 1,
-            durationUnit: 'd',
-            percentComplete: 0,
-            level: 0,
-        };
+        // This case is now effectively obsolete, as the logic is handled by ADD_TASK_OPTIMISTIC.
+        // It's kept here to prevent breaking if an old ADD_TASK action is somehow dispatched.
+        return state;
+    }
+    case 'ADD_TASK_OPTIMISTIC': {
+        const newTask = action.payload.task;
         
         let newTasks = [...state.tasks];
         const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
@@ -492,7 +488,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
         
         const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: scheduledTasks, isDirty: true, selectedTaskIds: [newId], activeCell: { taskId: newId, columnId: 'name' } };
+        return { ...state, tasks: scheduledTasks, isDirty: true, selectedTaskIds: [newTask.id], activeCell: { taskId: newTask.id, columnId: 'name' } };
     }
     case 'REMOVE_TASK': {
         const idsToRemove = new Set(state.selectedTaskIds);
@@ -654,7 +650,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
         
         const newPresent = reducer(present, action);
 
-        if (nonHistoricActions.includes(action.type)) {
+        if (nonHistoricActions.includes(action.type) || action.type === 'ADD_TASK') {
             return { ...state, present: newPresent };
         }
 
@@ -669,6 +665,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
 export function useProject(user: User) {
   const [historyState, dispatch] = useReducer(undoable(projectReducer), historyInitialState);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
   const firestore = useFirestore();
 
   const collections = {
@@ -680,9 +677,51 @@ export function useProject(user: User) {
   };
   
   const handleFirestoreAction = (action: Action) => {
-    dispatch(action);
+    if (!user) {
+        dispatch(action);
+        return;
+    }
+    
+    if (action.type === 'ADD_TASK') {
+        const newId = `task-${Date.now()}`;
+        const newTask: Task = {
+            id: newId,
+            name: 'New Task',
+            start: new Date(),
+            finish: new Date(),
+            duration: 1,
+            durationUnit: 'd',
+            percentComplete: 0,
+            level: 0,
+        };
+        const docRef = doc(firestore, 'users', user.uid, 'tasks', newTask.id);
+        setDocumentNonBlocking(docRef, newTask, {});
+        dispatch({ type: 'ADD_TASK_OPTIMISTIC', payload: { task: newTask } });
+        return;
+    }
 
-    if (!user) return;
+    if (action.type === 'REMOVE_TASK') {
+        const idsToRemove = new Set(historyState.present.selectedTaskIds);
+        if (idsToRemove.size > 0) {
+            const tasksToRemove = new Set<string>(idsToRemove);
+            const findChildren = (parentId: string) => {
+                historyState.present.tasks.forEach(t => {
+                    if (t.parentId === parentId) {
+                        tasksToRemove.add(t.id);
+                        findChildren(t.id);
+                    }
+                });
+            };
+            idsToRemove.forEach(id => findChildren(id));
+
+            tasksToRemove.forEach(id => {
+                const docRef = doc(firestore, 'users', user.uid, 'tasks', id);
+                deleteDocumentNonBlocking(docRef);
+            });
+        }
+    }
+    
+    dispatch(action);
     
     switch (action.type) {
         case 'UPDATE_TASK': {
@@ -737,8 +776,9 @@ export function useProject(user: User) {
 
     const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading;
 
-    if (!isLoading && !isLoaded) {
+    if (!isLoading && !isLoaded && !isSeeding) {
         if (!tasks || tasks.length === 0 || !calendars || calendars.length === 0) {
+             setIsSeeding(true);
              const batch = writeBatch(firestore);
              initialTasks.forEach(task => {
                  const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
@@ -760,14 +800,17 @@ export function useProject(user: User) {
                  const docRef = doc(firestore, 'users', user.uid, 'calendars', calendar.id);
                  batch.set(docRef, calendar);
              });
-             batch.commit();
-             // After seeding, we must wait for the data to come back through the hooks.
-             // Returning here prevents the rest of the effect from running with empty data.
+             batch.commit().then(() => {
+                 // After seeding, we rely on the hooks to refetch the data.
+                 // We don't need to manually dispatch here. The hooks will trigger a re-render.
+             }).finally(() => {
+                 setIsSeeding(false);
+             });
              return;
         }
     }
 
-    if (!isLoading) {
+    if (!isLoading && !isSeeding) {
         setIsLoaded(true);
         const safeToDate = (value: any): Date | null => {
             if (!value) return null;
@@ -817,6 +860,7 @@ export function useProject(user: User) {
     collections.assignments.isLoading, 
     collections.calendars.isLoading,
     isLoaded,
+    isSeeding,
     firestore,
     user
 ]);
