@@ -137,6 +137,7 @@ export function Timeline({
                 links={links} 
                 taskBarElements={taskBarElements}
                 taskIndexMap={taskIndexMap}
+                rowHeight={rowHeight}
               />
             </div>
           </div>

@@ -3,7 +3,6 @@ import React from 'react';
 import type { Link, Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-const ROW_HEIGHT = 48; // Corresponds to h-12 in tailwind
 const BAR_HEIGHT = 28;
 
 interface LineInfo {
@@ -12,10 +11,11 @@ interface LineInfo {
     isDriving: boolean;
 }
 
-export const DependencyLines = React.memo(({ links, taskBarElements, taskIndexMap }: { 
+export const DependencyLines = React.memo(({ links, taskBarElements, taskIndexMap, rowHeight }: { 
     links: Link[];
     taskBarElements: Record<string, HTMLDivElement | null>;
     taskIndexMap: Map<string, number>;
+    rowHeight: number;
 }) => {
 
     const lines: LineInfo[] = links.map(link => {
@@ -29,8 +29,8 @@ export const DependencyLines = React.memo(({ links, taskBarElements, taskIndexMa
 
         if (sourceIndex === undefined || targetIndex === undefined) return null;
 
-        const sourceY = sourceIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
-        const targetY = targetIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+        const sourceY = sourceIndex * rowHeight + rowHeight / 2;
+        const targetY = targetIndex * rowHeight + rowHeight / 2;
 
         let x1: number, x2: number;
         const sourceOffsetLeft = sourceEl.offsetLeft;
