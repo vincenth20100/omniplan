@@ -483,14 +483,35 @@ export function useProject(user: User) {
              });
              batch.commit();
         } else {
-             dispatch({
+            const safeToDate = (value: any): Date | null => {
+                if (!value) return null;
+                if (typeof value.toDate === 'function') { // Firestore Timestamp
+                    return value.toDate();
+                }
+                return new Date(value); // Assumes string or Date object
+            }
+
+            dispatch({
                 type: 'SET_PROJECT_DATA',
                 payload: {
-                    tasks: (tasks || []).map(t => ({...t, start: (t.start as any).toDate(), finish: (t.finish as any).toDate(), constraintDate: (t.constraintDate as any)?.toDate(), deadline: (t.deadline as any)?.toDate() })),
+                    tasks: (tasks || []).map(t => ({
+                        ...t, 
+                        start: safeToDate(t.start)!, 
+                        finish: safeToDate(t.finish)!, 
+                        constraintDate: safeToDate(t.constraintDate), 
+                        deadline: safeToDate(t.deadline)
+                    })),
                     links: links || [],
                     resources: resources || [],
                     assignments: assignments || [],
-                    calendars: (calendars || []).map(c => ({...c, exceptions: (c.exceptions || []).map(e => ({...e, start: (e.start as any).toDate(), finish: (e.finish as any).toDate()}))})),
+                    calendars: (calendars || []).map(c => ({
+                        ...c, 
+                        exceptions: (c.exceptions || []).map(e => ({
+                            ...e, 
+                            start: safeToDate(e.start)!, 
+                            finish: safeToDate(e.finish)!
+                        }))
+                    })),
                 }
             });
         }
