@@ -445,7 +445,13 @@ export function TaskTable({
                 }
             }
 
-            if (!activeCell) return;
+            if (!activeCell && event.key !== 'Insert') return;
+
+            if (event.key === 'Insert') {
+                event.preventDefault();
+                dispatch({ type: 'ADD_TASK' });
+                return;
+            }
 
              // F2 key to start editing without clearing content
             if (event.key === 'F2') {
@@ -493,20 +499,18 @@ export function TaskTable({
                 if (activeRowIndex === -1 || activeColIndex === -1) return;
 
                 if (event.shiftKey) {
-                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                        let nextRowIndex = activeRowIndex + (event.key === 'ArrowDown' ? 1 : -1);
-                        // Find next actual task row, skipping groups
-                        while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
-                            nextRowIndex += (event.key === 'ArrowDown' ? 1 : -1);
-                        }
+                    let nextRowIndex = activeRowIndex + (event.key === 'ArrowDown' ? 1 : -1);
+                    // Find next actual task row, skipping groups
+                    while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
+                        nextRowIndex += (event.key === 'ArrowDown' ? 1 : -1);
+                    }
 
-                        if (nextRowIndex >= 0 && nextRowIndex < renderableRows.length) {
-                            const nextTaskRow = renderableRows[nextRowIndex] as TaskRow;
-                            // Move active cell
-                            dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskRow.data.id, columnId: activeCell.columnId }});
-                            // Extend selection
-                            dispatch({ type: 'SELECT_TASK', payload: { taskId: nextTaskRow.data.id, shiftKey: true } });
-                        }
+                    if (nextRowIndex >= 0 && nextRowIndex < renderableRows.length) {
+                        const nextTaskRow = renderableRows[nextRowIndex] as TaskRow;
+                        // Move active cell
+                        dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskRow.data.id, columnId: activeCell.columnId }});
+                        // Extend selection
+                        dispatch({ type: 'SELECT_TASK', payload: { taskId: nextTaskRow.data.id, shiftKey: true } });
                     }
                 } else { // Not holding shift
                     let nextTaskId = activeCell.taskId;

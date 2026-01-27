@@ -29,6 +29,7 @@ const shortcuts = [
   { combination: [["Shift"], "+", ["Arrow Up/Down"]], description: "Select multiple rows" },
 
   // Editing
+  { combination: [["Insert"]], description: "Add a new task below the selected row" },
   { combination: [["F2"]], description: "Edit selected cell without clearing content" },
   { combination: [["Enter"]], description: "Confirm cell edit" },
   { combination: [["Escape"]], description: "Cancel cell edit" },
