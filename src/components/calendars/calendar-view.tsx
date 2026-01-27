@@ -19,6 +19,7 @@ import { DayPicker } from "react-day-picker";
 import { format, addDays } from 'date-fns';
 import { calendarService } from '@/lib/calendar';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function CalendarView({
   projectState,
@@ -35,6 +36,7 @@ export function CalendarView({
     calendars.find((c) => c.id === selectedCalendarId) || null;
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const isMobile = useIsMobile();
 
   const handleAddCalendar = () => {
     dispatch({ type: 'ADD_CALENDAR' });
@@ -181,7 +183,7 @@ export function CalendarView({
       
       <div className="border rounded-lg p-4 flex flex-col items-center">
          <DayPicker
-            numberOfMonths={3}
+            numberOfMonths={isMobile ? 1 : 3}
             month={currentMonth}
             onMonthChange={setCurrentMonth}
             showOutsideDays
