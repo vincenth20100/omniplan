@@ -19,7 +19,14 @@ const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
     { id: 'predecessors', name: 'Predecessors', defaultWidth: 120, type: 'text' },
     { id: 'successors', name: 'Successors', defaultWidth: 120, type: 'text' },
     { id: 'percentComplete', name: '% Complete', defaultWidth: 80, type: 'number' },
-    { id: 'constraintType', name: 'Constraint Type', defaultWidth: 110, type: 'selection', options: ['Start No Earlier Than', 'Must Start On'] },
+    { id: 'constraintType', name: 'Constraint Type', defaultWidth: 110, type: 'selection', options: [
+        'Finish No Earlier Than',
+        'Finish No Later Than',
+        'Must Finish On',
+        'Must Start On',
+        'Start No Earlier Than',
+        'Start No Later Than',
+    ] },
     { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110, type: 'date' },
 ];
 
@@ -791,6 +798,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 start: new Date(t.start),
                 finish: new Date(t.finish),
                 constraintDate: t.constraintDate ? new Date(t.constraintDate) : null,
+                deadline: t.deadline ? new Date(t.deadline) : null,
                 notes: (t.notes || []).map((note: any) => ({
                     ...note,
                     timestamp: new Date(note.timestamp),
@@ -1143,12 +1151,14 @@ export function useProject() {
             }
             case 'constraintType': return task.constraintType || '';
             case 'constraintDate': return task.constraintDate ? format(task.constraintDate, 'MM/dd/yyyy') : '';
-            default:
-                if (col.id.startsWith('custom-')) {
-                    return String(task.customAttributes?.[col.id] || '');
-                }
-                return '';
+            // No default case needed, custom attributes handled below
         }
+        
+        if (col.id.startsWith('custom-')) {
+            return String(task.customAttributes?.[col.id] || '');
+        }
+
+        return '';
     };
 
     const handleCopy = (e: ClipboardEvent) => {
@@ -1215,7 +1225,8 @@ export function useProject() {
                 }
                 case 'start':
                 case 'finish':
-                case 'constraintDate': {
+                case 'constraintDate':
+                case 'deadline': {
                     const date = new Date(value);
                     if (!isNaN(date.getTime())) {
                         dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, [columnId]: date } });
@@ -1285,6 +1296,7 @@ export function useProject() {
       start: new Date(t.start),
       finish: new Date(t.finish),
       constraintDate: t.constraintDate ? new Date(t.constraintDate) : undefined,
+      deadline: t.deadline ? new Date(t.deadline) : undefined,
       cost: t.cost || 0,
       notes: (t.notes || []).map((note: any) => ({
           ...note,

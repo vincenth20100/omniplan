@@ -113,13 +113,18 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     // Forward pass: Calculate Early Start (ES) and Early Finish (EF)
     for (const taskId of sortedTasks) {
         const task = taskMap.get(taskId)!;
+
+        // Reset conflict flags
+        task.schedulingConflict = false;
+        task.deadlineMissed = false;
         
+        if (task.isSummary) continue;
+
+        // --- Calculate Early Start from Predecessors ---
+        let predecessorDrivenStart = new Date(0);
         const predecessorLinks = predecessorsMap.get(taskId) || [];
         
-        let earlyStart = task.start;
-
         if(predecessorLinks.length > 0) {
-            earlyStart = new Date(0); // Start from the beginning of time
             for(const link of predecessorLinks) {
                 const sourceTask = taskMap.get(link.source)!;
                 let potentialStart: Date;
@@ -139,21 +144,59 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                     default:
                         potentialStart = new Date(0);
                 }
-                if (potentialStart > earlyStart) {
-                    earlyStart = potentialStart;
+                if (potentialStart > predecessorDrivenStart) {
+                    predecessorDrivenStart = potentialStart;
                 }
             }
+        } else {
+             predecessorDrivenStart = task.start; // If no predecessors, respect its own start date
         }
 
-        // Apply constraints
-        if (task.constraintType === 'Must Start On' && task.constraintDate) {
-            earlyStart = max([earlyStart, startOfDay(task.constraintDate)]);
-        } else if (task.constraintType === 'Start No Earlier Than' && task.constraintDate) {
-            earlyStart = max([earlyStart, startOfDay(task.constraintDate)]);
-        }
+        let earlyStart = predecessorDrivenStart;
 
+        // --- Apply Constraints ---
+        const { constraintType, constraintDate, duration } = task;
+
+        if (constraintType && constraintDate) {
+             const workingDuration = duration > 0 ? duration - 1 : 0;
+             switch (constraintType) {
+                case 'Must Start On':
+                    earlyStart = startOfDay(constraintDate);
+                    break;
+                case 'Must Finish On':
+                    earlyStart = calendarService.addWorkingDays(startOfDay(constraintDate), -workingDuration, calendar);
+                    break;
+                case 'Start No Earlier Than':
+                    earlyStart = max([earlyStart, startOfDay(constraintDate)]);
+                    break;
+                case 'Finish No Earlier Than':
+                    const requiredStartForFNET = calendarService.addWorkingDays(startOfDay(constraintDate), -workingDuration, calendar);
+                    earlyStart = max([earlyStart, requiredStartForFNET]);
+                    break;
+             }
+        }
+        
         task.start = calendarService.isWorkingDay(earlyStart, calendar) ? earlyStart : calendarService.findNextWorkingDay(earlyStart, calendar);
-        task.finish = calendarService.addWorkingDays(task.start, task.duration > 0 ? task.duration - 1 : 0, calendar);
+        task.finish = calendarService.addWorkingDays(task.start, duration > 0 ? duration - 1 : 0, calendar);
+
+        // --- Post-calculation validation for conflicts and deadlines ---
+         if (constraintType && constraintDate) {
+            switch (constraintType) {
+                case 'Start No Later Than':
+                    if (task.start > startOfDay(constraintDate)) {
+                        task.schedulingConflict = true;
+                    }
+                    break;
+                case 'Finish No Later Than':
+                    if (task.finish > startOfDay(constraintDate)) {
+                        task.schedulingConflict = true;
+                    }
+                    break;
+            }
+        }
+        if (task.deadline && task.finish > startOfDay(task.deadline)) {
+            task.deadlineMissed = true;
+        }
     }
     
     // Update driving status on links

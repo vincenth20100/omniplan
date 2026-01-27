@@ -7,25 +7,18 @@ import { EditableSelectCell } from '@/components/omni-gantt/editable-select-cell
 import { EditableDateCell } from '@/components/omni-gantt/editable-date-cell';
 
 export function InfoSection({ task, dispatch, defaultCalendar }: { task: Task; dispatch: any, defaultCalendar: Calendar | null }) {
-  const handleAdditionalNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    dispatch({
-      type: 'UPDATE_TASK',
-      payload: { id: task.id, additionalNotes: e.target.value },
-    });
-  };
-
   const handleConstraintTypeChange = (newValue: string | null) => {
     const payload: Partial<Task> & { id: string } = {
         id: task.id,
         constraintType: newValue as ConstraintType | null,
     };
-    // If changing to "None", also clear the date.
+    // If a constraint is chosen that requires a date, and no date is set, default it to the task's start date
+    if (newValue && !task.constraintDate) {
+        payload.constraintDate = task.start;
+    }
+    // If constraint is removed, clear the date as well
     if (!newValue) {
         payload.constraintDate = null;
-    } 
-    // If changing from "None" to something else, and there's no date, set it to the task's start date
-    else if (!task.constraintDate) {
-        payload.constraintDate = task.start;
     }
     dispatch({ type: 'UPDATE_TASK', payload });
   };
@@ -34,10 +27,20 @@ export function InfoSection({ task, dispatch, defaultCalendar }: { task: Task; d
       dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintDate: newDate } });
   }
 
+  const handleDeadlineChange = (newDate: Date | null) => {
+      dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, deadline: newDate } });
+  }
+
   const constraintOptions = [
-    { value: 'Start No Earlier Than', label: 'Start No Earlier Than' },
+    { value: 'Finish No Earlier Than', label: 'Finish No Earlier Than' },
+    { value: 'Finish No Later Than', label: 'Finish No Later Than' },
+    { value: 'Must Finish On', label: 'Must Finish On' },
     { value: 'Must Start On', label: 'Must Start On' },
+    { value: 'Start No Earlier Than', label: 'Start No Earlier Than' },
+    { value: 'Start No Later Than', label: 'Start No Later Than' },
   ];
+
+  const hasConstraintDate = !!task.constraintType;
 
   return (
     <div className="flex flex-col h-full gap-6">
@@ -50,12 +53,12 @@ export function InfoSection({ task, dispatch, defaultCalendar }: { task: Task; d
                         value={task.constraintType || null}
                         onSave={handleConstraintTypeChange}
                         options={constraintOptions}
-                        placeholder="None"
+                        placeholder="As Soon As Possible"
                     />
                 </div>
                  <div>
                     <Label htmlFor={`constraint-date-${task.id}`} className="text-sm">Constraint Date</Label>
-                     <div className={!task.constraintType ? 'opacity-50 pointer-events-none' : ''}>
+                     <div className={!hasConstraintDate ? 'opacity-50 pointer-events-none' : ''}>
                          <EditableDateCell
                             value={task.constraintDate}
                             onSave={handleConstraintDateChange}
@@ -66,13 +69,27 @@ export function InfoSection({ task, dispatch, defaultCalendar }: { task: Task; d
             </div>
         </div>
         <div>
+             <Label className="text-xs font-semibold text-muted-foreground uppercase">Deadline</Label>
+            <div className="mt-2 grid grid-cols-2 gap-4 border p-4 rounded-md">
+                 <div>
+                    <Label htmlFor={`deadline-date-${task.id}`} className="text-sm">Deadline Date</Label>
+                     <EditableDateCell
+                        value={task.deadline}
+                        onSave={handleDeadlineChange}
+                        calendar={defaultCalendar}
+                    />
+                </div>
+                 <div />
+            </div>
+        </div>
+        <div>
             <Label htmlFor="additional-notes" className="text-xs font-semibold text-muted-foreground uppercase">
                 Additional Information
             </Label>
             <Textarea
                 id="additional-notes"
                 value={task.additionalNotes || ''}
-                onChange={handleAdditionalNotesChange}
+                onChange={(e) => dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, additionalNotes: e.target.value } })}
                 placeholder="Add any persistent, high-level information about this task here..."
                 className="mt-2"
                 rows={5}

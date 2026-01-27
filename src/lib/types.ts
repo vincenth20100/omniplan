@@ -1,7 +1,13 @@
 'use client';
 export type LinkType = "FS" | "SS" | "FF" | "SF";
 
-export type ConstraintType = "Start No Earlier Than" | "Must Start On";
+export type ConstraintType = 
+  | "Finish No Earlier Than"
+  | "Finish No Later Than"
+  | "Must Finish On"
+  | "Must Start On"
+  | "Start No Earlier Than"
+  | "Start No Later Than";
 
 export type UiDensity = 'compact' | 'medium' | 'large';
 
@@ -55,6 +61,7 @@ export interface Task {
 
   constraintType?: ConstraintType | null;
   constraintDate?: Date | null;
+  deadline?: Date | null;
   zoneId?: string | null;
   customAttributes?: Record<string, any> | null;
   calendarId?: string | null;
@@ -63,6 +70,7 @@ export interface Task {
 
   // Calculated fields
   schedulingConflict?: boolean;
+  deadlineMissed?: boolean;
 }
 
 export interface Link {

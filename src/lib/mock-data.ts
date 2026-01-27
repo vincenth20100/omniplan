@@ -17,11 +17,11 @@ export const initialCalendars: (Omit<Calendar, 'exceptions'> & { exceptions?: (O
     { id: 'cal-weekends', name: 'Weekends Only', workingDays: [0, 6], exceptions: [] },
 ];
 
-export const initialTasks = [
+export const initialTasks: (Omit<Task, 'start'|'finish'|'constraintDate'|'deadline'|'notes'> & {start: string, finish: string, constraintDate?:string, deadline?:string, notes?: (Omit<Note, 'timestamp'> & {timestamp: string})[]})[] = [
   { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100, cost: 500, additionalNotes: 'This is some important, persistent information about the project kick-off. All stakeholders must be present.', notes: [
       { id: 'note-1', author: 'Project Manager', content: 'Initial project meeting went well. Team is motivated.', timestamp: addDays(today, -1).toISOString() }
   ] },
-  { id: '2', wbs: '2', level: 0, name: 'Requirement Gathering', start: addDays(today, 1).toISOString(), duration: 5, finish: addDays(today, 6).toISOString(), percentComplete: 75, cost: 2500 },
+  { id: '2', wbs: '2', level: 0, name: 'Requirement Gathering', start: addDays(today, 1).toISOString(), duration: 5, finish: addDays(today, 6).toISOString(), percentComplete: 75, cost: 2500, deadline: addDays(today, 8).toISOString() },
   { id: '3', wbs: '3', level: 0, name: 'Design Phase', start: addDays(today, 1).toISOString(), duration: 10, finish: addDays(today, 11).toISOString(), percentComplete: 50, cost: 5000 },
   
   // Summary Task for Build

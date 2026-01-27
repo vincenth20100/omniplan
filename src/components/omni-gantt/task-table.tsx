@@ -5,7 +5,7 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon } from 'lucide-react';
+import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag } from 'lucide-react';
 import React from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
@@ -91,7 +91,8 @@ const TaskCellRenderer = React.memo(({
                          )}></div>
                     )}
                     {hasNotes && <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
-                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive flex-shrink-0" />}
+                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive flex-shrink-0" title="Scheduling Conflict" />}
+                    {task.deadlineMissed && task.deadline && <Flag className="h-4 w-4 text-destructive flex-shrink-0" title={`Deadline missed. Deadline was ${format(task.deadline, 'MMM d, yyyy')}`} />}
                     <div className="flex-grow">
                             {task.isSummary && !isGrouped ? (
                             <span className="truncate">{task.name}</span>
@@ -225,8 +226,12 @@ const TaskCellRenderer = React.memo(({
         case 'constraintType': {
             if (task.isSummary) return null;
             const constraintOptions = [
-                { value: 'Start No Earlier Than', label: 'Start No Earlier Than' },
+                { value: 'Finish No Earlier Than', label: 'Finish No Earlier Than' },
+                { value: 'Finish No Later Than', label: 'Finish No Later Than' },
+                { value: 'Must Finish On', label: 'Must Finish On' },
                 { value: 'Must Start On', label: 'Must Start On' },
+                { value: 'Start No Earlier Than', label: 'Start No Earlier Than' },
+                { value: 'Start No Later Than', label: 'Start No Later Than' },
             ];
             return (
                 <EditableSelectCell
@@ -235,7 +240,7 @@ const TaskCellRenderer = React.memo(({
                         dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, constraintType: newValue as ConstraintType | null } });
                     }}
                     options={constraintOptions}
-                    placeholder="None"
+                    placeholder="As Soon As Possible"
                 />
             );
         }
