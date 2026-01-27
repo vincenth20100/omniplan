@@ -93,22 +93,19 @@ export default function Home() {
 
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
-        <Button variant="outline" size="sm" onClick={handleAddTask}>
+        <Button variant="outline" size="icon" onClick={handleAddTask}>
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline ml-2">Add Task</span>
         </Button>
-        <Button variant="outline" size="sm" onClick={handleRemoveTask} disabled={state.selectedTaskIds.length === 0}>
+        <Button variant="outline" size="icon" onClick={handleRemoveTask} disabled={state.selectedTaskIds.length === 0}>
             <Trash2 className="h-4 w-4" />
-             <span className="hidden sm:inline ml-2">Remove Task</span>
         </Button>
-        <Button variant="outline" size="sm" onClick={handleLinkTasks} disabled={state.selectedTaskIds.length < 2}>
+        <Button variant="outline" size="icon" onClick={handleLinkTasks} disabled={state.selectedTaskIds.length < 2}>
             <LinkIcon className="h-4 w-4" />
-            <span className="hidden sm:inline ml-2">Link</span>
         </Button>
-        <Button variant="outline" size="sm" onClick={handleIndentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
+        <Button variant="outline" size="icon" onClick={handleIndentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
             <Indent className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" onClick={handleOutdentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
+        <Button variant="outline" size="icon" onClick={handleOutdentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
             <Outdent className="h-4 w-4" />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
@@ -119,13 +116,11 @@ export default function Home() {
             <ChevronsDown />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
-        <Button variant="outline" size="sm" onClick={() => setIsResourceDialogOpen(true)}>
+        <Button variant="outline" size="icon" onClick={() => setIsResourceDialogOpen(true)}>
             <Users className="h-4 w-4" />
-            <span className="hidden sm:inline ml-2">Resources</span>
         </Button>
-        <Button variant="outline" size="sm" onClick={() => setIsCalendarDialogOpen(true)}>
+        <Button variant="outline" size="icon" onClick={() => setIsCalendarDialogOpen(true)}>
             <CalendarDays className="h-4 w-4" />
-            <span className="hidden sm:inline ml-2">Calendars</span>
         </Button>
         {isMobile && (
             <Button

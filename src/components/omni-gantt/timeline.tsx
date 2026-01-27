@@ -100,7 +100,7 @@ export function Timeline({
 
   return (
     <div className="h-full w-full relative">
-       <div className="absolute top-1 left-2 z-30 flex items-center gap-1">
+       <div className="absolute top-2 left-2 z-30 flex items-center gap-1">
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomIn}>
                 <ZoomIn className="h-4 w-4" />
             </Button>
