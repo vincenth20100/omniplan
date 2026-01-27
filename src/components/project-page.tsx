@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2 } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
@@ -25,7 +25,7 @@ import { HistoryPanel } from '@/components/history/history-panel';
 import type { User } from 'firebase/auth';
 
 export function ProjectPage({ user }: { user: User }) {
-  const { state, dispatch, isLoaded } = useProject(user);
+  const { state, dispatch, isLoaded, canUndo, canRedo, history } = useProject(user);
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
@@ -64,6 +64,12 @@ export function ProjectPage({ user }: { user: User }) {
 
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo} title="Undo (Ctrl+Z)">
+            <Undo2 />
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REDO' })} disabled={!canRedo} title="Redo (Ctrl+Y)">
+            <Redo2 />
+        </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
         <Button variant="outline" size="icon" disabled title="Add Task">
             <Plus />
@@ -112,7 +118,7 @@ export function ProjectPage({ user }: { user: User }) {
         <Button variant="outline" size="icon" onClick={() => setIsGanttSettingsOpen(true)} title="Gantt Display Options">
             <Settings />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsHistoryOpen(true)} title="Show History" disabled>
+        <Button variant="outline" size="icon" onClick={() => setIsHistoryOpen(true)} title="Show History">
             <History />
         </Button>
         {isMobile && (
@@ -231,7 +237,8 @@ export function ProjectPage({ user }: { user: User }) {
           <HistoryPanel
             open={isHistoryOpen}
             onOpenChange={setIsHistoryOpen}
-            history={state.historyLog}
+            history={history.log}
+            currentIndex={history.index}
             dispatch={dispatch}
           />
         </>

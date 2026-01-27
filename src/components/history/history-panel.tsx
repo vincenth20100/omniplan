@@ -7,39 +7,49 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import type { ProjectState } from "@/lib/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { Button } from "../ui/button";
+import type { HistoryEntry } from "@/lib/types";
+import { Separator } from "../ui/separator";
 
-function getActionDescription(action: any): string {
-    const type = action.type.replace(/_/g, ' ').toLowerCase();
-    let details = '';
-
-    if (action.payload?.name) {
-        details = `"${action.payload.name}"`;
-    } else if (action.payload?.taskId) {
-        details = `task`;
-    } else if (action.payload?.linkId) {
-        details = `link`;
-    } else if (action.type === 'LINK_TASKS') {
-        details = 'tasks';
-    }
-
-    return `${type} ${details}`.trim();
+function getActionDescription(entry: HistoryEntry): string {
+    const type = entry.actionType.replace(/_/g, ' ').toLowerCase();
+    return `${type} ${entry.payloadDescription || ''}`.trim();
 }
+
+const groupHistory = (history: HistoryEntry[]) => {
+    return history.reduce((acc, entry, index) => {
+        const day = format(entry.timestamp, 'eeee, MMMM d, yyyy');
+        if (!acc[day]) {
+            acc[day] = [];
+        }
+        acc[day].push({ ...entry, originalIndex: index });
+        return acc;
+    }, {} as Record<string, (HistoryEntry & { originalIndex: number })[]>);
+};
+
 
 export function HistoryPanel({
   open,
   onOpenChange,
   history,
+  currentIndex,
   dispatch,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  history: any[];
+  history: HistoryEntry[];
+  currentIndex: number;
   dispatch: any;
 }) {
+
+  const groupedHistory = groupHistory(history);
+  const dayKeys = Object.keys(groupedHistory).reverse();
+
+  const handleJump = (index: number) => {
+    dispatch({ type: 'JUMP_TO_HISTORY', payload: { index } });
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -47,13 +57,41 @@ export function HistoryPanel({
         <SheetHeader>
           <SheetTitle>Action History</SheetTitle>
           <SheetDescription>
-            A log of all your changes. This is currently disabled.
+            A log of all your changes in this session. Click an entry to jump back to that state.
           </SheetDescription>
         </SheetHeader>
         <ScrollArea className="h-[calc(100vh-8rem)] mt-4">
-            <div className="text-center text-sm text-muted-foreground p-8">
-                History is disabled now that data is live from the database. A new versioning system will be added in the future.
-            </div>
+            {history.length > 0 ? (
+                 <div className="flex flex-col-reverse gap-6 pr-4">
+                    {dayKeys.map(day => (
+                        <div key={day}>
+                            <div className="sticky top-0 bg-card py-2">
+                                <h4 className="font-semibold text-sm">{day}</h4>
+                                <Separator className="mt-2" />
+                            </div>
+                            <div className="flex flex-col-reverse gap-1 mt-2">
+                                {groupedHistory[day].map((entry) => (
+                                    <Button
+                                        key={entry.timestamp.toISOString() + entry.originalIndex}
+                                        variant={entry.originalIndex === currentIndex ? 'secondary' : 'ghost'}
+                                        className="h-auto w-full justify-start text-left"
+                                        onClick={() => handleJump(entry.originalIndex)}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="text-sm capitalize font-normal">{getActionDescription(entry)}</span>
+                                            <span className="text-xs text-muted-foreground">{format(entry.timestamp, 'p')}</span>
+                                        </div>
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                 </div>
+            ) : (
+                <div className="text-center text-sm text-muted-foreground p-8">
+                    No actions have been recorded yet.
+                </div>
+            )}
         </ScrollArea>
       </SheetContent>
     </Sheet>

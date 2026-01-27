@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState, useRef, useMemo } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit, HistoryEntry } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
@@ -61,7 +61,6 @@ const initialState: ProjectState = {
   zones: [],
   calendars: [],
   defaultCalendarId: null,
-  historyLog: [],
   selectedTaskIds: [],
   visibleColumns: initialVisibleColumns,
   columns: initialColumns,
@@ -120,11 +119,14 @@ type Action =
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
   | { type: 'ADD_NOTE_TO_TASK_OPTIMISTIC'; payload: { taskId: string; note: Note } }
-  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string } }
+  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, activeCell: { taskId: string, columnId: string } | null } }
   | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null }
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
   | { type: 'STOP_EDITING_CELL' }
-  | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings };
+  | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
+  | { type: 'UNDO' }
+  | { type: 'REDO' }
+  | { type: 'JUMP_TO_HISTORY', payload: { index: number } };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -263,14 +265,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
               const end = Math.max(lastSelectedIndex, currentSelectedIndex);
               const rangeIds = visibleTasks.slice(start, end + 1).map(t => t.id);
               
-              const newSelection = [...state.selectedTaskIds];
-              rangeIds.forEach(id => {
-                  if (!newSelection.includes(id)) {
-                      newSelection.push(id);
-                  }
-              });
-
-              return { ...state, selectedTaskIds: newSelection };
+              return { ...state, selectedTaskIds: rangeIds };
           }
       }
 
@@ -426,6 +421,37 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     case 'TOGGLE_MULTI_SELECT_MODE': {
       return { ...state, multiSelectMode: !state.multiSelectMode };
     }
+    case 'ADD_TASKS_FROM_PASTE': {
+        const { data, activeCell } = action.payload;
+        const lines = data.split('\n').filter(line => line.trim() !== '');
+
+        if (lines.length === 0) return state;
+
+        if (lines.length > 1) {
+            const newTasks: Task[] = lines.map((line, index) => {
+                const id = `task-${Date.now()}-${index}`;
+                const name = line.trim();
+                return {
+                    id,
+                    name,
+                    start: new Date(),
+                    finish: new Date(),
+                    duration: 1,
+                    percentComplete: 0,
+                    level: 0,
+                };
+            });
+
+            const allTasks = [...state.tasks, ...newTasks];
+            const scheduledTasks = runScheduler(allTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+            return { ...state, tasks: scheduledTasks };
+        } else if (lines.length === 1 && activeCell) {
+            // Single line paste behaves like a cell edit
+            const payload = { id: activeCell.taskId, [activeCell.columnId]: lines[0].trim() };
+            return projectReducer(state, { type: 'UPDATE_TASK', payload });
+        }
+        return state;
+    }
     case 'SET_ACTIVE_CELL': {
       if (action.payload?.taskId === state.activeCell?.taskId && action.payload?.columnId === state.activeCell?.columnId) {
           return { ...state, activeCell: action.payload, editingCell: action.payload };
@@ -446,18 +472,93 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
   }
 }
 
-const firestoreCollectionMap = {
-    tasks: 'tasks',
-    links: 'links',
-    resources: 'resources',
-    assignments: 'assignments',
-    calendars: 'calendars',
+type HistoryState = {
+    past: { state: ProjectState, action: Action }[];
+    present: ProjectState;
+    future: { state: ProjectState, action: Action }[];
+}
+
+const historyInitialState: HistoryState = {
+    past: [],
+    present: initialState,
+    future: [],
+}
+
+// Higher-order reducer for history
+const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState) => {
+    return (state: HistoryState, action: Action): HistoryState => {
+        const { past, present, future } = state;
+        
+        // Actions that don't get recorded in history
+        const nonHistoricActions = [
+            'SET_PROJECT_DATA', 
+            'SELECT_TASK', 
+            'SET_ACTIVE_CELL', 
+            'START_EDITING_CELL', 
+            'STOP_EDITING_CELL',
+            'UNDO',
+            'REDO',
+            'JUMP_TO_HISTORY',
+        ];
+
+        switch (action.type) {
+            case 'UNDO': {
+                if (past.length === 0) return state;
+                const previous = past[past.length - 1];
+                const newPast = past.slice(0, past.length - 1);
+                return {
+                    past: newPast,
+                    present: previous.state,
+                    future: [ { state: present, action: previous.action }, ...future ],
+                };
+            }
+            case 'REDO': {
+                if (future.length === 0) return state;
+                const next = future[0];
+                const newFuture = future.slice(1);
+                return {
+                    past: [ ...past, { state: present, action: next.action } ],
+                    present: next.state,
+                    future: newFuture,
+                };
+            }
+            case 'JUMP_TO_HISTORY': {
+                const { index } = action.payload;
+                if (index < 0 || index >= past.length) return state;
+                
+                const newPast = past.slice(0, index);
+                const newFuture = [
+                    ...past.slice(index),
+                    { state: present, action: past[past.length - 1]?.action } // a bit of a guess for the action
+                ];
+                return {
+                    past: newPast,
+                    present: newPast.length > 0 ? newPast[newPast.length-1].state : initialState, // Need to handle this better
+                    future: newFuture
+                }
+            }
+        }
+        
+        // For all other actions, run the main reducer
+        const newPresent = reducer(present, action);
+
+        if (nonHistoricActions.includes(action.type)) {
+            // Just update the present state without affecting history
+            return { ...state, present: newPresent };
+        }
+
+        // For historic actions, add to past and clear future
+        return {
+            past: [ ...past, { state: present, action } ],
+            present: newPresent,
+            future: [],
+        };
+    };
 };
 
 export function useProject(user: User) {
-  const [state, dispatch] = useReducer(projectReducer, initialState);
+  const [historyState, dispatch] = useReducer(undoable(projectReducer), historyInitialState);
   const [isLoaded, setIsLoaded] = useState(false);
-  const stateRef = useRef(state);
   const firestore = useFirestore();
 
   const collections = {
@@ -469,12 +570,12 @@ export function useProject(user: User) {
   };
   
   const handleFirestoreAction = (action: Action) => {
-    if (!user) return;
-
-    // Optimistically update the UI first for a responsive feel
+    // Optimistically update the UI first
     dispatch(action);
 
-    // Then, commit the change to Firestore
+    if (!user) return;
+    
+    // Then, commit the change to Firestore for historic actions
     switch (action.type) {
         case 'UPDATE_TASK': {
             const { id, ...payload } = action.payload;
@@ -497,13 +598,12 @@ export function useProject(user: User) {
         case 'UPDATE_CALENDAR': {
              const { id, ...payload } = action.payload;
             const docRef = doc(firestore, 'users', user.uid, 'calendars', id);
-            // Firestore SDK handles converting Date objects in arrays to Timestamps
             updateDocumentNonBlocking(docRef, payload);
             break;
         }
         case 'ADD_NOTE_TO_TASK': {
              const { taskId, content } = action.payload;
-             const task = stateRef.current.tasks.find(t => t.id === taskId);
+             const task = historyState.present.tasks.find(t => t.id === taskId);
              if (task) {
                  const newNote: Note = {
                      id: `note-${Date.now()}`,
@@ -514,11 +614,8 @@ export function useProject(user: User) {
                  const newNotes = [...(task.notes || []), newNote];
                  const docRef = doc(firestore, 'users', user.uid, 'tasks', taskId);
                  updateDocumentNonBlocking(docRef, { notes: newNotes });
-
-                 // Dispatch a different action to avoid an infinite loop and pass the full note object
-                 dispatch({ type: 'ADD_NOTE_TO_TASK_OPTIMISTIC', payload: { taskId, note: newNote }});
              }
-             return; // Return early because we dispatched a different action
+             break;
         }
     }
   }
@@ -526,7 +623,7 @@ export function useProject(user: User) {
   useEffect(() => {
     const { data: tasks, isLoading: tasksLoading } = collections.tasks;
     const { data: links, isLoading: linksLoading } = collections.links;
-    const { data: resources, isLoading: resourcesLoading } = collections.resources;
+    const { data: resources, isLoading: resourcesLoading } = collections.assignments;
     const { data: assignments, isLoading: assignmentsLoading } = collections.assignments;
     const { data: calendars, isLoading: calendarsLoading } = collections.calendars;
 
@@ -535,7 +632,6 @@ export function useProject(user: User) {
 
     if (!isLoading) {
         if (!tasks || tasks.length === 0) {
-             // If no tasks, create initial project data in Firestore
              const batch = writeBatch(firestore);
              initialTasks.forEach(task => {
                  const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
@@ -561,10 +657,10 @@ export function useProject(user: User) {
         } else {
             const safeToDate = (value: any): Date | null => {
                 if (!value) return null;
-                if (typeof value.toDate === 'function') { // Firestore Timestamp
+                if (typeof value.toDate === 'function') {
                     return value.toDate();
                 }
-                return new Date(value); // Assumes string or Date object
+                return new Date(value);
             }
 
             dispatch({
@@ -596,12 +692,45 @@ export function useProject(user: User) {
 
 
   useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+    const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.ctrlKey || event.metaKey) {
+            if (event.key === 'z') {
+                event.preventDefault();
+                dispatch({ type: 'UNDO' });
+            } else if (event.key === 'y') {
+                 event.preventDefault();
+                dispatch({ type: 'REDO' });
+            }
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const getPayloadDescription = (action: Action): string | undefined => {
+    if ('payload' in action && action.payload && typeof action.payload === 'object') {
+        if ('name' in action.payload) return String(action.payload.name);
+        const task = historyState.present.tasks.find(t => 'id' in action.payload && t.id === (action.payload as any).id);
+        if (task) return task.name;
+    }
+    return undefined;
+  }
 
   return { 
-    state, 
+    state: historyState.present, 
     dispatch: handleFirestoreAction,
-    isLoaded
+    isLoaded,
+    canUndo: historyState.past.length > 0,
+    canRedo: historyState.future.length > 0,
+    history: {
+        log: historyState.past.map(h => ({
+            actionType: h.action.type,
+            payloadDescription: getPayloadDescription(h.action),
+            timestamp: new Date() // Placeholder, ideally this is stored with the action
+        })),
+        index: historyState.past.length -1
+    }
   };
 }

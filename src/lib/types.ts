@@ -146,6 +146,12 @@ export interface GanttSettings {
   highlightCriticalPath: boolean;
 }
 
+export interface HistoryEntry {
+    actionType: string;
+    timestamp: Date;
+    payloadDescription?: string;
+}
+
 export interface ProjectState {
     tasks: Task[];
     links: Link[];
@@ -154,7 +160,6 @@ export interface ProjectState {
     zones: Zone[];
     calendars: Calendar[];
     defaultCalendarId: string | null;
-    historyLog: any[];
     selectedTaskIds: string[];
     visibleColumns: string[];
     columns: ColumnSpec[];
