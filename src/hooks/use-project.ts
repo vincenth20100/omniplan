@@ -166,6 +166,7 @@ type Action =
  */
 const toFirestoreTask = (task: Task) => {
   const cleanTask: Record<string, any> = {
+    id: task.id,
     name: task.name,
     start: task.start,
     finish: task.finish,
@@ -502,10 +503,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             name: name,
             width: width || 150,
             type: type,
+            ...(type === 'selection' && { options: options || [] }),
         };
-        if (options) {
-          newColumn.options = options;
-        }
         const newColumns = [...state.columns, newColumn];
         const newVisibleColumns = [...state.visibleColumns, newColumn.id];
         const newState = { ...state, columns: newColumns, visibleColumns: newVisibleColumns };
@@ -1017,7 +1016,7 @@ export function useProject(user: User) {
                 ...newLinkObjects
             ];
             
-            const newTasksAfterSchedule = calculateSchedule(tasks, finalLinks, columns, calendars, defaultCalendarId!);
+            const newTasksAfterSchedule = calculateSchedule(tasks, finalLinks, columns, calendars.find(c => c.id === defaultCalendarId) || calendars[0]);
 
             const batch = writeBatch(firestore);
             
@@ -1187,14 +1186,42 @@ export function useProject(user: User) {
             dispatch({ type: 'REMOVE_LINK_OPTIMISTIC', payload: { linkId } });
             break;
         }
+        
+        case 'LINK_TASKS': {
+            if (!user) {
+                dispatch(action);
+                return;
+            }
+            const newState = projectReducer(historyState.present, action);
+            dispatch(action); // optimistic update
+            
+            const batch = writeBatch(firestore);
 
+            const oldLinkIds = new Set(historyState.present.links.map(l => l.id));
+            const newLinks = newState.links.filter(l => !oldLinkIds.has(l.id));
+
+            newLinks.forEach(link => {
+                const { isDriving, ...linkToSave } = link;
+                const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
+                batch.set(docRef, { ...linkToSave, isDriving: !!isDriving });
+            });
+
+            newState.tasks.forEach(task => {
+                const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
+                batch.set(docRef, toFirestoreTask(task));
+            });
+
+            batch.commit().catch(e => console.error("Failed to commit link tasks batch", e));
+            break;
+        }
         case 'UPDATE_TASK':
         case 'NEST_TASKS':
         case 'REORDER_TASKS':
         case 'INDENT_TASK':
         case 'OUTDENT_TASK': {
-            dispatch(action); // Optimistic update
             const newState = projectReducer(historyState.present, action);
+            dispatch(action); // optimistic update
+
             const batch = writeBatch(firestore);
             newState.tasks.forEach(task => {
                 batch.set(doc(firestore, 'users', user.uid, 'tasks', task.id), toFirestoreTask(task));
@@ -1296,82 +1323,99 @@ export function useProject(user: User) {
     }
   }
 
-  // Effect 1: Initial Load & Seeding
+  // Effect 1: Data Synchronization from Firestore
   useEffect(() => {
-    if (!user) {
-        setIsLoaded(false);
-        setIsSeeding(false);
+    if (collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading) return;
+
+    const needsSeeding = !collections.tasks.data || collections.tasks.data.length === 0;
+
+    if (isLoaded || isSeeding) {
+        // Sync incoming data with local state if already loaded
+        const safeToDate = (value: any): Date | null => {
+            if (!value) return null;
+            if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
+                return value.toDate();
+            }
+            const d = new Date(value);
+            return !isNaN(d.getTime()) ? d : null;
+        }
+
+        dispatch({
+            type: 'SET_PROJECT_DATA',
+            payload: {
+                tasks: (collections.tasks.data || []).map(t => ({
+                    ...t, 
+                    start: safeToDate(t.start)!, 
+                    finish: safeToDate(t.finish)!, 
+                    constraintDate: safeToDate(t.constraintDate), 
+                    deadline: safeToDate(t.deadline)
+                })),
+                links: collections.links.data || [],
+                resources: collections.resources.data || [],
+                assignments: collections.assignments.data || [],
+                calendars: (collections.calendars.data || []).map(c => ({
+                    ...c, 
+                    exceptions: (c.exceptions || []).map(e => ({
+                        ...e, 
+                        start: safeToDate(e.start)!, 
+                        finish: safeToDate(e.finish)!
+                    }))
+                })),
+            }
+        });
         return;
     };
-    
-    const allCollectionsLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading || collections.views.isLoading || collections.settings.isLoading;
-    
-    if (isSeeding || allCollectionsLoading || isLoaded) {
-      return;
-    }
-  
-    const needsProjectSeeding = !collections.tasks.data || collections.tasks.data.length === 0;
-    const needsCalendarSeeding = !collections.calendars.data || collections.calendars.data.length === 0;
-    const needsViewsSeeding = !collections.views.data || collections.views.data.length === 0;
-    const needsSettingsSeeding = !collections.settings.data;
-  
-    const needsSeeding = needsProjectSeeding || needsCalendarSeeding || needsViewsSeeding || needsSettingsSeeding;
-  
+
     if (needsSeeding) {
-      setIsSeeding(true);
-      const batch = writeBatch(firestore);
-  
-      if (needsProjectSeeding) {
+        setIsSeeding(true);
+        const batch = writeBatch(firestore);
+
         initialTasks.forEach((task, index) => {
-          const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
-          batch.set(docRef, { ...task, order: index });
+            const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
+            batch.set(docRef, { ...task, order: index });
         });
         initialLinks.forEach(link => {
-          const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
-          batch.set(docRef, link);
+            const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
+            batch.set(docRef, link);
         });
         initialResources.forEach(resource => {
-          const docRef = doc(firestore, 'users', user.uid, 'resources', resource.id);
-          batch.set(docRef, resource);
+            const docRef = doc(firestore, 'users', user.uid, 'resources', resource.id);
+            batch.set(docRef, resource);
         });
         initialAssignments.forEach(assignment => {
-          const docRef = doc(firestore, 'users', user.uid, 'assignments', assignment.id);
-          batch.set(docRef, assignment);
+            const docRef = doc(firestore, 'users', user.uid, 'assignments', assignment.id);
+            batch.set(docRef, assignment);
         });
-      }
-      if (needsCalendarSeeding) {
         initialCalendars.forEach(calendar => {
-          const docRef = doc(firestore, 'users', user.uid, 'calendars', calendar.id);
-          batch.set(docRef, calendar);
+            const docRef = doc(firestore, 'users', user.uid, 'calendars', calendar.id);
+            batch.set(docRef, calendar);
         });
-      }
-      if (needsViewsSeeding) {
         defaultViews.forEach(view => {
-          const docRef = doc(firestore, 'users', user.uid, 'views', view.id);
-          batch.set(docRef, view);
+            const docRef = doc(firestore, 'users', user.uid, 'views', view.id);
+            batch.set(docRef, view);
         });
-      }
-      if (needsSettingsSeeding) {
-        const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
-        batch.set(docRef, defaultAppSettings);
-      }
-  
-      batch.commit().finally(() => {
-        setIsSeeding(false);
-      });
+        const settingsDocRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
+        batch.set(settingsDocRef, defaultAppSettings);
+
+        batch.commit().finally(() => {
+            setIsSeeding(false);
+            setIsLoaded(true);
+        });
     } else {
-      setIsLoaded(true);
+        setIsLoaded(true);
     }
   }, [
-    collections.tasks.isLoading, collections.links.isLoading, collections.resources.isLoading, collections.assignments.isLoading, collections.calendars.isLoading, collections.views.isLoading, collections.settings.isLoading,
-    collections.tasks.data, collections.links.data, collections.resources.data, collections.assignments.data, collections.calendars.data, collections.views.data, collections.settings.data,
-    isLoaded, isSeeding, firestore, user
+    user, firestore, isLoaded, isSeeding,
+    collections.tasks.data, collections.tasks.isLoading,
+    collections.links.data, collections.links.isLoading,
+    collections.resources.data, collections.resources.isLoading,
+    collections.assignments.data, collections.assignments.isLoading,
+    collections.calendars.data, collections.calendars.isLoading,
   ]);
-  
+
   // Effect 2: Sync Settings Data
   useEffect(() => {
-    if (collections.views.isLoading || collections.settings.isLoading || !isLoaded) return;
-  
+    if (!isLoaded || collections.views.isLoading || collections.settings.isLoading) return;
     dispatch({
       type: 'SET_PERSISTED_STATE',
       payload: {
@@ -1379,48 +1423,7 @@ export function useProject(user: User) {
         settings: collections.settings.data ? { ...defaultAppSettings, ...collections.settings.data } : null
       }
     });
-  }, [isLoaded, collections.views.isLoading, collections.views.data, collections.settings.isLoading, collections.settings.data]);
-  
-  // Effect 3: Sync Project Data
-  useEffect(() => {
-    if (collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading || !isLoaded) return;
-    
-    const safeToDate = (value: any): Date | null => {
-        if (!value) return null;
-        if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
-            return value.toDate();
-        }
-        const d = new Date(value);
-        if (!isNaN(d.getTime())) {
-            return d;
-        }
-        return null;
-    }
-  
-    dispatch({
-      type: 'SET_PROJECT_DATA',
-      payload: {
-        tasks: (collections.tasks.data || []).map(t => ({
-            ...t, 
-            start: safeToDate(t.start)!, 
-            finish: safeToDate(t.finish)!, 
-            constraintDate: safeToDate(t.constraintDate), 
-            deadline: safeToDate(t.deadline)
-        })),
-        links: collections.links.data || [],
-        resources: collections.resources.data || [],
-        assignments: collections.assignments.data || [],
-        calendars: (collections.calendars.data || []).map(c => ({
-            ...c, 
-            exceptions: (c.exceptions || []).map(e => ({
-                ...e, 
-                start: safeToDate(e.start)!, 
-                finish: safeToDate(e.finish)!
-            }))
-        })),
-      }
-    });
-  }, [isLoaded, collections.tasks.isLoading, collections.tasks.data, collections.links.isLoading, collections.links.data, collections.resources.isLoading, collections.resources.data, collections.assignments.isLoading, collections.assignments.data, collections.calendars.isLoading, collections.calendars.data]);
+  }, [isLoaded, collections.views.data, collections.views.isLoading, collections.settings.data, collections.settings.isLoading]);
 
 
   useEffect(() => {
@@ -1453,7 +1456,7 @@ export function useProject(user: User) {
   return { 
     state: historyState.present, 
     dispatch: handleFirestoreAction,
-    isLoaded,
+    isLoaded: isLoaded && !isSeeding,
     canUndo: historyState.past.length > 0,
     canRedo: historyState.future.length > 0,
     history: {

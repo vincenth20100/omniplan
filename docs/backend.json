@@ -120,13 +120,13 @@
           "type": "string",
           "description": "Unique identifier for the link."
         },
-        "predecessorId": {
+        "source": {
           "type": "string",
-          "description": "Reference to the predecessor task. (Relationship: Task 1:N Link as Predecessor)"
+          "description": "Reference to the source (predecessor) task."
         },
-        "successorId": {
+        "target": {
           "type": "string",
-          "description": "Reference to the successor task. (Relationship: Task 1:N Link as Successor)"
+          "description": "Reference to the target (successor) task."
         },
         "type": {
           "type": "string",
@@ -138,16 +138,15 @@
         },
         "isDriving": {
           "type": "boolean",
-          "description": "Indicates if the link is a driving link (Free Slack = 0)."
+          "description": "Indicates if the link is a driving link (Free Slack = 0). This is a calculated field."
         }
       },
       "required": [
         "id",
-        "predecessorId",
-        "successorId",
+        "source",
+        "target",
         "type",
-        "lag",
-        "isDriving"
+        "lag"
       ]
     },
     "Zone": {
