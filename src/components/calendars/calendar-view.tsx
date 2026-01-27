@@ -231,14 +231,12 @@ export function CalendarView({
                 </div>
             </div>
         )}
-        <div className="flex items-center">
-          {!isMobile && (
-              <Button variant="ghost" size="icon" onClick={handlePrevYear} className="self-center">
-                  <ChevronsLeft className="h-5 w-5" />
-              </Button>
-          )}
+        <div className="flex items-center justify-center">
+          <Button variant="ghost" size="icon" onClick={handlePrevYear} className="self-center">
+              <ChevronsLeft className="h-5 w-5" />
+          </Button>
           <DayPicker
-              numberOfMonths={isMobile ? 1 : 3}
+              numberOfMonths={1}
               month={currentMonth}
               onMonthChange={setCurrentMonth}
               showOutsideDays
@@ -250,11 +248,9 @@ export function CalendarView({
                   IconRight: () => <ChevronRight className="h-4 w-4" />,
               }}
           />
-          {!isMobile && (
-              <Button variant="ghost" size="icon" onClick={handleNextYear} className="self-center">
-                  <ChevronsRight className="h-5 w-5" />
-              </Button>
-          )}
+          <Button variant="ghost" size="icon" onClick={handleNextYear} className="self-center">
+              <ChevronsRight className="h-5 w-5" />
+          </Button>
         </div>
       </div>
 
