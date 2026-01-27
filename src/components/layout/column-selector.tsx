@@ -79,9 +79,8 @@ export function ColumnSelector({
         <>
             <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="w-full justify-start gap-2">
+                    <Button variant="outline" size="icon">
                         <Columns3 className="h-4 w-4" />
-                        Columns
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56">

@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
@@ -18,6 +18,7 @@ import { CalendarManagementDialog } from '@/components/calendars/calendar-manage
 import { GroupingDialog } from '@/components/view-options/grouping-dialog';
 import { FilterDialog } from '@/components/view-options/filter-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { ColumnSelector } from '@/components/layout/column-selector';
 
 export default function Home() {
   const { state, dispatch, isLoaded } = useProject();
@@ -69,16 +70,10 @@ export default function Home() {
     <>
       <FileExplorer projectState={state} dispatch={dispatch} />
       <Separator className="my-2" />
-      {isLoaded && state.visibleColumns && (
+      {isLoaded && (
         <ViewOptions 
-            visibleColumns={state.visibleColumns}
-            columns={state.columns}
             dispatch={dispatch}
             uiDensity={state.uiDensity}
-            grouping={state.grouping}
-            filters={state.filters}
-            onOpenGroupingDialog={() => setIsGroupingDialogOpen(true)}
-            onOpenFilterDialog={() => setIsFilterDialogOpen(true)}
             views={state.views}
             currentViewId={state.currentViewId}
             isDirty={state.isDirty}
@@ -94,19 +89,19 @@ export default function Home() {
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
         <Button variant="outline" size="icon" onClick={handleAddTask}>
-            <Plus className="h-4 w-4" />
+            <Plus />
         </Button>
         <Button variant="outline" size="icon" onClick={handleRemoveTask} disabled={state.selectedTaskIds.length === 0}>
-            <Trash2 className="h-4 w-4" />
+            <Trash2 />
         </Button>
         <Button variant="outline" size="icon" onClick={handleLinkTasks} disabled={state.selectedTaskIds.length < 2}>
-            <LinkIcon className="h-4 w-4" />
+            <LinkIcon />
         </Button>
         <Button variant="outline" size="icon" onClick={handleIndentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
-            <Indent className="h-4 w-4" />
+            <Indent />
         </Button>
         <Button variant="outline" size="icon" onClick={handleOutdentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
-            <Outdent className="h-4 w-4" />
+            <Outdent />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
         <Button variant="outline" size="icon" onClick={handleCollapseAll} disabled={state.grouping.length > 0}>
@@ -116,11 +111,26 @@ export default function Home() {
             <ChevronsDown />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
+        
+        {isLoaded && (
+          <>
+            <ColumnSelector visibleColumns={state.visibleColumns} columns={state.columns} dispatch={dispatch} />
+            <Button variant={state.filters.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsFilterDialogOpen(true)}>
+                <Filter className="h-4 w-4" />
+            </Button>
+            <Button variant={state.grouping.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsGroupingDialogOpen(true)}>
+                <Layers className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        
+        <Separator orientation="vertical" className="h-6 mx-1" />
+        
         <Button variant="outline" size="icon" onClick={() => setIsResourceDialogOpen(true)}>
-            <Users className="h-4 w-4" />
+            <Users />
         </Button>
         <Button variant="outline" size="icon" onClick={() => setIsCalendarDialogOpen(true)}>
-            <CalendarDays className="h-4 w-4" />
+            <CalendarDays />
         </Button>
         {isMobile && (
             <Button
@@ -129,7 +139,7 @@ export default function Home() {
                 onClick={handleToggleMultiSelect}
                 className="w-9 px-0"
             >
-                <ListChecks className="h-4 w-4" />
+                <ListChecks />
             </Button>
         )}
     </div>
