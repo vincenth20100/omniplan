@@ -135,10 +135,6 @@
         "lag": {
           "type": "number",
           "description": "Lag time (buffer) in working days."
-        },
-        "isDriving": {
-          "type": "boolean",
-          "description": "Indicates if the link is a driving link (Free Slack = 0). This is a calculated field."
         }
       },
       "required": [

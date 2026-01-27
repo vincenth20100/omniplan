@@ -1179,11 +1179,31 @@ export function useProject(user: User) {
         }
 
         case 'REMOVE_LINK': {
-            dispatch(action); // Optimistic update
+            if (!user) {
+                dispatch(action);
+                return;
+            }
+
             const { linkId } = action.payload;
+            const currentState = historyState.present;
+            
+            const newLinks = currentState.links.filter(l => l.id !== linkId);
+            const newTasks = runScheduler(currentState.tasks, newLinks, currentState.columns, currentState.calendars, currentState.defaultCalendarId);
+            
+            const batch = writeBatch(firestore);
+
             const docRef = doc(firestore, 'users', user.uid, 'links', linkId);
-            deleteDocumentNonBlocking(docRef);
-            dispatch({ type: 'REMOVE_LINK_OPTIMISTIC', payload: { linkId } });
+            batch.delete(docRef);
+
+            newTasks.forEach(task => {
+                const taskDocRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
+                batch.set(taskDocRef, toFirestoreTask(task));
+            });
+
+            batch.commit().then(() => {
+                dispatch({ type: 'SET_LINKS_AND_TASKS', payload: { links: newLinks, tasks: newTasks } });
+            }).catch(e => console.error("Failed to remove link and update tasks", e));
+            
             break;
         }
         
@@ -1192,18 +1212,22 @@ export function useProject(user: User) {
                 dispatch(action);
                 return;
             }
-            const newState = projectReducer(historyState.present, action);
-            dispatch(action); // optimistic update
+            if (historyState.present.selectedTaskIds.length < 2) {
+                return;
+            }
+            
+            const currentState = historyState.present;
+            const newState = projectReducer(currentState, action);
             
             const batch = writeBatch(firestore);
 
-            const oldLinkIds = new Set(historyState.present.links.map(l => l.id));
+            const oldLinkIds = new Set(currentState.links.map(l => l.id));
             const newLinks = newState.links.filter(l => !oldLinkIds.has(l.id));
 
             newLinks.forEach(link => {
                 const { isDriving, ...linkToSave } = link;
                 const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
-                batch.set(docRef, { ...linkToSave, isDriving: !!isDriving });
+                batch.set(docRef, linkToSave);
             });
 
             newState.tasks.forEach(task => {
@@ -1211,7 +1235,11 @@ export function useProject(user: User) {
                 batch.set(docRef, toFirestoreTask(task));
             });
 
-            batch.commit().catch(e => console.error("Failed to commit link tasks batch", e));
+            batch.commit().then(() => {
+                dispatch(action);
+            }).catch(e => {
+                console.error("Failed to commit link tasks batch", e);
+            });
             break;
         }
         case 'UPDATE_TASK':
@@ -1281,7 +1309,6 @@ export function useProject(user: User) {
              break;
         }
         case 'SET_VIEW': {
-            dispatch(action); // Optimistic update
             const newState = projectReducer(historyState.present, action);
             const settingsToUpdate = {
                 currentViewId: action.payload.viewId,
@@ -1291,6 +1318,7 @@ export function useProject(user: User) {
             };
             const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
             updateDocumentNonBlocking(docRef, settingsToUpdate);
+            dispatch(action); // Non-historic action
             break;
         }
         case 'SET_GROUPING':
@@ -1303,7 +1331,6 @@ export function useProject(user: User) {
         case 'REMOVE_COLUMN':
         case 'SET_UI_DENSITY':
         case 'UPDATE_GANTT_SETTINGS': {
-            dispatch(action); // Optimistic update
             const newState = projectReducer(historyState.present, action);
             const settingsToUpdate = {
                 columns: newState.columns,
@@ -1315,6 +1342,7 @@ export function useProject(user: User) {
             }
             const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
             updateDocumentNonBlocking(docRef, settingsToUpdate);
+            dispatch(action); // Non-historic action
             break;
         }
         default: {
