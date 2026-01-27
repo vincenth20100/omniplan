@@ -52,7 +52,7 @@ const TaskCellRenderer = React.memo(({
             return <>{task.wbs}</>;
         case 'name': {
             const isGrouped = grouping.length > 0;
-            const hasChildren = !isGrouped && tasks.some(t => t.parentId === task.id);
+            const hasChildren = !isGrouped && task.isSummary;
             const indentLevel = displayLevel;
             const hasNotes = task.notes && task.notes.length > 0;
 

@@ -25,7 +25,7 @@ export const initialTasks = [
   { id: '3', wbs: '3', level: 0, name: 'Design Phase', start: addDays(today, 1).toISOString(), duration: 10, finish: addDays(today, 11).toISOString(), percentComplete: 50, cost: 5000 },
   
   // Summary Task for Build
-  { id: '4', wbs: '4', level: 0, name: 'Build', start: addDays(today, 8).toISOString(), duration: 0, finish: addDays(today, 23).toISOString(), percentComplete: 0, isCollapsed: false, cost: 0 },
+  { id: '4', wbs: '4', level: 0, name: 'Build', start: addDays(today, 8).toISOString(), duration: 0, finish: addDays(today, 23).toISOString(), percentComplete: 0, isSummary: true, isCollapsed: false, cost: 0 },
   
   // Children of Build
   { id: '4.1', wbs: '4.1', parentId: '4', level: 1, name: 'Workshop Assembly', start: addDays(today, 8).toISOString(), duration: 15, finish: addDays(today, 23).toISOString(), percentComplete: 20, constraintType: 'Must Start On', constraintDate: addDays(today, 15).toISOString(), cost: 15000 },
