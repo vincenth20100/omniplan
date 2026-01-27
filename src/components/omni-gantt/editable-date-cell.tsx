@@ -49,8 +49,7 @@ export function EditableDateCell({
             <PopoverTrigger asChild>
                  <div
                     role="button"
-                    onDoubleClick={(e) => {
-                        e.stopPropagation();
+                    onClick={(e) => {
                         setPopoverOpen(true);
                     }}
                     className={cn("w-full h-full flex items-center justify-between", className)}

@@ -20,8 +20,7 @@ export function EditableCell({
         setCurrentValue(value);
     }, [value]);
 
-    const handleDoubleClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleClick = (e: React.MouseEvent) => {
         setIsEditing(true);
     };
 
@@ -59,7 +58,7 @@ export function EditableCell({
     }
 
     return (
-        <div onDoubleClick={handleDoubleClick} className={cn("w-full h-full flex items-center", className)}>
+        <div onClick={handleClick} className={cn("w-full h-full flex items-center", className)}>
             {value}
         </div>
     );
