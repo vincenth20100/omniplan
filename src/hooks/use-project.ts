@@ -102,6 +102,7 @@ type Action =
   | { type: 'SET_UI_DENSITY', payload: UiDensity }
   | { type: 'UPDATE_RELATIONSHIPS', payload: { taskId: string, field: 'predecessors' | 'successors', value: string }}
   | { type: 'ADD_RESOURCE' }
+  | { type: 'ADD_RESOURCE_OPTIMISTIC', payload: { resource: Resource } }
   | { type: 'REMOVE_RESOURCE', payload: { resourceId: string } }
   | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } }
   | { type: 'ADD_CALENDAR' }
@@ -235,6 +236,32 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     case 'UPDATE_RESOURCE': {
         const newResources = state.resources.map(r => r.id === action.payload.id ? { ...r, ...action.payload } : r);
         return { ...state, resources: newResources, isDirty: true };
+    }
+    case 'ADD_RESOURCE': {
+        const newResource: Resource = {
+            id: `res-${Date.now()}`,
+            name: 'New Resource',
+            type: 'Work',
+            availability: 1,
+            costPerHour: 0
+        };
+        return {
+            ...state,
+            resources: [...state.resources, newResource],
+            isDirty: true
+        };
+    }
+    case 'ADD_RESOURCE_OPTIMISTIC': {
+        const newResources = [...state.resources, action.payload.resource];
+        return { ...state, resources: newResources, isDirty: true };
+    }
+    case 'REMOVE_RESOURCE': {
+        const { resourceId } = action.payload;
+        const newResources = state.resources.filter(r => r.id !== resourceId);
+        // Also need to remove assignments associated with this resource
+        const newAssignments = state.assignments.filter(a => a.resourceId !== resourceId);
+        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, resources: newResources, assignments: newAssignments, tasks: reScheduledTasks, isDirty: true };
     }
     case 'UPDATE_CALENDAR': {
         const newCalendars = state.calendars.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
@@ -750,6 +777,20 @@ export function useProject(user: User) {
         return;
     }
 
+    if (action.type === 'ADD_RESOURCE') {
+        const newResource: Resource = {
+            id: `res-${Date.now()}`,
+            name: 'New Resource',
+            type: 'Work',
+            availability: 1,
+            costPerHour: 0
+        };
+        const docRef = doc(firestore, 'users', user.uid, 'resources', newResource.id);
+        setDocumentNonBlocking(docRef, newResource, {});
+        dispatch({ type: 'ADD_RESOURCE_OPTIMISTIC', payload: { resource: newResource } });
+        return;
+    }
+
     if (action.type === 'REMOVE_TASK') {
         const idsToRemove = new Set(historyState.present.selectedTaskIds);
         if (idsToRemove.size > 0) {
@@ -771,6 +812,38 @@ export function useProject(user: User) {
         }
     }
     
+    if (action.type === 'REMOVE_RESOURCE') {
+        const { resourceId } = action.payload;
+        // remove resource
+        const resourceDocRef = doc(firestore, 'users', user.uid, 'resources', resourceId);
+        deleteDocumentNonBlocking(resourceDocRef);
+
+        // remove assignments
+        const assignmentsToRemove = historyState.present.assignments.filter(a => a.resourceId === resourceId);
+        assignmentsToRemove.forEach(assignment => {
+            const assignmentDocRef = doc(firestore, 'users', user.uid, 'assignments', assignment.id);
+            deleteDocumentNonBlocking(assignmentDocRef);
+        });
+    }
+
+    if (action.type === 'ADD_NOTE_TO_TASK') {
+        const { taskId, content } = action.payload;
+        const task = historyState.present.tasks.find(t => t.id === taskId);
+        if (task) {
+            const newNote: Note = {
+                id: `note-${Date.now()}`,
+                author: user.displayName || 'Anonymous',
+                content,
+                timestamp: new Date(),
+            };
+            const newNotes = [...(task.notes || []), newNote];
+            const docRef = doc(firestore, 'users', user.uid, 'tasks', taskId);
+            updateDocumentNonBlocking(docRef, { notes: newNotes });
+            dispatch({ type: 'ADD_NOTE_TO_TASK_OPTIMISTIC', payload: { taskId, note: newNote }})
+        }
+        return;
+    }
+
     dispatch(action);
     
     switch (action.type) {
@@ -797,22 +870,6 @@ export function useProject(user: User) {
             const docRef = doc(firestore, 'users', user.uid, 'calendars', id);
             updateDocumentNonBlocking(docRef, payload);
             break;
-        }
-        case 'ADD_NOTE_TO_TASK': {
-             const { taskId, content } = action.payload;
-             const task = historyState.present.tasks.find(t => t.id === taskId);
-             if (task) {
-                 const newNote: Note = {
-                     id: `note-${Date.now()}`,
-                     author: user.displayName || 'Anonymous',
-                     content,
-                     timestamp: new Date(),
-                 };
-                 const newNotes = [...(task.notes || []), newNote];
-                 const docRef = doc(firestore, 'users', user.uid, 'tasks', taskId);
-                 updateDocumentNonBlocking(docRef, { notes: newNotes });
-             }
-             break;
         }
     }
   }
