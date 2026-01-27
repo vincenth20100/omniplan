@@ -3,14 +3,14 @@ import { addDays } from 'date-fns';
 
 const today = new Date('2024-08-01T00:00:00.000Z');
 
-export const initialCalendars: (Omit<Calendar, 'exceptions'> & { exceptions?: (Omit<Exception, 'start'|'finish'> & { start: string, finish: string })[] })[] = [
+export const initialCalendars: (Omit<Calendar, 'exceptions'> & { exceptions?: (Omit<Exception, 'start'|'finish'|'isActive'> & { start: string, finish: string, isActive?: boolean })[] })[] = [
     { 
         id: 'cal-standard', 
         name: 'Standard', 
         workingDays: [1, 2, 3, 4, 5], 
         exceptions: [
-            { id: 'ex1', name: `New Year's Day`, start: `${today.getFullYear()}-01-01T00:00:00.000Z`, finish: `${today.getFullYear()}-01-01T00:00:00.000Z` },
-            { id: 'ex2', name: 'Christmas Day', start: `${today.getFullYear()}-12-25T00:00:00.000Z`, finish: `${today.getFullYear()}-12-25T00:00:00.000Z` },
+            { id: 'ex1', name: `New Year's Day`, start: `${today.getFullYear()}-01-01T00:00:00.000Z`, finish: `${today.getFullYear()}-01-01T00:00:00.000Z`, isActive: true },
+            { id: 'ex2', name: 'Christmas Day', start: `${today.getFullYear()}-12-25T00:00:00.000Z`, finish: `${today.getFullYear()}-12-25T00:00:00.000Z`, isActive: true },
         ] 
     },
     { id: 'cal-247', name: '24/7', workingDays: [0, 1, 2, 3, 4, 5, 6], exceptions: [] },

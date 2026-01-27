@@ -24,7 +24,7 @@ const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
 
 const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => ({ id: c.id, name: c.name, width: c.defaultWidth, type: c.type, options: c.options }));
 
-const initialVisibleColumns = ['wbs', 'name', 'resourceNames', 'duration', 'start', 'finish', 'cost', 'predecessors', 'successors'];
+const initialVisibleColumns = ['wbs', 'name', 'duration', 'start', 'finish'];
 
 const defaultViews: View[] = [
     { id: 'default', name: 'Default View', grouping: [], visibleColumns: initialVisibleColumns, filters: [] }
@@ -666,6 +666,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             name: 'New Calendar',
             workingDays: [1, 2, 3, 4, 5], // Default to Mon-Fri
             exceptions: [],
+            nonWorkingDayOverrides: [],
+            workingDayOverrides: [],
         };
         return { ...state, calendars: [...state.calendars, newCalendar] };
       }
@@ -732,9 +734,12 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             workingDays: cal.workingDays,
             exceptions: (cal.exceptions || []).map(ex => ({
                 ...ex,
+                isActive: ex.isActive !== false, // default to true
                 start: new Date(ex.start),
                 finish: new Date(ex.finish),
-            }))
+            })),
+            nonWorkingDayOverrides: [],
+            workingDayOverrides: [],
         }));
 
         const scheduledTasks = runScheduler([], [], state.columns);
@@ -775,9 +780,12 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 ...cal,
                 exceptions: (cal.exceptions || []).map(ex => ({
                     ...ex,
+                    isActive: ex.isActive !== false,
                     start: new Date(ex.start),
                     finish: new Date(ex.finish),
-                }))
+                })),
+                nonWorkingDayOverrides: cal.nonWorkingDayOverrides || [],
+                workingDayOverrides: cal.workingDayOverrides || [],
             }));
 
             const newState: ProjectState = {
@@ -1264,9 +1272,12 @@ export function useProject() {
         workingDays: cal.workingDays,
         exceptions: (cal.exceptions || []).map(ex => ({
             ...ex,
+            isActive: ex.isActive !== false,
             start: new Date(ex.start),
             finish: new Date(ex.finish),
-        }))
+        })),
+        nonWorkingDayOverrides: [],
+        workingDayOverrides: [],
     }));
     
     const hierarchicalTasks = updateHierarchyAndSort(tasksWithDates);

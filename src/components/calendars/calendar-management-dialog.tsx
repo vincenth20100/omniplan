@@ -47,11 +47,11 @@ export function CalendarManagementDialog({
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col">
+      <DialogContent className="max-w-[90vw] w-full h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Change Working Time</DialogTitle>
         </DialogHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pb-4 border-b">
             <div className="flex items-center gap-2">
                 <label htmlFor="calendar-select" className="text-sm font-medium">For calendar:</label>
                 <Select value={selectedCalendarId || ''} onValueChange={setSelectedCalendarId}>
@@ -70,12 +70,11 @@ export function CalendarManagementDialog({
             <Button variant="outline" onClick={handleAddCalendar}>Create New Calendar...</Button>
         </div>
 
-        <div className="flex-grow overflow-auto border-t pt-4">
+        <div className="flex-grow overflow-auto py-4">
             {selectedCalendar ? (
               <CalendarView 
                 key={selectedCalendar.id}
                 calendar={selectedCalendar}
-                isDefault={selectedCalendar.id === defaultCalendarId}
                 dispatch={dispatch} 
               />
             ) : (
@@ -86,8 +85,8 @@ export function CalendarManagementDialog({
         </div>
         <DialogFooter className="mt-auto pt-4 border-t">
           <DialogClose asChild>
-            <Button type="button" variant="secondary">
-              Close
+            <Button type="button">
+              OK
             </Button>
           </DialogClose>
         </DialogFooter>

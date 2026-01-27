@@ -10,6 +10,7 @@ export interface Exception {
   name: string;
   start: Date;
   finish: Date;
+  isActive?: boolean;
 }
 
 export interface Calendar {
@@ -17,6 +18,8 @@ export interface Calendar {
   name: string;
   workingDays: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
   exceptions?: Exception[];
+  nonWorkingDayOverrides?: string[]; // ISO date strings yyyy-mm-dd
+  workingDayOverrides?: string[]; // ISO date strings yyyy-mm-dd
 }
 
 export interface NoteAttachment {
