@@ -140,23 +140,25 @@ export function CalendarView({
       let workingOverrides = [...(selectedCalendar.workingDayOverrides || [])];
       let nonWorkingOverrides = [...(selectedCalendar.nonWorkingDayOverrides || [])];
 
-      const isCurrentlyWorking = calendarService.isWorkingDay(day, selectedCalendar);
-      const isDefaultWorking = selectedCalendar.workingDays.includes(day.getDay());
+      const isWorkingOverride = workingOverrides.includes(isoDate);
+      const isNonWorkingOverride = nonWorkingOverrides.includes(isoDate);
 
-      if (isCurrentlyWorking) {
-        // Make it non-working
-        if (workingOverrides.includes(isoDate)) {
+      if (isWorkingOverride) {
+          // It's currently an override to make it work. Remove it to revert to default.
           workingOverrides = workingOverrides.filter(d => d !== isoDate);
-        } else {
-          nonWorkingDayOverrides.push(isoDate);
-        }
-      } else {
-        // Make it working
-        if (nonWorkingOverrides.includes(isoDate)) {
+      } else if (isNonWorkingOverride) {
+          // It's currently an override to make it not work. Remove it to revert to default.
           nonWorkingOverrides = nonWorkingOverrides.filter(d => d !== isoDate);
-        } else {
-          workingOverrides.push(isoDate);
-        }
+      } else {
+          // It's not overridden, so apply an override.
+          const isDefaultWorking = selectedCalendar.workingDays.includes(day.getDay());
+          if (isDefaultWorking) {
+              // It's a default working day, so make it non-working.
+              nonWorkingOverrides.push(isoDate);
+          } else {
+              // It's a default non-working day, so make it working.
+              workingOverrides.push(isoDate);
+          }
       }
 
       dispatch({
