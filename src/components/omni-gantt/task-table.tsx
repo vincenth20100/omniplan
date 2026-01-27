@@ -21,6 +21,7 @@ import {
 import { Button } from '../ui/button';
 import { ColumnConfigDialog, type ColumnConfig } from '../view-options/column-config-dialog';
 import { type RenderableRow } from './gantt-chart';
+import { parseDuration, formatDuration } from '@/lib/duration';
 
 const TaskCellRenderer = React.memo(({
     task,
@@ -178,16 +179,16 @@ const TaskCellRenderer = React.memo(({
         }
         case 'duration': {
             if (!isEditable) {
-                return <div className="text-right pr-4">{task.duration ? `${task.duration}d` : ''}</div>;
+                return <div className="text-right pr-4">{task.duration ? formatDuration(task.duration, task.durationUnit) : ''}</div>;
             }
 
             return (
                 <EditableCell
-                    value={`${task.duration}`}
+                    value={formatDuration(task.duration, task.durationUnit)}
                     onSave={(newValue) => {
-                        const newDuration = parseInt(newValue, 10);
-                        if (!isNaN(newDuration) && newDuration >= 0) {
-                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, duration: newDuration } });
+                        const parsed = parseDuration(newValue);
+                        if (parsed) {
+                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, duration: parsed.value, durationUnit: parsed.unit } });
                         }
                     }}
                     className="text-right pr-4"

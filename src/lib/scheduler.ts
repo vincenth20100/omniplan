@@ -30,12 +30,23 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec
             summaryTask.start = new Date(Math.min(...children.map(c => c.start.getTime())));
             summaryTask.finish = new Date(Math.max(...children.map(c => c.finish.getTime())));
             summaryTask.duration = calendarService.getWorkingDaysDuration(summaryTask.start, summaryTask.finish, calendar);
+            summaryTask.durationUnit = 'd'; // Summary duration is always in working days
             summaryTask.cost = children.reduce((acc, c) => acc + (c.cost || 0), 0);
             
-            const childrenTotalDuration = children.reduce((acc, c) => acc + (c.duration || 0), 0);
-            summaryTask.percentComplete = childrenTotalDuration > 0
-                ? Math.round(children.reduce((acc, c) => acc + ((c.percentComplete || 0) * (c.duration || 0)), 0) / childrenTotalDuration)
-                : 0;
+            const childrenTotalWork = children.reduce((acc, c) => {
+                // For simplicity, assume duration is a proxy for work. A more complex model could use work hours.
+                return acc + ((c.duration || 0) * (c.durationUnit === 'd' ? 1 : 0)); // Only count work days
+            }, 0);
+
+            if (childrenTotalWork > 0) {
+                 summaryTask.percentComplete = Math.round(children.reduce((acc, c) => {
+                    const work = (c.duration || 0) * (c.durationUnit === 'd' ? 1 : 0);
+                    return acc + ((c.percentComplete || 0) * work);
+                }, 0) / childrenTotalWork);
+            } else {
+                // If no children have work duration, average their percent complete.
+                summaryTask.percentComplete = children.reduce((acc, c) => acc + (c.percentComplete || 0), 0) / children.length;
+            }
 
             // A summary task is critical if any of its children are critical.
             summaryTask.isCritical = children.some(c => c.isCritical);
@@ -128,8 +139,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
 
         // If a task has progress, its start date is fixed.
         if ((task.percentComplete || 0) > 0) {
-            const { duration } = task;
-            task.finish = calendarService.addWorkingDays(task.start, duration > 0 ? duration - 1 : 0, calendar);
+            task.finish = calendarService.calculateFinishDate(task.start, task.duration, task.durationUnit || 'd', calendar);
             
             if (task.deadline && task.finish > startOfDay(task.deadline)) {
                 task.deadlineMissed = true;
@@ -153,10 +163,12 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                         potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
                         break;
                     case 'FF':
-                        potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag - (task.duration > 0 ? task.duration - 1 : 0), calendar);
+                        const tempFinishFF = calendarService.addWorkingDays(sourceTask.finish, link.lag, calendar);
+                        potentialStart = calendarService.calculateFinishDate(tempFinishFF, -task.duration, task.durationUnit || 'd', calendar);
                         break;
                     case 'SF':
-                        potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag - (task.duration > 0 ? task.duration - 1 : 0), calendar);
+                         const tempFinishSF = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
+                         potentialStart = calendarService.calculateFinishDate(tempFinishSF, -task.duration, task.durationUnit || 'd', calendar);
                         break;
                     default:
                         potentialStart = new Date(0);
@@ -172,29 +184,28 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         let earlyStart = predecessorDrivenStart;
 
         // --- Apply Constraints ---
-        const { constraintType, constraintDate, duration } = task;
+        const { constraintType, constraintDate, duration, durationUnit } = task;
 
         if (constraintType && constraintDate) {
-             const workingDuration = duration > 0 ? duration - 1 : 0;
              switch (constraintType) {
                 case 'Must Start On':
                     earlyStart = startOfDay(constraintDate);
                     break;
                 case 'Must Finish On':
-                    earlyStart = calendarService.addWorkingDays(startOfDay(constraintDate), -workingDuration, calendar);
+                    earlyStart = calendarService.calculateFinishDate(startOfDay(constraintDate), -(duration), durationUnit || 'd', calendar);
                     break;
                 case 'Start No Earlier Than':
                     earlyStart = max([earlyStart, startOfDay(constraintDate)]);
                     break;
                 case 'Finish No Earlier Than':
-                    const requiredStartForFNET = calendarService.addWorkingDays(startOfDay(constraintDate), -workingDuration, calendar);
+                    const requiredStartForFNET = calendarService.calculateFinishDate(startOfDay(constraintDate), -(duration), durationUnit || 'd', calendar);
                     earlyStart = max([earlyStart, requiredStartForFNET]);
                     break;
              }
         }
         
         task.start = calendarService.isWorkingDay(earlyStart, calendar) ? earlyStart : calendarService.findNextWorkingDay(earlyStart, calendar);
-        task.finish = calendarService.addWorkingDays(task.start, duration > 0 ? duration - 1 : 0, calendar);
+        task.finish = calendarService.calculateFinishDate(task.start, duration, durationUnit || 'd', calendar);
 
         // --- Post-calculation validation for conflicts and deadlines ---
          if (constraintType && constraintDate) {
@@ -247,11 +258,11 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                         break;
                     case 'SS': // Start-to-Start
                         const tempLS_ss = calendarService.addWorkingDays(successorLateStart, -link.lag, calendar);
-                        constrainedLateFinish = calendarService.addWorkingDays(tempLS_ss, task.duration > 0 ? task.duration - 1 : 0, calendar);
+                        constrainedLateFinish = calendarService.calculateFinishDate(tempLS_ss, task.duration, task.durationUnit || 'd', calendar);
                         break;
                     case 'SF': // Start-to-Finish
                         const tempLS_sf = calendarService.addWorkingDays(successorLateFinish, -link.lag, calendar);
-                        constrainedLateFinish = calendarService.addWorkingDays(tempLS_sf, task.duration > 0 ? task.duration - 1 : 0, calendar);
+                        constrainedLateFinish = calendarService.calculateFinishDate(tempLS_sf, task.duration, task.durationUnit || 'd', calendar);
                         break;
                     default:
                         constrainedLateFinish = projectFinishDate;
@@ -261,7 +272,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
             task.lateFinish = new Date(Math.min(...potentialLateFinishes.map(d => d.getTime())));
         }
         
-        task.lateStart = calendarService.addWorkingDays(task.lateFinish!, -(task.duration > 0 ? task.duration - 1 : 0), calendar);
+        task.lateStart = calendarService.calculateFinishDate(task.lateFinish!, -task.duration, task.durationUnit || 'd', calendar);
     }
     
     // Calculate Float and Critical Path
@@ -292,10 +303,12 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                 potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
                 break;
             case 'FF':
-                 potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag - (targetTask.duration > 0 ? targetTask.duration - 1 : 0), calendar);
+                 const tempFinishFF = calendarService.addWorkingDays(sourceTask.finish, link.lag, calendar);
+                 potentialStart = calendarService.calculateFinishDate(tempFinishFF, -targetTask.duration, targetTask.durationUnit || 'd', calendar);
                 break;
             case 'SF':
-                 potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag - (targetTask.duration > 0 ? targetTask.duration - 1 : 0), calendar);
+                 const tempFinishSF = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
+                 potentialStart = calendarService.calculateFinishDate(tempFinishSF, -targetTask.duration, targetTask.durationUnit || 'd', calendar);
                 break;
             default:
                 potentialStart = new Date(0);

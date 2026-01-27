@@ -11,6 +11,8 @@ export type ConstraintType =
 
 export type UiDensity = 'compact' | 'medium' | 'large';
 
+export type DurationUnit = 'd' | 'm' | 'ed' | 'em';
+
 export interface Exception {
   id: string;
   name: string;
@@ -48,7 +50,8 @@ export interface Task {
   name: string;
   start: Date;
   finish: Date;
-  duration: number; // in working days
+  duration: number; // in the unit specified by durationUnit
+  durationUnit?: DurationUnit; // d: working days, m: months, ed: elapsed days, em: elapsed months
   percentComplete: number;
   cost?: number;
   

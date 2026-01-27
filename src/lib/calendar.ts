@@ -1,6 +1,6 @@
 'use client';
-import { addDays, startOfDay, differenceInCalendarDays, formatISO, isSameDay } from 'date-fns';
-import type { Calendar, Exception } from './types';
+import { addDays, addMonths, startOfDay, differenceInCalendarDays, formatISO, isSameDay } from 'date-fns';
+import type { Calendar, DurationUnit, Exception } from './types';
 
 class CalendarService {
 
@@ -81,6 +81,20 @@ class CalendarService {
     }
     
     return duration > 0 ? duration : 1;
+  }
+
+  public calculateFinishDate(startDate: Date, duration: number, unit: DurationUnit, calendar: Calendar): Date {
+      const durationValue = duration > 0 ? duration - 1 : 0;
+      switch (unit) {
+          case 'ed': // elapsed days
+              return addDays(startDate, durationValue);
+          case 'm': // calendar months
+          case 'em': // elapsed months
+              return addDays(addMonths(startDate, duration), -1);
+          case 'd': // working days
+          default:
+              return this.addWorkingDays(startDate, durationValue, calendar);
+      }
   }
 }
 

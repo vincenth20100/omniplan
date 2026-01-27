@@ -1,11 +1,12 @@
 'use client';
 
 import { useReducer, useEffect, useState, useRef } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
+import { parseDuration } from '@/lib/duration';
 
 const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
     { id: 'wbs', name: 'WBS', defaultWidth: 50, type: 'text' },
@@ -237,20 +238,13 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const defaultCalendar = state.calendars.find(c => c.id === state.defaultCalendarId) || state.calendars[0];
 
         if (updatedTask && !updatedTask.isSummary && defaultCalendar) {
-          // If start date is changed (e.g., by moving), update finish date to preserve duration
-          if (updates.start !== undefined && updates.duration === undefined && updates.finish === undefined) {
-            updatedTask.finish = calendarService.addWorkingDays(updatedTask.start, updatedTask.duration > 0 ? updatedTask.duration - 1 : 0, defaultCalendar);
-          }
-          // If duration is explicitly changed, update finish date
-          else if (updates.duration !== undefined) {
-            updatedTask.finish = calendarService.addWorkingDays(updatedTask.start, updatedTask.duration > 0 ? updatedTask.duration - 1 : 0, defaultCalendar);
-          } 
-          // If finish date is changed, update duration
-          else if (updates.finish !== undefined) {
+          // If finish date is changed, update duration and set unit to working days ('d').
+          if (updates.finish !== undefined && updates.duration === undefined) {
             if (updatedTask.start > updatedTask.finish) {
               updatedTask.start = updatedTask.finish; // Prevent finish from being before start
             }
             updatedTask.duration = calendarService.getWorkingDaysDuration(updatedTask.start, updatedTask.finish, defaultCalendar);
+            updatedTask.durationUnit = 'd';
           }
         }
         
@@ -480,6 +474,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             start: new Date(),
             finish: new Date(),
             duration: 1,
+            durationUnit: 'd',
             percentComplete: 0,
             cost: 0,
             level: 0,
@@ -977,6 +972,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 level: 0,
                 start: new Date(), // default start date
                 duration: 1, // default duration
+                durationUnit: 'd',
             };
 
             // If only a single column of data is pasted, assume it's the task name.
@@ -993,8 +989,11 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                             newTask.name = value;
                             break;
                         case 'duration':
-                            const duration = parseInt(value, 10);
-                            if (!isNaN(duration) && duration > 0) newTask.duration = duration;
+                            const parsed = parseDuration(value);
+                            if (parsed) {
+                                newTask.duration = parsed.value;
+                                newTask.durationUnit = parsed.unit;
+                            }
                             break;
                         case 'start':
                             const startDate = new Date(value);
@@ -1020,7 +1019,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             }
             
             if (defaultCalendar) {
-                newTask.finish = calendarService.addWorkingDays(newTask.start, newTask.duration! > 0 ? newTask.duration! - 1 : 0, defaultCalendar);
+                newTask.finish = calendarService.calculateFinishDate(newTask.start, newTask.duration!, newTask.durationUnit || 'd', defaultCalendar);
             } else {
                 newTask.finish = new Date(newTask.start);
             }
@@ -1291,7 +1290,7 @@ export function useProject() {
         switch (col.id) {
             case 'wbs': return task.wbs || '';
             case 'name': return task.name;
-            case 'duration': return String(task.duration);
+            case 'duration': return `${task.duration}${task.durationUnit || 'd'}`;
             case 'start': return format(task.start, 'MM/dd/yyyy');
             case 'finish': return format(task.finish, 'MM/dd/yyyy');
             case 'cost': return String(task.cost || 0);
@@ -1399,9 +1398,9 @@ export function useProject() {
                     dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, name: value } });
                     break;
                 case 'duration': {
-                    const duration = parseInt(value, 10);
-                    if (!isNaN(duration) && duration > 0) {
-                        dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, duration } });
+                    const parsed = parseDuration(value);
+                    if (parsed) {
+                        dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, duration: parsed.value, durationUnit: parsed.unit } });
                     }
                     break;
                 }

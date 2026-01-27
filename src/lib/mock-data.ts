@@ -18,21 +18,21 @@ export const initialCalendars: (Omit<Calendar, 'exceptions'> & { exceptions?: (O
 ];
 
 export const initialTasks: (Omit<Task, 'start'|'finish'|'constraintDate'|'deadline'|'notes'> & {start: string, finish: string, constraintDate?:string, deadline?:string, notes?: (Omit<Note, 'timestamp'> & {timestamp: string})[]})[] = [
-  { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, finish: today.toISOString(), percentComplete: 100, cost: 500, additionalNotes: 'This is some important, persistent information about the project kick-off. All stakeholders must be present.', notes: [
+  { id: '1', wbs: '1', level: 0, name: 'Project Kick-off', start: today.toISOString(), duration: 1, durationUnit: 'd', finish: today.toISOString(), percentComplete: 100, cost: 500, additionalNotes: 'This is some important, persistent information about the project kick-off. All stakeholders must be present.', notes: [
       { id: 'note-1', author: 'Project Manager', content: 'Initial project meeting went well. Team is motivated.', timestamp: addDays(today, -1).toISOString() }
   ] },
-  { id: '2', wbs: '2', level: 0, name: 'Requirement Gathering', start: addDays(today, 1).toISOString(), duration: 5, finish: addDays(today, 6).toISOString(), percentComplete: 75, cost: 2500, deadline: addDays(today, 8).toISOString() },
-  { id: '3', wbs: '3', level: 0, name: 'Design Phase', start: addDays(today, 1).toISOString(), duration: 10, finish: addDays(today, 11).toISOString(), percentComplete: 50, cost: 5000 },
+  { id: '2', wbs: '2', level: 0, name: 'Requirement Gathering', start: addDays(today, 1).toISOString(), duration: 5, durationUnit: 'd', finish: addDays(today, 6).toISOString(), percentComplete: 75, cost: 2500, deadline: addDays(today, 8).toISOString() },
+  { id: '3', wbs: '3', level: 0, name: 'Design Phase', start: addDays(today, 1).toISOString(), duration: 10, durationUnit: 'd', finish: addDays(today, 11).toISOString(), percentComplete: 50, cost: 5000 },
   
   // Summary Task for Build
-  { id: '4', wbs: '4', level: 0, name: 'Build', start: addDays(today, 8).toISOString(), duration: 0, finish: addDays(today, 23).toISOString(), percentComplete: 0, isSummary: true, isCollapsed: false, cost: 0 },
+  { id: '4', wbs: '4', level: 0, name: 'Build', start: addDays(today, 8).toISOString(), duration: 0, durationUnit: 'd', finish: addDays(today, 23).toISOString(), percentComplete: 0, isSummary: true, isCollapsed: false, cost: 0 },
   
   // Children of Build
-  { id: '4.1', wbs: '4.1', parentId: '4', level: 1, name: 'Workshop Assembly', start: addDays(today, 8).toISOString(), duration: 15, finish: addDays(today, 23).toISOString(), percentComplete: 20, constraintType: 'Must Start On', constraintDate: addDays(today, 15).toISOString(), cost: 15000 },
-  { id: '4.2', wbs: '4.2', parentId: '4', level: 1, name: 'Guidance Controls', start: addDays(today, 8).toISOString(), duration: 10, finish: addDays(today, 18).toISOString(), percentComplete: 40, cost: 10000 },
+  { id: '4.1', wbs: '4.1', parentId: '4', level: 1, name: 'Workshop Assembly', start: addDays(today, 8).toISOString(), duration: 15, durationUnit: 'd', finish: addDays(today, 23).toISOString(), percentComplete: 20, constraintType: 'Must Start On', constraintDate: addDays(today, 15).toISOString(), cost: 15000 },
+  { id: '4.2', wbs: '4.2', parentId: '4', level: 1, name: 'Guidance Controls', start: addDays(today, 8).toISOString(), duration: 10, durationUnit: 'd', finish: addDays(today, 18).toISOString(), percentComplete: 40, cost: 10000 },
   
-  { id: '5', wbs: '5', level: 0, name: 'Testing', start: addDays(today, 24).toISOString(), duration: 5, finish: addDays(today, 29).toISOString(), percentComplete: 0, cost: 2500 },
-  { id: '6', wbs: '6', level: 0, name: 'Deployment', start: addDays(today, 30).toISOString(), duration: 2, finish: addDays(today, 32).toISOString(), percentComplete: 0, cost: 1000 },
+  { id: '5', wbs: '5', level: 0, name: 'Testing', start: addDays(today, 24).toISOString(), duration: 5, durationUnit: 'd', finish: addDays(today, 29).toISOString(), percentComplete: 0, cost: 2500 },
+  { id: '6', wbs: '6', level: 0, name: 'Deployment', start: addDays(today, 30).toISOString(), duration: 2, durationUnit: 'd', finish: addDays(today, 32).toISOString(), percentComplete: 0, cost: 1000 },
 ];
 
 export const initialLinks: Link[] = [
