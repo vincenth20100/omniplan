@@ -1140,16 +1140,44 @@ type UndoableState = {
     future: ProjectState[];
 };
 
-const nonUndoableActions: Action['type'][] = [
-    'INIT_STATE', 
-    'SELECT_TASK', 
-    'MOVE_SELECTION', 
-    'TOGGLE_MULTI_SELECT_MODE',
-    'SET_ACTIVE_CELL',
-    'START_EDITING_CELL',
-    'STOP_EDITING_CELL',
-    'UNDO',
-    'REDO'
+const undoableActions: Action['type'][] = [
+    'UPDATE_TASK',
+    'UPDATE_LINK',
+    'LINK_TASKS',
+    'ADD_LINK',
+    'SET_CONFLICTS',
+    'INDENT_TASK',
+    'OUTDENT_TASK',
+    'ADD_TASK',
+    'REMOVE_TASK',
+    'REMOVE_LINK',
+    'REORDER_TASKS',
+    'NEST_TASKS',
+    'UPDATE_RELATIONSHIPS',
+    'ADD_RESOURCE',
+    'REMOVE_RESOURCE',
+    'UPDATE_RESOURCE',
+    'ADD_CALENDAR',
+    'REMOVE_CALENDAR',
+    'UPDATE_CALENDAR',
+    'ADD_COLUMN',
+    'UPDATE_COLUMN',
+    'REMOVE_COLUMN',
+    'ADD_TASKS_FROM_PASTE',
+    'SET_COLUMNS',
+    'RESIZE_COLUMN',
+    'REORDER_COLUMNS',
+    'SET_GROUPING',
+    'SET_FILTERS',
+    'SET_UI_DENSITY',
+    'UPDATE_GANTT_SETTINGS',
+    'EXPAND_ALL',
+    'COLLAPSE_ALL',
+    'SET_VIEW',
+    'SAVE_VIEW_AS',
+    'UPDATE_CURRENT_VIEW',
+    'DELETE_VIEW',
+    'ADD_NOTE_TO_TASK',
 ];
 
 function undoableReducer(state: UndoableState, action: Action): UndoableState {
@@ -1191,7 +1219,7 @@ function undoableReducer(state: UndoableState, action: Action): UndoableState {
                 return state;
             }
 
-            if (nonUndoableActions.includes(action.type)) {
+            if (!undoableActions.includes(action.type)) {
                 return { ...state, present: newPresent };
             }
             
