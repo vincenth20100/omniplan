@@ -741,14 +741,14 @@ export function useProject(user: User) {
   useEffect(() => {
     const { data: tasks, isLoading: tasksLoading } = collections.tasks;
     const { data: links, isLoading: linksLoading } = collections.links;
-    const { data: resources, isLoading: resourcesLoading } = collections.assignments;
+    const { data: resources, isLoading: resourcesLoading } = collections.resources;
     const { data: assignments, isLoading: assignmentsLoading } = collections.assignments;
     const { data: calendars, isLoading: calendarsLoading } = collections.calendars;
 
     const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading;
 
     if (!isLoading && !isLoaded) {
-        if ((!tasks || tasks.length === 0) && (!calendars || calendars.length === 0)) {
+        if ((!tasks || tasks.length === 0) || (!calendars || calendars.length === 0)) {
              const batch = writeBatch(firestore);
              initialTasks.forEach(task => {
                  const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
@@ -778,10 +778,16 @@ export function useProject(user: User) {
         setIsLoaded(true);
         const safeToDate = (value: any): Date | null => {
             if (!value) return null;
-            if (typeof value.toDate === 'function') {
+            // Check for Firestore Timestamp
+            if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
                 return value.toDate();
             }
-            return new Date(value);
+            // Handle ISO string or existing Date object
+            const d = new Date(value);
+            if (!isNaN(d.getTime())) {
+                return d;
+            }
+            return null;
         }
 
         dispatch({
