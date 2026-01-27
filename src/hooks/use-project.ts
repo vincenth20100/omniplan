@@ -535,7 +535,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'INDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
-        
+
         const tasks = [...state.tasks];
         const taskMap = new Map(tasks.map(t => [t.id, t]));
         
@@ -543,15 +543,42 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             .filter(t => state.selectedTaskIds.includes(t.id))
             .map(t => t.id);
 
-        for (const taskId of sortedSelectedIds) {
-            const taskIndex = tasks.findIndex(t => t.id === taskId);
-            if (taskIndex > 0) {
-                let potentialParent = tasks[taskIndex - 1];
-                if (sortedSelectedIds.includes(potentialParent.id)) continue;
+        if (sortedSelectedIds.length === 0) return state;
 
-                const taskToIndent = taskMap.get(taskId)!;
-                taskToIndent.parentId = potentialParent.id;
+        const firstSelectedIndex = tasks.findIndex(t => t.id === sortedSelectedIds[0]);
+
+        // Cannot indent the first task in the project list.
+        if (firstSelectedIndex === 0) return state;
+        
+        const parentTask = tasks[firstSelectedIndex - 1];
+        
+        // Do not allow indenting if the new parent is also part of the selection.
+        if (state.selectedTaskIds.includes(parentTask.id)) {
+            return state;
+        }
+        
+        // Check for trying to indent a task under one of its own descendants.
+        let isCircular = false;
+        for (const taskIdToIndent of sortedSelectedIds) {
+            let current: Task | undefined = parentTask;
+            while(current) {
+                if (current.id === taskIdToIndent) {
+                    isCircular = true;
+                    break;
+                }
+                current = current.parentId ? taskMap.get(current.parentId) : undefined;
             }
+            if (isCircular) break;
+        }
+
+        if (isCircular) {
+            console.warn("Cannot indent a task under one of its own children.");
+            return state;
+        }
+
+        for (const taskId of sortedSelectedIds) {
+            const taskToIndent = taskMap.get(taskId)!;
+            taskToIndent.parentId = parentTask.id;
         }
 
         const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId);
@@ -831,7 +858,6 @@ export function useProject(user: User) {
                 // The hooks will automatically pick up the new data.
                 // We set isSeeding to false to allow the next effect run to process the data.
                 setIsSeeding(false);
-                setIsLoaded(true); // Mark as loaded after seeding is confirmed.
              });
              return; // Exit effect, will re-run when hooks update.
         } else {
