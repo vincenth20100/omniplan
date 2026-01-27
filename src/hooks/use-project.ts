@@ -160,6 +160,33 @@ type Action =
   | { type: 'REDO' }
   | { type: 'JUMP_TO_HISTORY', payload: { index: number } };
 
+/**
+ * Creates a "clean" task object suitable for Firestore,
+ * removing calculated fields and converting `undefined` to `null`.
+ */
+const toFirestoreTask = (task: Task) => {
+  return {
+    name: task.name,
+    start: task.start,
+    finish: task.finish,
+    duration: task.duration,
+    durationUnit: task.durationUnit || 'd',
+    percentComplete: task.percentComplete,
+    order: task.order || 0,
+    cost: task.cost || 0,
+    parentId: task.parentId || null,
+    isCollapsed: task.isCollapsed || false,
+    constraintType: task.constraintType || null,
+    constraintDate: task.constraintDate || null,
+    deadline: task.deadline || null,
+    additionalNotes: task.additionalNotes || '',
+    notes: task.notes || [],
+    customAttributes: task.customAttributes || null,
+    schedulingConflict: task.schedulingConflict || false,
+    calendarId: task.calendarId || null,
+    zoneId: task.zoneId || null,
+  };
+};
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
     const taskMap = new Map(tasks.map(t => ({ ...t })).map(t => [t.id, t]));
@@ -476,7 +503,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newColumns = state.columns.map(c => {
             if (c.id === id) {
                 const updatedColumn = { ...c, ...updates };
-                if (updatedColumn.type !== 'selection') {
+                if (updatedColumn.type !== 'selection' && 'options' in updatedColumn) {
                     delete updatedColumn.options;
                 }
                 return updatedColumn;
@@ -712,27 +739,20 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, links: newLinks, tasks: scheduledTasks };
     }
     case 'INDENT_TASK': {
-        if (state.selectedTaskIds.length === 0) return state;
-
+        const tasksToIndent = state.selectedTaskIds;
+        if (tasksToIndent.length === 0) return state;
+        
         const tasks = [...state.tasks];
         const taskMap = new Map(tasks.map(t => [t.id, t]));
-        
-        const sortedSelectedIds = tasks
-            .filter(t => state.selectedTaskIds.includes(t.id))
-            .map(t => t.id);
 
-        if (sortedSelectedIds.length === 0) return state;
-
-        const firstSelectedIndex = tasks.findIndex(t => t.id === sortedSelectedIds[0]);
-
+        const firstSelectedIndex = tasks.findIndex(t => t.id === tasksToIndent[0]);
         if (firstSelectedIndex === 0) return state;
-        
+
         let parentTask: Task | undefined = undefined;
         let potentialParentIndex = firstSelectedIndex - 1;
-
         while(potentialParentIndex >= 0) {
             const p = tasks[potentialParentIndex];
-            if (!state.selectedTaskIds.includes(p.id)) {
+            if (!tasksToIndent.includes(p.id)) {
                  parentTask = p;
                  break;
             }
@@ -741,10 +761,10 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         if (!parentTask) return state;
 
-        for (const taskId of sortedSelectedIds) {
+        tasksToIndent.forEach(taskId => {
             const taskToIndent = taskMap.get(taskId)!;
-            taskToIndent.parentId = parentTask.id;
-        }
+            taskToIndent.parentId = parentTask!.id;
+        });
 
         const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: scheduledTasks };
@@ -968,7 +988,7 @@ export function useProject(user: User) {
                 order: newOrder,
             };
             const docRef = doc(firestore, 'users', user.uid, 'tasks', newTask.id);
-            setDocumentNonBlocking(docRef, newTask, {});
+            setDocumentNonBlocking(docRef, toFirestoreTask(newTask), {});
             dispatch({ type: 'ADD_TASK_OPTIMISTIC', payload: { task: newTask } });
             break;
         }
@@ -1078,8 +1098,8 @@ export function useProject(user: User) {
         case 'UPDATE_RELATIONSHIPS': {
             const { taskId, field, value } = action.payload;
             const { tasks, links } = historyState.present;
-            const wbsToIdMap = new Map(tasks.map(t => [t.wbs, t.id]));
-            const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
+            const wbsToIdMap = new Map(tasks.filter(t => t.wbs).map(t => [t.wbs!, t.id]));
+            const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs || '']));
 
             const existingLinks = links.filter(l => (field === 'predecessors' ? l.target : l.source) === taskId);
             const existingRelations = new Set(existingLinks.map(l => {
@@ -1104,7 +1124,7 @@ export function useProject(user: User) {
                  return relationsToRemove.includes(relationString);
             });
 
-            const linkParseRegex = /^(\d+(?:\.\d+)*)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
+            const linkParseRegex = /^([\d.]+)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
             const linksToAddData: Omit<Link, 'id'>[] = relationsToAdd.map(rel => {
                 const match = rel.match(linkParseRegex);
                 if (!match) return null;
@@ -1155,22 +1175,39 @@ export function useProject(user: User) {
         }
 
         case 'UPDATE_TASK':
-        case 'UPDATE_LINK':
-        case 'UPDATE_RESOURCE':
-        case 'UPDATE_CALENDAR':
         case 'NEST_TASKS':
         case 'REORDER_TASKS':
         case 'INDENT_TASK':
         case 'OUTDENT_TASK': {
+            const newState = projectReducer(historyState.present, action);
             const batch = writeBatch(firestore);
-            const { tasks } = projectReducer(historyState.present, action);
-             tasks.forEach(task => {
-                const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
-                const { id, ...rest } = task;
-                batch.update(docRef, { ...rest });
+            // This is still inefficient, but it will be correct and not crash.
+            newState.tasks.forEach(task => {
+                batch.set(doc(firestore, 'users', user.uid, 'tasks', task.id), toFirestoreTask(task));
             });
             batch.commit().catch(e => console.error("Failed to batch update tasks", e));
             break;
+        }
+        case 'UPDATE_LINK': {
+             const docRef = doc(firestore, 'users', user.uid, 'links', action.payload.id);
+             // The payload is partial, so we use update.
+             updateDocumentNonBlocking(docRef, action.payload);
+             break;
+        }
+        case 'UPDATE_RESOURCE': {
+             const docRef = doc(firestore, 'users', user.uid, 'resources', action.payload.id);
+             updateDocumentNonBlocking(docRef, action.payload);
+             break;
+        }
+        case 'UPDATE_CALENDAR': {
+             const docRef = doc(firestore, 'users', user.uid, 'calendars', action.payload.id);
+             // need to serialize dates in exceptions
+             const payload = {...action.payload};
+             if (payload.exceptions) {
+                payload.exceptions = payload.exceptions.map(ex => ({ ...ex, start: ex.start, finish: ex.finish }));
+             }
+             updateDocumentNonBlocking(docRef, payload);
+             break;
         }
 
         // Settings and Views
@@ -1308,7 +1345,7 @@ export function useProject(user: User) {
   
   // Effect 2: Sync Settings Data
   useEffect(() => {
-    if (!isLoaded || collections.views.isLoading || collections.settings.isLoading) return;
+    if (collections.views.isLoading || collections.settings.isLoading) return;
   
     dispatch({
       type: 'SET_PERSISTED_STATE',
@@ -1321,7 +1358,7 @@ export function useProject(user: User) {
   
   // Effect 3: Sync Project Data
   useEffect(() => {
-    if (!isLoaded || collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading) return;
+    if (collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading) return;
     
     const safeToDate = (value: any): Date | null => {
         if (!value) return null;

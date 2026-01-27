@@ -18,6 +18,11 @@
           "type": "number",
           "description": "Duration of the task in working days."
         },
+        "durationUnit": {
+          "type": "string",
+          "enum": ["d", "m", "ed", "em"],
+          "description": "The unit for the task's duration."
+        },
         "start": {
           "type": "string",
           "description": "Start date and time of the task.",
@@ -33,26 +38,55 @@
           "description": "Percentage of the task that is complete (0-100)."
         },
         "constraintType": {
-          "type": "string",
-          "description": "Type of constraint applied to the task (e.g., 'Start No Earlier Than', 'Must Start On'). Nullable.",
-          "format": "string"
+          "type": ["string", "null"],
+          "description": "Type of constraint applied to the task (e.g., 'Start No Earlier Than', 'Must Start On'). Nullable."
         },
         "constraintDate": {
-          "type": "string",
+          "type": ["string", "null"],
           "description": "Date associated with the constraint. Nullable.",
           "format": "date-time"
         },
         "zoneId": {
-          "type": "string",
+          "type": ["string", "null"],
           "description": "Reference to the Zone entity where the task is spatially located. Nullable. (Relationship: Zone 1:N Task)"
         },
         "customAttributes": {
-          "type": "string",
+          "type": ["string", "null"],
           "description": "JSON string containing custom attributes for the task. Nullable."
         },
         "schedulingConflict": {
           "type": "boolean",
           "description": "Indicates if there is a scheduling conflict for the task."
+        },
+        "order": {
+          "type": "number",
+          "description": "Sort order of the task."
+        },
+        "parentId": {
+          "type": ["string", "null"],
+          "description": "Reference to the parent task for hierarchical structure."
+        },
+        "isCollapsed": {
+          "type": "boolean",
+          "description": "Whether the summary task is collapsed in the UI."
+        },
+        "cost": {
+          "type": "number",
+          "description": "The cost of the task."
+        },
+        "deadline": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "An optional deadline for the task."
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Note" },
+          "description": "A list of notes or activity logs for the task."
+        },
+        "additionalNotes": {
+          "type": ["string", "null"],
+          "description": "Persistent, high-level notes about the task."
         }
       },
       "required": [
@@ -63,6 +97,18 @@
         "finish",
         "percentComplete"
       ]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "Represents a note or log entry on a task.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "author": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "author", "content", "timestamp"]
     },
     "Link": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -238,10 +284,6 @@
         "resourceId": {
           "type": "string",
           "description": "ID of the assigned resource."
-        },
-        "units": {
-          "type": "number",
-          "description": "Units of the resource assigned (e.g., 1 for 100%)."
         }
       },
       "required": [
