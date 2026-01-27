@@ -432,6 +432,17 @@ export function TaskTable({
         const handleKeyDown = (event: KeyboardEvent) => {
             const { activeCell, columns, visibleColumns, editingCell } = stateRef.current;
 
+            const isEditing = !!editingCell;
+            const isNavKey = event.key.startsWith('Arrow') || event.key === 'Enter';
+
+            // If editing, commit value on Enter/Arrow, then allow navigation logic to run
+            if (isEditing && isNavKey) {
+                event.preventDefault();
+                if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                }
+            }
+
             if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
                 if (event.key === 'ArrowRight') {
                     event.preventDefault();
@@ -453,10 +464,10 @@ export function TaskTable({
                 return;
             }
 
-             // F2 key to start editing without clearing content
+            // F2 key to start editing without clearing content
             if (event.key === 'F2') {
               event.preventDefault();
-              if (!editingCell) {
+              if (!isEditing && activeCell) {
                 const value = getCellValueForEditing(activeCell.taskId, activeCell.columnId);
                 dispatch({
                     type: 'START_EDITING_CELL',
@@ -465,14 +476,25 @@ export function TaskTable({
               }
               return;
             }
+            
+            // If editing and not a nav key, let the input handle it
+            if (isEditing && !isNavKey) {
+                return;
+            }
 
-            // Don't interfere if an input is focused outside the table or we are actively editing a cell.
-            if ((document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) || editingCell) {
-              return;
+            // Start editing on Enter
+            if (event.key === 'Enter' && !isEditing && activeCell) {
+                 event.preventDefault();
+                const value = getCellValueForEditing(activeCell.taskId, activeCell.columnId);
+                dispatch({
+                    type: 'START_EDITING_CELL',
+                    payload: { ...activeCell, initialValue: value }
+                });
+                return;
             }
 
             // Type-to-edit logic
-            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && activeCell) {
                 event.preventDefault();
                 dispatch({
                     type: 'START_EDITING_CELL',
@@ -480,7 +502,7 @@ export function TaskTable({
                 });
                 return;
             }
-            if (event.key === 'Backspace') {
+            if (event.key === 'Backspace' && activeCell) {
                 event.preventDefault();
                 dispatch({
                     type: 'START_EDITING_CELL',
@@ -489,7 +511,7 @@ export function TaskTable({
                 return;
             }
 
-            if (event.key.startsWith('Arrow')) {
+            if (event.key.startsWith('Arrow') && activeCell) {
                 event.preventDefault();
 
                 const orderedVisibleColumns = columns.filter(c => visibleColumns.includes(c.id));
