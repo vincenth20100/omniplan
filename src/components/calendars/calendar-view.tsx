@@ -20,6 +20,7 @@ import { format, addDays } from 'date-fns';
 import { calendarService } from '@/lib/calendar';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Label } from '@/components/ui/label';
 
 export function CalendarView({
   projectState,
@@ -139,7 +140,7 @@ export function CalendarView({
         if (workingOverrides.includes(isoDate)) {
           workingOverrides = workingOverrides.filter(d => d !== isoDate);
         } else {
-          nonWorkingOverrides.push(isoDate);
+          nonWorkingDayOverrides.push(isoDate);
         }
       } else {
         // Make it working
@@ -159,6 +160,26 @@ export function CalendarView({
           }
       });
   };
+
+  const handleWorkingDayChange = (dayIndex: number, checked: boolean) => {
+      if (selectedCalendar) {
+          let newWorkingDays = [...selectedCalendar.workingDays];
+          if (checked) {
+              if (!newWorkingDays.includes(dayIndex)) {
+                  newWorkingDays.push(dayIndex);
+              }
+          } else {
+              newWorkingDays = newWorkingDays.filter(d => d !== dayIndex);
+          }
+          newWorkingDays.sort();
+          dispatch({
+              type: 'UPDATE_CALENDAR',
+              payload: { id: selectedCalendar.id, workingDays: newWorkingDays }
+          });
+      }
+  };
+
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -181,7 +202,28 @@ export function CalendarView({
         <Button variant="outline" onClick={handleAddCalendar}>Create New Calendar...</Button>
       </div>
       
-      <div className="border rounded-lg p-4 flex flex-col items-center">
+      <div className="border rounded-lg p-4 flex flex-col">
+        {selectedCalendar && (
+            <div className="mb-6">
+                <h4 className="text-sm font-semibold mb-2">Default Work Week</h4>
+                <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+                    <div className="flex items-center gap-4">
+                        {daysOfWeek.map((day, index) => (
+                            <div key={day} className="flex items-center gap-2">
+                                <Checkbox
+                                    id={`day-${index}`}
+                                    checked={selectedCalendar.workingDays.includes(index)}
+                                    onCheckedChange={(checked) => handleWorkingDayChange(index, !!checked)}
+                                />
+                                <Label htmlFor={`day-${index}`}>{day}</Label>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Working hours are assumed to be standard business hours.</p>
+                </div>
+            </div>
+        )}
+        <div className="flex flex-col items-center">
          <DayPicker
             numberOfMonths={isMobile ? 1 : 3}
             month={currentMonth}
@@ -196,6 +238,7 @@ export function CalendarView({
             }}
             className="w-full"
          />
+      </div>
       </div>
 
       <div>
