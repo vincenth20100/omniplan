@@ -119,6 +119,7 @@ type Action =
   | { type: 'DELETE_VIEW', payload: { viewId: string } }
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
+  | { type: 'ADD_NOTE_TO_TASK_OPTIMISTIC'; payload: { taskId: string; note: Note } }
   | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string } }
   | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null }
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
@@ -215,8 +216,34 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         defaultCalendarId: calendars[0]?.id || null,
       };
     }
-    // Most other actions just return the current state, as data is now live from Firestore.
-    // UI-only state changes can remain.
+    case 'UPDATE_TASK': {
+        const updatedTasks = state.tasks.map(t =>
+            t.id === action.payload.id ? { ...t, ...action.payload } : t
+        );
+        const reScheduledTasks = runScheduler(updatedTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, tasks: reScheduledTasks, isDirty: true };
+    }
+    case 'UPDATE_LINK': {
+        const newLinks = state.links.map(l => l.id === action.payload.id ? { ...l, ...action.payload } : l);
+        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, links: newLinks, tasks: reScheduledTasks, isDirty: true };
+    }
+    case 'UPDATE_RESOURCE': {
+        const newResources = state.resources.map(r => r.id === action.payload.id ? { ...r, ...action.payload } : r);
+        return { ...state, resources: newResources, isDirty: true };
+    }
+    case 'UPDATE_CALENDAR': {
+        const newCalendars = state.calendars.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
+        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, state.defaultCalendarId);
+        return { ...state, calendars: newCalendars, tasks: reScheduledTasks, isDirty: true };
+    }
+    case 'ADD_NOTE_TO_TASK_OPTIMISTIC': {
+        const { taskId, note } = action.payload;
+        const updatedTasks = state.tasks.map(t =>
+            t.id === taskId ? { ...t, notes: [...(t.notes || []), note] } : t
+        );
+        return { ...state, tasks: updatedTasks, isDirty: true };
+    }
     case 'SELECT_TASK': {
       const { taskId, ctrlKey, shiftKey } = action.payload;
 
@@ -442,9 +469,58 @@ export function useProject(user: User) {
   };
   
   const handleFirestoreAction = (action: Action) => {
-    // This function will be responsible for writing changes to Firestore
-    // For now, it just dispatches to the local reducer
+    if (!user) return;
+
+    // Optimistically update the UI first for a responsive feel
     dispatch(action);
+
+    // Then, commit the change to Firestore
+    switch (action.type) {
+        case 'UPDATE_TASK': {
+            const { id, ...payload } = action.payload;
+            const docRef = doc(firestore, 'users', user.uid, 'tasks', id);
+            updateDocumentNonBlocking(docRef, payload);
+            break;
+        }
+        case 'UPDATE_LINK': {
+            const { id, ...payload } = action.payload;
+            const docRef = doc(firestore, 'users', user.uid, 'links', id);
+            updateDocumentNonBlocking(docRef, payload);
+            break;
+        }
+        case 'UPDATE_RESOURCE': {
+            const { id, ...payload } = action.payload;
+            const docRef = doc(firestore, 'users', user.uid, 'resources', id);
+            updateDocumentNonBlocking(docRef, payload);
+            break;
+        }
+        case 'UPDATE_CALENDAR': {
+             const { id, ...payload } = action.payload;
+            const docRef = doc(firestore, 'users', user.uid, 'calendars', id);
+            // Firestore SDK handles converting Date objects in arrays to Timestamps
+            updateDocumentNonBlocking(docRef, payload);
+            break;
+        }
+        case 'ADD_NOTE_TO_TASK': {
+             const { taskId, content } = action.payload;
+             const task = stateRef.current.tasks.find(t => t.id === taskId);
+             if (task) {
+                 const newNote: Note = {
+                     id: `note-${Date.now()}`,
+                     author: user.displayName || 'Anonymous',
+                     content,
+                     timestamp: new Date(),
+                 };
+                 const newNotes = [...(task.notes || []), newNote];
+                 const docRef = doc(firestore, 'users', user.uid, 'tasks', taskId);
+                 updateDocumentNonBlocking(docRef, { notes: newNotes });
+
+                 // Dispatch a different action to avoid an infinite loop and pass the full note object
+                 dispatch({ type: 'ADD_NOTE_TO_TASK_OPTIMISTIC', payload: { taskId, note: newNote }});
+             }
+             return; // Return early because we dispatched a different action
+        }
+    }
   }
 
   useEffect(() => {
