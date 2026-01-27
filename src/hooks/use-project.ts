@@ -464,10 +464,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             name: name,
             width: width || 150,
             type: type,
+            ...(options && { options }),
         };
-        if (options) {
-            newColumn.options = options;
-        }
         const newColumns = [...state.columns, newColumn];
         const newVisibleColumns = [...state.visibleColumns, newColumn.id];
         const newState = { ...state, columns: newColumns, visibleColumns: newVisibleColumns };
@@ -1242,126 +1240,125 @@ export function useProject(user: User) {
     }
   }
 
+  // Effect 1: Initial Load & Seeding
   useEffect(() => {
-    const { data: tasks, isLoading: tasksLoading } = collections.tasks;
-    const { data: links, isLoading: linksLoading } = collections.links;
-    const { data: resources, isLoading: resourcesLoading } = collections.resources;
-    const { data: assignments, isLoading: assignmentsLoading } = collections.assignments;
-    const { data: calendars, isLoading: calendarsLoading } = collections.calendars;
-    const { data: views, isLoading: viewsLoading } = collections.views;
-    const { data: settings, isLoading: settingsLoading } = collections.settings;
-
-    const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading || viewsLoading || settingsLoading;
+    const allCollectionsLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading || collections.views.isLoading || collections.settings.isLoading;
     
-    if (isSeeding || isLoading) return;
-
-    if (!isLoaded && user) {
-        const needsProjectSeeding = !tasks || tasks.length === 0;
-        const needsCalendarSeeding = !calendars || calendars.length === 0;
-        const needsViewsSeeding = !views || views.length === 0;
-        const needsSettingsSeeding = !settings;
-        
-        const needsSeeding = needsProjectSeeding || needsCalendarSeeding || needsViewsSeeding || needsSettingsSeeding;
-
-        if (needsSeeding) {
-             setIsSeeding(true);
-             const batch = writeBatch(firestore);
-             
-             if (needsProjectSeeding) {
-                 initialTasks.forEach((task, index) => {
-                     const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
-                     batch.set(docRef, { ...task, order: index });
-                 });
-                  initialLinks.forEach(link => {
-                     const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
-                     batch.set(docRef, link);
-                 });
-                  initialResources.forEach(resource => {
-                     const docRef = doc(firestore, 'users', user.uid, 'resources', resource.id);
-                     batch.set(docRef, resource);
-                 });
-                  initialAssignments.forEach(assignment => {
-                     const docRef = doc(firestore, 'users', user.uid, 'assignments', assignment.id);
-                     batch.set(docRef, assignment);
-                 });
-             }
-             if (needsCalendarSeeding) {
-                 initialCalendars.forEach(calendar => {
-                     const docRef = doc(firestore, 'users', user.uid, 'calendars', calendar.id);
-                     batch.set(docRef, calendar);
-                 });
-             }
-             if (needsViewsSeeding) {
-                 defaultViews.forEach(view => {
-                     const docRef = doc(firestore, 'users', user.uid, 'views', view.id);
-                     batch.set(docRef, view);
-                 });
-             }
-             if (needsSettingsSeeding) {
-                 const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
-                 batch.set(docRef, defaultAppSettings);
-             }
-
-             batch.commit().finally(() => {
-                setIsSeeding(false);
-             });
-             return;
-        } else {
-             setIsLoaded(true);
-        }
+    if (isSeeding || allCollectionsLoading || isLoaded || !user) {
+      return;
     }
-
-    if (isLoaded) {
-        const safeToDate = (value: any): Date | null => {
-            if (!value) return null;
-            if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
-                return value.toDate();
-            }
-            const d = new Date(value);
-            if (!isNaN(d.getTime())) {
-                return d;
-            }
-            return null;
-        }
-        
-        dispatch({
-            type: 'SET_PERSISTED_STATE',
-            payload: {
-                views: views || [],
-                settings: settings ? { ...defaultAppSettings, ...settings } : null
-            }
+  
+    const needsProjectSeeding = !collections.tasks.data || collections.tasks.data.length === 0;
+    const needsCalendarSeeding = !collections.calendars.data || collections.calendars.data.length === 0;
+    const needsViewsSeeding = !collections.views.data || collections.views.data.length === 0;
+    const needsSettingsSeeding = !collections.settings.data;
+  
+    const needsSeeding = needsProjectSeeding || needsCalendarSeeding || needsViewsSeeding || needsSettingsSeeding;
+  
+    if (needsSeeding) {
+      setIsSeeding(true);
+      const batch = writeBatch(firestore);
+  
+      if (needsProjectSeeding) {
+        initialTasks.forEach((task, index) => {
+          const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
+          batch.set(docRef, { ...task, order: index });
         });
-        
-        dispatch({
-            type: 'SET_PROJECT_DATA',
-            payload: {
-                tasks: (tasks || []).map(t => ({
-                    ...t, 
-                    start: safeToDate(t.start)!, 
-                    finish: safeToDate(t.finish)!, 
-                    constraintDate: safeToDate(t.constraintDate), 
-                    deadline: safeToDate(t.deadline)
-                })),
-                links: links || [],
-                resources: resources || [],
-                assignments: assignments || [],
-                calendars: (calendars || []).map(c => ({
-                    ...c, 
-                    exceptions: (c.exceptions || []).map(e => ({
-                        ...e, 
-                        start: safeToDate(e.start)!, 
-                        finish: safeToDate(e.finish)!
-                    }))
-                })),
-            }
+        initialLinks.forEach(link => {
+          const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
+          batch.set(docRef, link);
         });
+        initialResources.forEach(resource => {
+          const docRef = doc(firestore, 'users', user.uid, 'resources', resource.id);
+          batch.set(docRef, resource);
+        });
+        initialAssignments.forEach(assignment => {
+          const docRef = doc(firestore, 'users', user.uid, 'assignments', assignment.id);
+          batch.set(docRef, assignment);
+        });
+      }
+      if (needsCalendarSeeding) {
+        initialCalendars.forEach(calendar => {
+          const docRef = doc(firestore, 'users', user.uid, 'calendars', calendar.id);
+          batch.set(docRef, calendar);
+        });
+      }
+      if (needsViewsSeeding) {
+        defaultViews.forEach(view => {
+          const docRef = doc(firestore, 'users', user.uid, 'views', view.id);
+          batch.set(docRef, view);
+        });
+      }
+      if (needsSettingsSeeding) {
+        const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
+        batch.set(docRef, defaultAppSettings);
+      }
+  
+      batch.commit().finally(() => {
+        setIsSeeding(false);
+      });
+    } else {
+      setIsLoaded(true);
     }
-
-}, [
-    collections.tasks.data, collections.links.data, collections.resources.data, collections.assignments.data, collections.calendars.data, collections.views.data, collections.settings.data,
+  }, [
     collections.tasks.isLoading, collections.links.isLoading, collections.resources.isLoading, collections.assignments.isLoading, collections.calendars.isLoading, collections.views.isLoading, collections.settings.isLoading,
+    collections.tasks.data, collections.links.data, collections.resources.data, collections.assignments.data, collections.calendars.data, collections.views.data, collections.settings.data,
     isLoaded, isSeeding, firestore, user
-]);
+  ]);
+  
+  // Effect 2: Sync Settings Data
+  useEffect(() => {
+    if (!isLoaded || collections.views.isLoading || collections.settings.isLoading) return;
+  
+    dispatch({
+      type: 'SET_PERSISTED_STATE',
+      payload: {
+        views: collections.views.data || [],
+        settings: collections.settings.data ? { ...defaultAppSettings, ...collections.settings.data } : null
+      }
+    });
+  }, [isLoaded, collections.views.isLoading, collections.views.data, collections.settings.isLoading, collections.settings.data]);
+  
+  // Effect 3: Sync Project Data
+  useEffect(() => {
+    if (!isLoaded || collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading) return;
+    
+    const safeToDate = (value: any): Date | null => {
+        if (!value) return null;
+        if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
+            return value.toDate();
+        }
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) {
+            return d;
+        }
+        return null;
+    }
+  
+    dispatch({
+      type: 'SET_PROJECT_DATA',
+      payload: {
+        tasks: (collections.tasks.data || []).map(t => ({
+            ...t, 
+            start: safeToDate(t.start)!, 
+            finish: safeToDate(t.finish)!, 
+            constraintDate: safeToDate(t.constraintDate), 
+            deadline: safeToDate(t.deadline)
+        })),
+        links: collections.links.data || [],
+        resources: collections.resources.data || [],
+        assignments: collections.assignments.data || [],
+        calendars: (collections.calendars.data || []).map(c => ({
+            ...c, 
+            exceptions: (c.exceptions || []).map(e => ({
+                ...e, 
+                start: safeToDate(e.start)!, 
+                finish: safeToDate(e.finish)!
+            }))
+        })),
+      }
+    });
+  }, [isLoaded, collections.tasks.isLoading, collections.tasks.data, collections.links.isLoading, collections.links.data, collections.resources.isLoading, collections.resources.data, collections.assignments.isLoading, collections.assignments.data, collections.calendars.isLoading, collections.calendars.data]);
 
 
   useEffect(() => {
