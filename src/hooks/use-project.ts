@@ -180,6 +180,20 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
     return finalTasks;
 }
 
+// A helper function to get tasks that are currently visible (not inside a collapsed parent)
+function getVisibleTasks(tasks: Task[]): Task[] {
+    const taskMap = new Map(tasks.map(t => [t.id, t]));
+    return tasks.filter(task => {
+        if (!task.parentId) return true;
+        let p: Task | undefined = task.parentId ? taskMap.get(task.parentId) : undefined;
+        while(p) {
+            if (p.isCollapsed) return false;
+            p = p.parentId ? taskMap.get(p.parentId) : undefined;
+        }
+        return true;
+    });
+};
+
 function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null): Task[] => {
       const defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
@@ -189,19 +203,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       }
       const hierarchicalTasks = updateHierarchyAndSort(tasks);
       return calculateSchedule(hierarchicalTasks, links, columns, defaultCalendar);
-  };
-
-  const getVisibleTasks = (tasks: Task[]): Task[] => {
-      const taskMap = new Map(tasks.map(t => [t.id, t]));
-      return tasks.filter(task => {
-          if (!task.parentId) return true;
-          let parent = taskMap.get(task.parentId);
-          while(parent) {
-              if (parent.isCollapsed) return false;
-              parent = taskMap.get(parent.parentId || '');
-          }
-          return true;
-      });
   };
     
   const newState = ((): ProjectState => {
@@ -1013,7 +1014,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             }
             
             if (!newTask.name) {
-                newTask.name = `Pasted Task ${rowIndex + 1}`;
+                // If the name column wasn't visible or didn't contain data, we might not have a name.
+                // Try to find the first non-empty value from the paste and use it as a name.
+                 newTask.name = values.find(v => v.trim()) || `Pasted Task ${rowIndex + 1}`;
             }
             
             if (defaultCalendar) {
@@ -1335,34 +1338,35 @@ export function useProject() {
         const currentState = stateRef.current.present;
         if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
 
-        // Single cell copy
+        e.preventDefault();
+
+        // If multiple tasks are selected, copy the full rows in their display order.
+        if (currentState.selectedTaskIds.length > 1) {
+            const columnsToCopy = currentState.columns.filter(c => currentState.visibleColumns.includes(c.id));
+            const header = columnsToCopy.map(c => c.name).join('\t');
+
+            const visibleTasks = getVisibleTasks(currentState.tasks);
+            const selectedTasksInOrder = visibleTasks.filter(t => currentState.selectedTaskIds.includes(t.id));
+
+            const taskRows = selectedTasksInOrder.map(task => {
+                return columnsToCopy.map(col => getCellValue(task, col.id, currentState)).join('\t');
+            });
+
+            const data = [header, ...taskRows].join('\n');
+            e.clipboardData?.setData('text/plain', data);
+            return;
+        }
+        
+        // If only one (or zero) task is selected, copy the single active cell's value.
         if (currentState.activeCell) {
             const { taskId, columnId } = currentState.activeCell;
             const task = currentState.tasks.find(t => t.id === taskId);
             if (task) {
                 const cellValue = getCellValue(task, columnId, currentState);
                 e.clipboardData?.setData('text/plain', cellValue);
-                e.preventDefault();
                 return;
             }
         }
-        
-        // Row copy (fallback)
-        if (currentState.selectedTaskIds.length === 0) return;
-
-        e.preventDefault();
-
-        const columnsToCopy = currentState.columns.filter(c => currentState.visibleColumns.includes(c.id));
-        const header = columnsToCopy.map(c => c.name).join('\t');
-
-        const selectedTasks = currentState.tasks.filter(t => currentState.selectedTaskIds.includes(t.id));
-
-        const taskRows = selectedTasks.map(task => {
-            return columnsToCopy.map(col => getCellValue(task, col.id, currentState)).join('\t');
-        });
-
-        const data = [header, ...taskRows].join('\n');
-        e.clipboardData?.setData('text/plain', data);
     };
 
     const handlePaste = (e: ClipboardEvent) => {
