@@ -193,6 +193,7 @@ export function CalendarView({ calendar, dispatch }: { calendar: CalendarType, d
                               inactive_exception: "bg-destructive/50 text-destructive-foreground hover:bg-destructive/60",
                           }}
                           className="border rounded-md p-2"
+                          fixedWeeks
                       />
                   </div>
               ))}
