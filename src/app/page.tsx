@@ -89,26 +89,26 @@ export default function Home() {
 
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
-        <Button variant="outline" size="icon" onClick={handleAddTask}>
+        <Button variant="outline" size="icon" onClick={handleAddTask} title="Add Task">
             <Plus />
         </Button>
-        <Button variant="outline" size="icon" onClick={handleRemoveTask} disabled={state.selectedTaskIds.length === 0}>
+        <Button variant="outline" size="icon" onClick={handleRemoveTask} disabled={state.selectedTaskIds.length === 0} title="Remove Selected Tasks">
             <Trash2 />
         </Button>
-        <Button variant="outline" size="icon" onClick={handleLinkTasks} disabled={state.selectedTaskIds.length < 2}>
+        <Button variant="outline" size="icon" onClick={handleLinkTasks} disabled={state.selectedTaskIds.length < 2} title="Link Selected Tasks">
             <LinkIcon />
         </Button>
-        <Button variant="outline" size="icon" onClick={handleIndentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
+        <Button variant="outline" size="icon" onClick={handleIndentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0} title="Indent Task">
             <Indent />
         </Button>
-        <Button variant="outline" size="icon" onClick={handleOutdentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0}>
+        <Button variant="outline" size="icon" onClick={handleOutdentTask} disabled={state.selectedTaskIds.length === 0 || state.grouping.length > 0} title="Outdent Task">
             <Outdent />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
-        <Button variant="outline" size="icon" onClick={handleCollapseAll} disabled={state.grouping.length > 0}>
+        <Button variant="outline" size="icon" onClick={handleCollapseAll} disabled={state.grouping.length > 0} title="Collapse All">
             <ChevronsUp />
         </Button>
-        <Button variant="outline" size="icon" onClick={handleExpandAll} disabled={state.grouping.length > 0}>
+        <Button variant="outline" size="icon" onClick={handleExpandAll} disabled={state.grouping.length > 0} title="Expand All">
             <ChevronsDown />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
@@ -116,10 +116,10 @@ export default function Home() {
         {isLoaded && (
           <>
             <ColumnSelector visibleColumns={state.visibleColumns} columns={state.columns} dispatch={dispatch} />
-            <Button variant={state.filters.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsFilterDialogOpen(true)}>
+            <Button variant={state.filters.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsFilterDialogOpen(true)} title="Filter Tasks">
                 <Filter className="h-4 w-4" />
             </Button>
-            <Button variant={state.grouping.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsGroupingDialogOpen(true)}>
+            <Button variant={state.grouping.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsGroupingDialogOpen(true)} title="Group Tasks">
                 <Layers className="h-4 w-4" />
             </Button>
           </>
@@ -127,10 +127,10 @@ export default function Home() {
         
         <Separator orientation="vertical" className="h-6 mx-1" />
         
-        <Button variant="outline" size="icon" onClick={() => setIsResourceDialogOpen(true)}>
+        <Button variant="outline" size="icon" onClick={() => setIsResourceDialogOpen(true)} title="Manage Resources">
             <Users />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsCalendarDialogOpen(true)}>
+        <Button variant="outline" size="icon" onClick={() => setIsCalendarDialogOpen(true)} title="Manage Calendars">
             <CalendarDays />
         </Button>
         {isMobile && (
@@ -139,6 +139,7 @@ export default function Home() {
                 size="sm"
                 onClick={handleToggleMultiSelect}
                 className="w-9 px-0"
+                title="Toggle Multi-Select"
             >
                 <ListChecks />
             </Button>

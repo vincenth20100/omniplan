@@ -72,7 +72,7 @@ const TaskCellRenderer = React.memo(({
             const isGrouped = grouping.length > 0;
             const hasChildren = !isGrouped && task.isSummary;
             const indentLevel = displayLevel;
-            const hasNotes = task.notes && task.notes.length > 0;
+            const hasNotes = (task.notes && task.notes.length > 0) || !!task.additionalNotes;
 
             return (
                 <div className="flex items-center gap-1" style={{ paddingLeft: `${indentLevel * 1.5}rem` }}>
@@ -90,7 +90,7 @@ const TaskCellRenderer = React.memo(({
                             "w-5 flex-shrink-0"
                          )}></div>
                     )}
-                    {hasNotes && <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
+                    {hasNotes && <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" title="Task has notes or additional information" />}
                     {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive flex-shrink-0" title="Scheduling Conflict" />}
                     {task.deadlineMissed && task.deadline && <Flag className="h-4 w-4 text-destructive flex-shrink-0" title={`Deadline missed. Deadline was ${format(task.deadline, 'MMM d, yyyy')}`} />}
                     <div className="flex-grow">

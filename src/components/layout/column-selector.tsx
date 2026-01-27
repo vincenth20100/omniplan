@@ -79,7 +79,7 @@ export function ColumnSelector({
         <>
             <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
+                    <Button variant="outline" size="icon" title="Select Visible Columns">
                         <Columns3 className="h-4 w-4" />
                     </Button>
                 </DropdownMenuTrigger>
