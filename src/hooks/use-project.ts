@@ -85,6 +85,7 @@ type Action =
   | { type: 'SELECT_TASK'; payload: { taskId: string | null, ctrlKey?: boolean, shiftKey?: boolean } }
   | { type: 'LINK_TASKS' }
   | { type: 'ADD_LINK'; payload: { source: string, target: string, type: LinkType, lag: number } }
+  | { type: 'ADD_LINK_OPTIMISTIC'; payload: Link }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
   | { type: 'COLLAPSE_ALL' }
@@ -99,10 +100,12 @@ type Action =
   | { type: 'ADD_TASK_OPTIMISTIC'; payload: { task: Task } }
   | { type: 'REMOVE_TASK' }
   | { type: 'REMOVE_LINK'; payload: { linkId: string } }
+  | { type: 'REMOVE_LINK_OPTIMISTIC'; payload: { linkId: string } }
   | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string; position: 'top' | 'bottom' } }
   | { type: 'NEST_TASKS', payload: { sourceIds: string[], parentId: string }}
   | { type: 'SET_UI_DENSITY', payload: UiDensity }
   | { type: 'UPDATE_RELATIONSHIPS', payload: { taskId: string, field: 'predecessors' | 'successors', value: string }}
+  | { type: 'SET_LINKS', payload: Link[] }
   | { type: 'ADD_RESOURCE' }
   | { type: 'ADD_RESOURCE_OPTIMISTIC'; payload: { resource: Resource } }
   | { type: 'REMOVE_RESOURCE', payload: { resourceId: string } }
@@ -584,6 +587,33 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const scheduledTasks = runScheduler(state.tasks, allLinks, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, links: allLinks, tasks: scheduledTasks, isDirty: true };
     }
+    case 'ADD_LINK': 
+        return state; // Handled by Firestore action
+    
+    case 'ADD_LINK_OPTIMISTIC': {
+        const newLinks = [...state.links, action.payload];
+        const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, links: newLinks, tasks: scheduledTasks, isDirty: true };
+    }
+
+    case 'REMOVE_LINK':
+        return state; // Handled by Firestore action
+
+    case 'REMOVE_LINK_OPTIMISTIC': {
+        const { linkId } = action.payload;
+        const newLinks = state.links.filter(l => l.id !== linkId);
+        const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, links: newLinks, tasks: scheduledTasks, isDirty: true };
+    }
+    
+    case 'UPDATE_RELATIONSHIPS':
+        return state; // Handled by Firestore action
+
+    case 'SET_LINKS': {
+        const newLinks = action.payload;
+        const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, links: newLinks, tasks: scheduledTasks, isDirty: true };
+    }
     case 'INDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
 
@@ -601,8 +631,24 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         // Cannot indent the first task in the project list.
         if (firstSelectedIndex === 0) return state;
         
-        const parentTask = tasks[firstSelectedIndex - 1];
+        let parentTask = tasks[firstSelectedIndex - 1];
         
+        // Find the "real" previous task if the one before is a child of the same parent and collapsed
+        const firstSelectedTask = taskMap.get(sortedSelectedIds[0])!;
+        let potentialParentIndex = firstSelectedIndex - 1;
+        while(potentialParentIndex > 0) {
+            const p = tasks[potentialParentIndex];
+            if (p.level < firstSelectedTask.level!) {
+                break;
+            }
+             if (p.level === firstSelectedTask.level) {
+                parentTask = tasks[potentialParentIndex];
+                break;
+            }
+            potentialParentIndex--;
+        }
+
+
         // Do not allow indenting if the new parent is also part of the selection.
         if (state.selectedTaskIds.includes(parentTask.id)) {
             return state;
@@ -868,6 +914,107 @@ export function useProject(user: User) {
         return;
     }
 
+    if (action.type === 'ADD_LINK') {
+        const newLink: Link = {
+            id: `link-${Date.now()}`,
+            source: action.payload.source,
+            target: action.payload.target,
+            type: action.payload.type,
+            lag: action.payload.lag,
+        };
+        const docRef = doc(firestore, 'users', user.uid, 'links', newLink.id);
+        setDocumentNonBlocking(docRef, newLink, {});
+        dispatch({ type: 'ADD_LINK_OPTIMISTIC', payload: newLink });
+        return;
+    }
+
+    if (action.type === 'REMOVE_LINK') {
+        const { linkId } = action.payload;
+        const docRef = doc(firestore, 'users', user.uid, 'links', linkId);
+        deleteDocumentNonBlocking(docRef);
+        dispatch({ type: 'REMOVE_LINK_OPTIMISTIC', payload: { linkId } });
+        return;
+    }
+
+    if (action.type === 'UPDATE_RELATIONSHIPS') {
+        const { taskId, field, value } = action.payload;
+        const { tasks, links } = historyState.present;
+        const wbsToIdMap = new Map(tasks.map(t => [t.wbs, t.id]));
+        const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
+
+        const existingLinks = links.filter(l => (field === 'predecessors' ? l.target : l.source) === taskId);
+        const existingRelations = new Set(existingLinks.map(l => {
+            const relatedTaskWbs = idToWbsMap.get(field === 'predecessors' ? l.source : l.target) || '';
+            let lagString = '';
+            if (l.lag > 0) lagString = `+${l.lag}d`;
+            if (l.lag < 0) lagString = `${l.lag}d`;
+            return `${relatedTaskWbs}${l.type}${lagString}`;
+        }));
+        
+        const newRelations = new Set(value.split(',').map(s => s.trim()).filter(Boolean));
+        
+        const relationsToRemove = [...existingRelations].filter(r => !newRelations.has(r));
+        const relationsToAdd = [...newRelations].filter(r => !existingRelations.has(r));
+
+        const linksToRemove = existingLinks.filter(l => {
+             const relatedTaskWbs = idToWbsMap.get(field === 'predecessors' ? l.source : l.target) || '';
+             let lagString = '';
+             if (l.lag > 0) lagString = `+${l.lag}d`;
+             if (l.lag < 0) lagString = `${l.lag}d`;
+             const relationString = `${relatedTaskWbs}${l.type}${lagString}`;
+             return relationsToRemove.includes(relationString);
+        });
+
+        const linkParseRegex = /^(\d+(?:\.\d+)*)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
+        const linksToAddData: Omit<Link, 'id'>[] = relationsToAdd.map(rel => {
+            const match = rel.match(linkParseRegex);
+            if (!match) return null;
+            
+            const wbs = match[1];
+            const type = (match[2] || 'FS').toUpperCase() as LinkType;
+            const lagStr = match[3];
+            const lag = lagStr ? parseInt(lagStr) : 0;
+            const relatedTaskId = wbsToIdMap.get(wbs);
+
+            if (relatedTaskId && relatedTaskId !== taskId) {
+                return {
+                    source: field === 'predecessors' ? relatedTaskId : taskId,
+                    target: field === 'predecessors' ? taskId : relatedTaskId,
+                    type,
+                    lag,
+                };
+            }
+            return null;
+        }).filter((l): l is Omit<Link, 'id'> => l !== null);
+
+        const batch = writeBatch(firestore);
+        
+        linksToRemove.forEach(link => {
+            const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
+            batch.delete(docRef);
+        });
+
+        const newLinkObjects: Link[] = linksToAddData.map((linkData, i) => ({
+             id: `link-${Date.now()}-${i}`,
+            ...linkData
+        }));
+
+        newLinkObjects.forEach(linkObj => {
+            const docRef = doc(firestore, 'users', user.uid, 'links', linkObj.id);
+            batch.set(docRef, linkObj);
+        });
+
+        batch.commit().catch(error => console.error("Failed to update relationships in batch", error));
+
+        const finalLinks = [
+            ...links.filter(l => !linksToRemove.some(r => r.id === l.id)),
+            ...newLinkObjects
+        ];
+        
+        dispatch({ type: 'SET_LINKS', payload: finalLinks });
+        return;
+    }
+
     dispatch(action);
     
     switch (action.type) {
@@ -937,10 +1084,10 @@ export function useProject(user: User) {
              });
              batch.commit().finally(() => {
                 setIsSeeding(false);
-                setIsLoaded(true);
+                // Do not set isLoaded here, let the hook re-run with fresh data
              });
-             return; // Exit effect, will re-run when hooks update.
-        } else {
+             return;
+        } else if (!isLoaded) {
              // If no seeding is needed, mark as loaded immediately.
              setIsLoaded(true);
         }
