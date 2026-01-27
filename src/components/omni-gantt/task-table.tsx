@@ -33,6 +33,7 @@ const TaskCellRenderer = React.memo(({
     handleToggle,
     displayLevel,
     grouping,
+    tasks,
 }: {
     task: Task;
     column: ColumnSpec;
@@ -44,13 +45,14 @@ const TaskCellRenderer = React.memo(({
     handleToggle: (e: React.MouseEvent, taskId: string) => void;
     displayLevel: number;
     grouping: string[];
+    tasks: Task[];
 }) => {
     switch (column.id) {
         case 'wbs':
             return <>{task.wbs}</>;
         case 'name': {
             const isGrouped = grouping.length > 0;
-            const hasChildren = !isGrouped && task.isSummary;
+            const hasChildren = !isGrouped && tasks.some(t => t.parentId === task.id);
             const indentLevel = displayLevel;
             const hasNotes = task.notes && task.notes.length > 0;
 
@@ -642,6 +644,7 @@ export function TaskTable({
                                                     handleToggle={handleToggle}
                                                     displayLevel={item.displayLevel}
                                                     grouping={grouping}
+                                                    tasks={tasks}
                                             />
                                             </div>
                                         </TableCell>
