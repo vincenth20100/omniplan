@@ -84,7 +84,7 @@ class CalendarService {
   }
 
   public calculateFinishDate(startDate: Date, duration: number, unit: DurationUnit, calendar: Calendar): Date {
-      const durationValue = duration > 0 ? duration - 1 : 0;
+      const durationValue = duration > 0 ? duration - 1 : (duration < 0 ? duration + 1 : 0);
       switch (unit) {
           case 'ed': // elapsed days
               return addDays(startDate, durationValue);
