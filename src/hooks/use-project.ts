@@ -120,7 +120,9 @@ type Action =
   | { type: 'STOP_EDITING_CELL' }
   | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
   | { type: 'EXPAND_ALL' }
-  | { type: 'COLLAPSE_ALL' };
+  | { type: 'COLLAPSE_ALL' }
+  | { type: 'UNDO' }
+  | { type: 'REDO' };
 
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -1025,6 +1027,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, tasks: scheduledTasks, selectedTaskIds: newTasks.map(t => t.id) };
       }
       case 'SET_ACTIVE_CELL': {
+        if (action.payload?.taskId === state.activeCell?.taskId && action.payload?.columnId === state.activeCell?.columnId) {
+            return { ...state, activeCell: action.payload, editingCell: action.payload };
+        }
         return { ...state, activeCell: action.payload, editingCell: null };
       }
       case 'START_EDITING_CELL': {
@@ -1091,14 +1096,115 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
   })();
   
-  if (action.type !== 'INIT_STATE') {
-    return { ...newState, isDirty: true, historyLog: [...state.historyLog, { action, timestamp: new Date() }] };
+  if (action.type === 'INIT_STATE') {
+      return newState;
   }
-  return newState;
+  
+  if (state === newState) {
+    return state;
+  }
+
+  const nonLoggableActions: Action['type'][] = [
+    'SCHEDULE_PROJECT',
+    'SELECT_TASK',
+    'MOVE_SELECTION',
+    'TOGGLE_MULTI_SELECT_MODE',
+    'SET_ACTIVE_CELL',
+    'START_EDITING_CELL',
+    'STOP_EDITING_CELL',
+    'UNDO',
+    'REDO'
+  ];
+
+  if (nonLoggableActions.includes(action.type)) {
+      return { ...newState, isDirty: true };
+  }
+  
+  // Create a serializable and minimal action object for the log
+  const loggedAction = { type: action.type, payload: (action as any).payload };
+
+  return { ...newState, isDirty: true, historyLog: [...(newState.historyLog || []), { action: loggedAction, timestamp: new Date() }] };
 }
 
+type UndoableState = {
+    past: ProjectState[];
+    present: ProjectState;
+    future: ProjectState[];
+};
+
+const nonUndoableActions: Action['type'][] = [
+    'INIT_STATE', 
+    'SELECT_TASK', 
+    'MOVE_SELECTION', 
+    'TOGGLE_MULTI_SELECT_MODE',
+    'SET_ACTIVE_CELL',
+    'START_EDITING_CELL',
+    'STOP_EDITING_CELL',
+    'UNDO',
+    'REDO'
+];
+
+function undoableReducer(state: UndoableState, action: Action): UndoableState {
+    const { past, present, future } = state;
+
+    switch (action.type) {
+        case 'UNDO': {
+            if (past.length === 0) return state;
+            const previous = past[past.length - 1];
+            const newPast = past.slice(0, past.length - 1);
+            return {
+                past: newPast,
+                present: previous,
+                future: [present, ...future]
+            };
+        }
+        case 'REDO': {
+            if (future.length === 0) return state;
+            const next = future[0];
+            const newFuture = future.slice(1);
+            return {
+                past: [...past, present],
+                present: next,
+                future: newFuture
+            };
+        }
+        case 'LOAD_PROJECT':
+        case 'NEW_PROJECT': {
+             const newPresent = projectReducer(present, action);
+             return {
+                 past: [],
+                 present: newPresent,
+                 future: []
+             };
+        }
+        default: {
+            const newPresent = projectReducer(present, action);
+            if (present === newPresent) {
+                return state;
+            }
+
+            if (nonUndoableActions.includes(action.type)) {
+                return { ...state, present: newPresent };
+            }
+            
+            return {
+                past: [...past, present],
+                present: newPresent,
+                future: []
+            };
+        }
+    }
+}
+
+
+const initialStateWithHistory: UndoableState = {
+    past: [],
+    present: initialState,
+    future: [],
+};
+
 export function useProject() {
-  const [state, dispatch] = useReducer(projectReducer, initialState);
+  const [state, dispatch] = useReducer(undoableReducer, initialStateWithHistory);
   const [isLoaded, setIsLoaded] = useState(false);
   const stateRef = useRef(state);
 
@@ -1108,11 +1214,24 @@ export function useProject() {
 
    useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const currentState = stateRef.current;
+      const currentState = stateRef.current.present;
       if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
         return;
       }
       
+      if (event.ctrlKey || event.metaKey) {
+        if (event.key === 'z' && !event.shiftKey) {
+            event.preventDefault();
+            dispatch({ type: 'UNDO' });
+            return;
+        }
+        if (event.key === 'y' || (event.key === 'z' && event.shiftKey)) {
+            event.preventDefault();
+            dispatch({ type: 'REDO' });
+            return;
+        }
+      }
+
       if (event.shiftKey && event.altKey) {
         if (event.key === 'ArrowRight') {
           event.preventDefault();
@@ -1207,7 +1326,7 @@ export function useProject() {
     };
 
     const handleCopy = (e: ClipboardEvent) => {
-        const currentState = stateRef.current;
+        const currentState = stateRef.current.present;
         if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
 
         // Single cell copy
@@ -1246,7 +1365,7 @@ export function useProject() {
         const data = e.clipboardData?.getData('text/plain');
         if (!data) return;
 
-        const currentState = stateRef.current;
+        const currentState = stateRef.current.present;
 
         // Single cell paste
         if (currentState.activeCell) {
@@ -1371,5 +1490,12 @@ export function useProject() {
     setIsLoaded(true);
   }, []);
 
-  return { state, dispatch, isLoaded };
+  return { 
+    state: state.present, 
+    dispatch, 
+    isLoaded,
+    history: state.past,
+    canUndo: state.past.length > 0,
+    canRedo: state.future.length > 0,
+  };
 }

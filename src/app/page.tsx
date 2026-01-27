@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo, Redo } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
@@ -21,14 +21,16 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { ColumnSelector } from '@/components/layout/column-selector';
 import { GanttSettingsPanel } from '@/components/gantt-settings/gantt-settings-panel';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { HistoryPanel } from '@/components/history/history-panel';
 
 export default function Home() {
-  const { state, dispatch, isLoaded } = useProject();
+  const { state, dispatch, isLoaded, canUndo, canRedo, history } = useProject();
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [isGanttSettingsOpen, setIsGanttSettingsOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const isMobile = useIsMobile();
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
@@ -92,6 +94,13 @@ export default function Home() {
 
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo} title="Undo (Ctrl+Z)">
+            <Undo />
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REDO' })} disabled={!canRedo} title="Redo (Ctrl+Y)">
+            <Redo />
+        </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
         <Button variant="outline" size="icon" onClick={handleAddTask} title="Add Task">
             <Plus />
         </Button>
@@ -138,6 +147,9 @@ export default function Home() {
         </Button>
         <Button variant="outline" size="icon" onClick={() => setIsGanttSettingsOpen(true)} title="Gantt Display Options">
             <Settings />
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => setIsHistoryOpen(true)} title="Show History">
+            <History />
         </Button>
         {isMobile && (
             <Button
@@ -249,6 +261,12 @@ export default function Home() {
             open={isGanttSettingsOpen}
             onOpenChange={setIsGanttSettingsOpen}
             settings={state.ganttSettings}
+            dispatch={dispatch}
+          />
+          <HistoryPanel
+            open={isHistoryOpen}
+            onOpenChange={setIsHistoryOpen}
+            history={history}
             dispatch={dispatch}
           />
         </>
