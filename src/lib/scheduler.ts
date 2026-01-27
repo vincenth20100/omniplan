@@ -126,6 +126,17 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         
         if (task.isSummary) continue;
 
+        // If a task has progress, its start date is fixed.
+        if ((task.percentComplete || 0) > 0) {
+            const { duration } = task;
+            task.finish = calendarService.addWorkingDays(task.start, duration > 0 ? duration - 1 : 0, calendar);
+            
+            if (task.deadline && task.finish > startOfDay(task.deadline)) {
+                task.deadlineMissed = true;
+            }
+            continue; // Skip rescheduling for tasks in progress.
+        }
+
         // --- Calculate Early Start from Predecessors ---
         let predecessorDrivenStart = new Date(0);
         const predecessorLinks = predecessorsMap.get(taskId) || [];
