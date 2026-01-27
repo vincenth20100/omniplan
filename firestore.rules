@@ -72,7 +72,10 @@ service cloud.firestore {
      * changed during an update. Enforces immutability of the primary key.
      */
     function hasImmutableId() {
-      return request.resource.data.id == resource.data.id;
+      // For updates, the `id` field should not be in the incoming data.
+      // If it is, it must match the existing document's id.
+      // This prevents changing the id, while allowing updates to other fields.
+      return !('id' in request.resource.data) || request.resource.data.id == resource.data.id;
     }
 
     /**
