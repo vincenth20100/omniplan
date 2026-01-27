@@ -247,8 +247,12 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         if (successors.length > 0) {
             const potentialLateFinishes = successors.map(link => {
                 const successorTask = taskMap.get(link.target)!;
-                const successorLateStart = successorTask.lateStart!;
+                const successorLateStart = successorTask.lateStart;
                 
+                if (!successorLateStart) {
+                    return projectFinishDate;
+                }
+
                 let constrainedLateFinish: Date;
                 switch (link.type) {
                     case 'FS': // Finish-to-Start
