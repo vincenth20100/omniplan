@@ -62,16 +62,14 @@ const TaskCellRenderer = React.memo(({
                         <button
                           onClick={(e) => handleToggle(e, task.id)}
                           className={cn(
-                            "p-0.5 rounded-sm hover:bg-muted",
-                            indentLevel > 0 && "-ml-6"
+                            "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-sm p-0 hover:bg-muted"
                           )}
                         >
                             {task.isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </button>
                     ) : (
                          <div className={cn(
-                            "w-5",
-                            !isGrouped && indentLevel > 0 && "-ml-6"
+                            "w-5 flex-shrink-0"
                          )}></div>
                     )}
                     {hasNotes && <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
