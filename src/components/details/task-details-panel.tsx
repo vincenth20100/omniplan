@@ -1,5 +1,5 @@
 'use client';
-import type { Task, Link, UiDensity } from '@/lib/types';
+import type { Task, Link, UiDensity, Calendar } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { PredecessorList } from './predecessor-list';
@@ -11,7 +11,7 @@ import { NotesSection } from './notes-section';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { InfoSection } from './info-section';
 
-export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDensity }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void, uiDensity: UiDensity }) {
+export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDensity, defaultCalendar }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null }) {
 
     const predecessors = links.filter(l => l.target === task.id);
     const successors = links.filter(l => l.source === task.id);
@@ -91,7 +91,7 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                             uiDensity === 'medium' && 'p-3',
                             uiDensity === 'compact' && 'p-2'
                         )}>
-                            <InfoSection task={task} dispatch={dispatch} />
+                            <InfoSection task={task} dispatch={dispatch} defaultCalendar={defaultCalendar} />
                         </div>
                     </TabsContent>
                     <TabsContent value="notes" className="m-0 h-full">

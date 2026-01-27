@@ -30,6 +30,7 @@ export default function Home() {
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
   const selectedTask = state.tasks.find(t => t.id === lastSelectedId);
+  const defaultCalendar = state.calendars.find(c => c.id === state.defaultCalendarId) || state.calendars[0] || null;
 
   const handleAddTask = () => {
     dispatch({ type: 'ADD_TASK' });
@@ -170,6 +171,7 @@ export default function Home() {
                     dispatch={dispatch}
                     onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
                     uiDensity={state.uiDensity}
+                    defaultCalendar={defaultCalendar}
                   />
                 </ResizablePanel>
               </>
