@@ -149,5 +149,44 @@ service cloud.firestore {
       allow update: if isExistingOwner(userId) && hasImmutableId();
       allow delete: if isExistingOwner(userId);
     }
+
+    /**
+     * @description Rules for user-owned resources.
+     * @path /users/{userId}/resources/{resourceId}
+     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
+     */
+    match /users/{userId}/resources/{resourceId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasMatchingId(resourceId);
+      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for user-owned assignments.
+     * @path /users/{userId}/assignments/{assignmentId}
+     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
+     */
+    match /users/{userId}/assignments/{assignmentId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasMatchingId(assignmentId);
+      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for user-owned calendars.
+     * @path /users/{userId}/calendars/{calendarId}
+     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
+     */
+    match /users/{userId}/calendars/{calendarId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasMatchingId(calendarId);
+      allow update: if isExistingOwner(userId) && hasImmutableId();
+      allow delete: if isExistingOwner(userId);
+    }
   }
 }

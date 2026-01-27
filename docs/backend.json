@@ -174,6 +174,151 @@
         "previousState",
         "newState"
       ]
+    },
+    "Resource": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Resource",
+      "type": "object",
+      "description": "Represents a resource that can be assigned to tasks.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the resource."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the resource."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "Work",
+            "Material",
+            "Cost"
+          ],
+          "description": "Type of the resource."
+        },
+        "costPerHour": {
+          "type": "number",
+          "description": "Cost per hour for work resources."
+        },
+        "availability": {
+          "type": "number",
+          "description": "Availability of the resource (e.g., 1 for 100%)."
+        },
+        "calendarId": {
+          "type": "string",
+          "description": "Reference to the calendar for this resource."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "type"
+      ]
+    },
+    "Assignment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Assignment",
+      "type": "object",
+      "description": "Links a task to a resource.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the assignment."
+        },
+        "taskId": {
+          "type": "string",
+          "description": "ID of the assigned task."
+        },
+        "resourceId": {
+          "type": "string",
+          "description": "ID of the assigned resource."
+        },
+        "units": {
+          "type": "number",
+          "description": "Units of the resource assigned (e.g., 1 for 100%)."
+        }
+      },
+      "required": [
+        "id",
+        "taskId",
+        "resourceId"
+      ]
+    },
+    "Exception": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Exception",
+      "type": "object",
+      "description": "Represents a non-working period in a calendar.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finish": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "isActive": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "start",
+        "finish"
+      ]
+    },
+    "Calendar": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Calendar",
+      "type": "object",
+      "description": "Defines working and non-working time for scheduling.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "workingDays": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "exceptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/entities/Exception"
+          }
+        },
+        "nonWorkingDayOverrides": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "workingDayOverrides": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "workingDays"
+      ]
     }
   },
   "auth": {
@@ -188,7 +333,7 @@
         "definition": {
           "entityName": "user",
           "schema": {
-            "$ref": "#/backend/entities/User"
+            "$ref": "#/entities/User"
           },
           "description": "Collection to store user-related data. Acts as the root for all user-owned subcollections.",
           "params": [
@@ -204,7 +349,7 @@
         "definition": {
           "entityName": "Task",
           "schema": {
-            "$ref": "#/backend/entities/Task"
+            "$ref": "#/entities/Task"
           },
           "description": "Collection to store tasks owned by a specific user.",
           "params": [
@@ -224,7 +369,7 @@
         "definition": {
           "entityName": "Link",
           "schema": {
-            "$ref": "#/backend/entities/Link"
+            "$ref": "#/entities/Link"
           },
           "description": "Collection to store links (task dependencies) owned by a specific user.",
           "params": [
@@ -244,7 +389,7 @@
         "definition": {
           "entityName": "Zone",
           "schema": {
-            "$ref": "#/backend/entities/Zone"
+            "$ref": "#/entities/Zone"
           },
           "description": "Collection to store zones (spatial areas) owned by a specific user.",
           "params": [
@@ -264,7 +409,7 @@
         "definition": {
           "entityName": "HistoryLog",
           "schema": {
-            "$ref": "#/backend/entities/HistoryLog"
+            "$ref": "#/entities/HistoryLog"
           },
           "description": "Collection to store history logs for changes made by a specific user.",
           "params": [
@@ -278,8 +423,68 @@
             }
           ]
         }
+      },
+      {
+        "path": "/users/{userId}/resources/{resourceId}",
+        "definition": {
+          "entityName": "Resource",
+          "schema": {
+            "$ref": "#/entities/Resource"
+          },
+          "description": "Collection to store resources owned by a specific user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "resourceId",
+              "description": "The unique identifier for the resource."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/assignments/{assignmentId}",
+        "definition": {
+          "entityName": "Assignment",
+          "schema": {
+            "$ref": "#/entities/Assignment"
+          },
+          "description": "Collection to store resource assignments for tasks owned by a specific user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "assignmentId",
+              "description": "The unique identifier for the assignment."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/calendars/{calendarId}",
+        "definition": {
+          "entityName": "Calendar",
+          "schema": {
+            "$ref": "#/entities/Calendar"
+          },
+          "description": "Collection to store calendars owned by a specific user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "calendarId",
+              "description": "The unique identifier for the calendar."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support the OmniPlan AI application, focusing on scalability, security, and maintainability. It leverages structural segregation and denormalization to ensure authorization independence and simplify security rules. The design acknowledges the need for a relational design for tasks, links and zones.\n\n1.  **Authorization Independence:** The structure avoids hierarchical `get()` calls in security rules by denormalizing authorization context where necessary. Since there are no collaborative entities, but rather path-based ownership via the user id, denormalization is simple.\n2.  **Structural Segregation:** Each collection houses documents with a homogeneous security posture. Private user data is stored under the `/users/{userId}` path, ensuring only the authenticated user can access their data. Shared project data would be stored at the project level, with its own security rules. Because there is no collaborative context, this is not needed here.\n3.  **Access Modeling:** The structure adheres to consistent access patterns. Tasks, Links, Zones, and HistoryLogs are nested under `/users/{userId}`, clearly indicating ownership. This path-based ownership simplifies the security rules.\n4.  **QAPs (Rules are not Filters):** The structure enables secure `list` operations by ensuring all documents within a collection share the same security requirements. The path-based ownership model allows listing only the documents owned by the authenticated user.\n5. **History Logs**: For the prompt's request to persist modifications to the application state, the data structure includes a `HistoryLog` entity. This entity captures changes made to tasks, links, and zones, including the previous and new states of the modified entities. Because this is considered private data, it is nested under the user.\n\nThis structure allows for future expansion, such as adding collaborative projects or more complex role-based access control, by introducing new top-level collections with appropriate membership maps and security rules."
+    "reasoning": "The Firestore structure is designed to support the OmniPlan AI application, focusing on scalability, security, and maintainability. It leverages structural segregation and denormalization to ensure authorization independence and simplify security rules. The design acknowledges the need for a relational design for tasks, links and zones.\n\n1.  **Authorization Independence:** The structure avoids hierarchical `get()` calls in security rules by denormalizing authorization context where necessary. Since there are no collaborative entities, but rather path-based ownership via the user id, denormalization is simple.\n2.  **Structural Segregation:** Each collection houses documents with a homogeneous security posture. Private user data is stored under the `/users/{userId}` path, ensuring only the authenticated user can access their data. Shared project data would be stored at the project level, with its own security rules. Because there is no collaborative context, this is not needed here.\n3.  **Access Modeling:** The structure adheres to consistent access patterns. Tasks, Links, Zones, HistoryLogs, Resources, Assignments, and Calendars are nested under `/users/{userId}`, clearly indicating ownership. This path-based ownership simplifies the security rules.\n4.  **QAPs (Rules are not Filters):** The structure enables secure `list` operations by ensuring all documents within a collection share the same security requirements. The path-based ownership model allows listing only the documents owned by the authenticated user.\n5. **History Logs**: For the prompt's request to persist modifications to the application state, the data structure includes a `HistoryLog` entity. This entity captures changes made to tasks, links, and zones, including the previous and new states of the modified entities. Because this is considered private data, it is nested under the user.\n\nThis structure allows for future expansion, such as adding collaborative projects or more complex role-based access control, by introducing new top-level collections with appropriate membership maps and security rules."
   }
 }
