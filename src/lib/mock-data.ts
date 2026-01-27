@@ -44,13 +44,13 @@ export const initialLinks: Link[] = [
 ];
 
 export const initialResources: Resource[] = [
-    { id: 'r1', name: 'Project Manager', type: 'Work', costPerHour: 100, availability: 1 },
-    { id: 'r2', name: 'Business Analyst', type: 'Work', costPerHour: 80, availability: 1 },
-    { id: 'r3', name: 'Lead Designer', type: 'Work', costPerHour: 90, availability: 1 },
-    { id: 'r4', name: 'Lead Engineer', type: 'Work', costPerHour: 120, availability: 1 },
-    { id: 'r5', name: 'QA Engineer', type: 'Work', costPerHour: 70, availability: 1 },
-    { id: 'r6', name: 'DevOps Engineer', type: 'Work', costPerHour: 110, availability: 1 },
-    { id: 'r7', name: 'Steel Beams', type: 'Material', costPerHour: 0, availability: 100 },
+    { id: 'r1', name: 'Project Manager', type: 'Work', category: 'Management', costPerHour: 100, availability: 1 },
+    { id: 'r2', name: 'Business Analyst', type: 'Work', category: 'Management', costPerHour: 80, availability: 1 },
+    { id: 'r3', name: 'Lead Designer', type: 'Work', category: 'Design', costPerHour: 90, availability: 1 },
+    { id: 'r4', name: 'Lead Engineer', type: 'Work', category: 'Engineering', costPerHour: 120, availability: 1 },
+    { id: 'r5', name: 'QA Engineer', type: 'Work', category: 'Engineering', costPerHour: 70, availability: 1 },
+    { id: 'r6', name: 'DevOps Engineer', type: 'Work', category: 'Engineering', costPerHour: 110, availability: 1 },
+    { id: 'r7', name: 'Steel Beams', type: 'Material', category: 'Building Materials', costPerHour: 0, availability: 100 },
 ];
 
 export const initialAssignments: Assignment[] = [

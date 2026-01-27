@@ -189,6 +189,10 @@
           "type": "string",
           "description": "Name of the resource."
         },
+        "category": {
+          "type": "string",
+          "description": "Category of the resource."
+        },
         "type": {
           "type": "string",
           "enum": [

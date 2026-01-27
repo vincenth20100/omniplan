@@ -101,6 +101,7 @@ export interface Resource {
   id: string;
   name: string;
   type: 'Work' | 'Material' | 'Cost';
+  category?: string;
   costPerHour?: number;
   availability?: number; // e.g. 1 = 100%
   calendarId?: string | null;

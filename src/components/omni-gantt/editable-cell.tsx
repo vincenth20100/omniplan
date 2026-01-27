@@ -8,17 +8,21 @@ export function EditableCell({
     value,
     onSave,
     className,
-    isEditing,
-    onStopEditing,
+    isEditing: isEditingProp, // To be able to control from outside
+    onStopEditing: onStopEditingProp, // To be able to control from outside
     initialValue,
 }: {
     value: string;
     onSave: (newValue: string) => void;
     className?: string;
-    isEditing: boolean;
-    onStopEditing: () => void;
+    isEditing?: boolean; // now optional
+    onStopEditing?: () => void; // now optional
     initialValue?: string;
 }) {
+    const [internalIsEditing, setInternalIsEditing] = useState(false);
+    const isControlled = isEditingProp !== undefined;
+    const isEditing = isControlled ? isEditingProp : internalIsEditing;
+
     const [currentValue, setCurrentValue] = useState(value);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -48,7 +52,11 @@ export function EditableCell({
         if (currentValue !== value) {
             onSave(currentValue);
         }
-        onStopEditing();
+        if (isControlled) {
+            onStopEditingProp?.();
+        } else {
+            setInternalIsEditing(false);
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -56,27 +64,31 @@ export function EditableCell({
             e.currentTarget.blur();
         } else if (e.key === 'Escape') {
             setCurrentValue(value);
-            onStopEditing();
+            if (isControlled) {
+                onStopEditingProp?.();
+            } else {
+                setInternalIsEditing(false);
+            }
         }
     };
 
-    if (isEditing) {
-        return (
-            <Input
-                ref={inputRef}
-                type="text"
-                value={currentValue}
-                onChange={(e) => setCurrentValue(e.target.value)}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                className={cn("h-full p-0 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring", className)}
-            />
-        );
-    }
-
     return (
-        <div className={cn("w-full h-full flex items-center", className)}>
-            {value}
+        <div className={cn("w-full h-full flex items-center cursor-text", className)} onClick={() => !isControlled && !internalIsEditing && setInternalIsEditing(true)}>
+             {isEditing ? (
+                <Input
+                    ref={inputRef}
+                    type="text"
+                    value={currentValue}
+                    onChange={(e) => setCurrentValue(e.target.value)}
+                    onBlur={handleBlur}
+                    onKeyDown={handleKeyDown}
+                    className={cn("h-full p-0 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring", className)}
+                />
+            ) : (
+                <div className="w-full h-full flex items-center">
+                    {value}
+                </div>
+            )}
         </div>
     );
 }

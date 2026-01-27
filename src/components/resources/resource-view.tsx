@@ -33,6 +33,7 @@ export function ResourceView({ projectState, dispatch }: { projectState: Project
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Name</TableHead>
+                                <TableHead>Category</TableHead>
                                 <TableHead className="w-[120px]">Type</TableHead>
                                 <TableHead className="w-[120px]">Cost/Hour</TableHead>
                                 <TableHead className="w-[120px]">Availability</TableHead>
@@ -46,6 +47,12 @@ export function ResourceView({ projectState, dispatch }: { projectState: Project
                                         <EditableCell 
                                             value={resource.name}
                                             onSave={(newValue) => dispatch({ type: 'UPDATE_RESOURCE', payload: { id: resource.id, name: newValue }})}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <EditableCell 
+                                            value={resource.category || ''}
+                                            onSave={(newValue) => dispatch({ type: 'UPDATE_RESOURCE', payload: { id: resource.id, category: newValue }})}
                                         />
                                     </TableCell>
                                     <TableCell>
