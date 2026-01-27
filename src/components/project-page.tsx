@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2 } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState } from 'react';
@@ -23,6 +23,7 @@ import { GanttSettingsPanel } from '@/components/gantt-settings/gantt-settings-p
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { HistoryPanel } from '@/components/history/history-panel';
 import type { User } from 'firebase/auth';
+import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
 
 export function ProjectPage({ user }: { user: User }) {
   const { state, dispatch, isLoaded, canUndo, canRedo, history } = useProject(user);
@@ -32,6 +33,7 @@ export function ProjectPage({ user }: { user: User }) {
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [isGanttSettingsOpen, setIsGanttSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
   const isMobile = useIsMobile();
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
@@ -131,6 +133,9 @@ export function ProjectPage({ user }: { user: User }) {
         </Button>
         <Button variant="outline" size="icon" onClick={() => setIsHistoryOpen(true)} title="Show History">
             <History />
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => setIsShortcutsDialogOpen(true)} title="Keyboard Shortcuts">
+            <Keyboard />
         </Button>
         {isMobile && (
             <Button
@@ -251,6 +256,10 @@ export function ProjectPage({ user }: { user: User }) {
             history={history.log}
             currentIndex={history.index}
             dispatch={dispatch}
+          />
+          <KeyboardShortcutsDialog
+            open={isShortcutsDialogOpen}
+            onOpenChange={setIsShortcutsDialogOpen}
           />
         </>
       )}
