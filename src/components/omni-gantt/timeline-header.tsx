@@ -25,20 +25,20 @@ export const TimelineHeader = React.memo(({ startDate, endDate, scale }: { start
 
     return (
         <div className="sticky top-0 z-20 bg-card">
-            <div className="relative flex border-b">
+            <div className="relative flex border-b h-6">
                 {months.map((month) => (
                     <div
                         key={month.name}
-                        className="flex-shrink-0 text-center border-r"
+                        className="flex items-center justify-center flex-shrink-0 text-center border-r"
                         style={{ width: month.days * scale }}
                     >
-                        <div className="py-1 text-sm font-semibold">
+                        <span className="text-sm font-semibold">
                             {month.name}
-                        </div>
+                        </span>
                     </div>
                 ))}
             </div>
-            <div className="relative flex h-8">
+            <div className="relative flex h-6">
                 {days.map((day, index) => (
                     <div
                         key={index}
