@@ -19,16 +19,25 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 
 const shortcuts = [
+  // General
   { combination: [["Ctrl", "Cmd"], "+", ["B"]], description: "Toggle sidebar visibility" },
   { combination: [["Ctrl", "Cmd"], "+", ["Z"]], description: "Undo last action" },
   { combination: [["Ctrl", "Cmd"], "+", ["Y"]], description: "Redo last action" },
+  
+  // Navigation & Selection
+  { combination: [["Arrow Keys"]], description: "Navigate between cells" },
+  { combination: [["Shift"], "+", ["Arrow Up/Down"]], description: "Select multiple rows" },
+
+  // Editing
   { combination: [["F2"]], description: "Edit selected cell without clearing content" },
   { combination: [["Enter"]], description: "Confirm cell edit" },
   { combination: [["Escape"]], description: "Cancel cell edit" },
-  { combination: [["Arrow Keys"]], description: "Navigate between cells" },
-  { combination: [["Shift"], "+", ["Arrow Up/Down"]], description: "Select multiple rows" },
   { combination: [["Any character"]], description: "Start editing cell, replacing content" },
   { combination: [["Backspace"]], description: "Start editing cell, clearing content" },
+
+  // Hierarchy
+  { combination: [["Ctrl", "Cmd"], "+", ["Shift"], "+", ["→"]], description: "Indent selected task(s)" },
+  { combination: [["Ctrl", "Cmd"], "+", ["Shift"], "+", ["←"]], description: "Outdent selected task(s)" },
 ];
 
 

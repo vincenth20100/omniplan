@@ -431,6 +431,20 @@ export function TaskTable({
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const { activeCell, columns, visibleColumns, editingCell } = stateRef.current;
+
+            if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
+                if (event.key === 'ArrowRight') {
+                    event.preventDefault();
+                    dispatch({ type: 'INDENT_TASK' });
+                    return;
+                }
+                if (event.key === 'ArrowLeft') {
+                    event.preventDefault();
+                    dispatch({ type: 'OUTDENT_TASK' });
+                    return;
+                }
+            }
+
             if (!activeCell) return;
 
              // F2 key to start editing without clearing content
