@@ -71,16 +71,26 @@ class CalendarService {
     let currentDate = startOfDay(start);
     const endDate = startOfDay(end);
 
-    if (currentDate > endDate) return 1;
-    
-    const totalDays = differenceInCalendarDays(endDate, currentDate);
-    for (let i = 0; i <= totalDays; i++) {
-        if (this.isWorkingDay(addDays(currentDate, i), calendar)) {
+    if (currentDate > endDate) {
+        let negDuration = 0;
+        let tempCurrent = startOfDay(end);
+        while(tempCurrent < currentDate) {
+            if(this.isWorkingDay(tempCurrent, calendar)) {
+                negDuration--;
+            }
+            tempCurrent = addDays(tempCurrent, 1);
+        }
+        return negDuration;
+    }
+
+    while(currentDate <= endDate) {
+        if (this.isWorkingDay(currentDate, calendar)) {
             duration++;
         }
+        currentDate = addDays(currentDate, 1);
     }
     
-    return duration > 0 ? duration : 1;
+    return duration;
   }
 
   public calculateFinishDate(startDate: Date, duration: number, unit: DurationUnit, calendar: Calendar): Date {
