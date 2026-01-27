@@ -1,15 +1,15 @@
 'use client';
 
-import { useReducer, useEffect, useState, useRef, useMemo } from 'react';
+import { useReducer, useEffect, useState, useMemo, isEqual } from 'react';
 import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit, HistoryEntry } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
 import { parseDuration, formatDuration } from '@/lib/duration';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, doc, writeBatch, query, orderBy } from 'firebase/firestore';
-import { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { User } from 'firebase/auth';
 
 const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
@@ -53,6 +53,14 @@ const initialGanttSettings: GanttSettings = {
   highlightCriticalPath: true,
 };
 
+const defaultAppSettings = {
+    id: 'app_settings',
+    columns: initialColumns,
+    uiDensity: 'compact' as UiDensity,
+    currentViewId: 'default',
+    ganttSettings: initialGanttSettings,
+};
+
 const initialState: ProjectState = {
   tasks: [],
   links: [],
@@ -79,6 +87,7 @@ const initialState: ProjectState = {
 
 type Action =
   | { type: 'SET_PROJECT_DATA', payload: { tasks: Task[], links: Link[], resources: Resource[], assignments: Assignment[], calendars: Calendar[] } }
+  | { type: 'SET_PERSISTED_STATE', payload: { views: View[], settings: typeof defaultAppSettings | null } }
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
@@ -111,6 +120,7 @@ type Action =
   | { type: 'REMOVE_RESOURCE', payload: { resourceId: string } }
   | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } }
   | { type: 'ADD_CALENDAR' }
+  | { type: 'ADD_CALENDAR_OPTIMISTIC', payload: Calendar }
   | { type: 'REMOVE_CALENDAR', payload: { calendarId: string } }
   | { type: 'UPDATE_CALENDAR', payload: Partial<Calendar> & { id: string } }
   | { type: 'ADD_COLUMN', payload: Omit<ColumnSpec, 'id'|'width'> & { width?: number } }
@@ -205,11 +215,34 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null): Task[] => {
       const defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
       if (!defaultCalendar) {
-          console.error("No default calendar found for scheduling.");
+          // This can happen during initial load before calendars are seeded.
+          // It's safe to return tasks as is, scheduler will run again once calendars are loaded.
           return tasks;
       }
       const hierarchicalTasks = updateHierarchyAndSort(tasks);
       return calculateSchedule(hierarchicalTasks, links, columns, defaultCalendar);
+  };
+
+  const checkDirty = (state: ProjectState): boolean => {
+      const currentView = state.views.find(v => v.id === state.currentViewId);
+      if (!currentView) return true; // Custom view is always dirty
+      
+      const arraysAreEqual = (a: any[], b: any[]) => a.length === b.length && a.every((val, index) => val === b[index]);
+      const filtersAreEqual = (a: Filter[], b: Filter[]) => {
+          if (a.length !== b.length) return false;
+          const aSorted = [...a].sort((x, y) => x.id.localeCompare(y.id));
+          const bSorted = [...b].sort((x, y) => x.id.localeCompare(y.id));
+          return aSorted.every((val, index) => 
+              val.id === bSorted[index].id &&
+              val.columnId === bSorted[index].columnId &&
+              val.operator === bSorted[index].operator &&
+              val.value === bSorted[index].value
+          );
+      }
+
+      return !arraysAreEqual(state.grouping, currentView.grouping) ||
+             !arraysAreEqual(state.visibleColumns, currentView.visibleColumns) ||
+             !filtersAreEqual(state.filters, currentView.filters);
   };
     
   switch (action.type) {
@@ -223,52 +256,83 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         resources,
         assignments,
         calendars,
-        defaultCalendarId: calendars[0]?.id || null,
+        defaultCalendarId: state.defaultCalendarId || calendars[0]?.id || null,
       };
+    }
+    case 'SET_PERSISTED_STATE': {
+        const { views, settings } = action.payload;
+        const newViews = views.length > 0 ? views : defaultViews;
+        const newSettings = settings || defaultAppSettings;
+        const currentView = newViews.find(v => v.id === newSettings.currentViewId) || newViews[0];
+
+        return {
+            ...state,
+            views: newViews,
+            columns: newSettings.columns,
+            uiDensity: newSettings.uiDensity,
+            ganttSettings: newSettings.ganttSettings,
+            currentViewId: currentView.id,
+            grouping: currentView.grouping,
+            visibleColumns: currentView.visibleColumns,
+            filters: currentView.filters || [],
+            isDirty: false,
+        };
     }
     case 'UPDATE_TASK': {
         const updatedTasks = state.tasks.map(t =>
             t.id === action.payload.id ? { ...t, ...action.payload } : t
         );
         const reScheduledTasks = runScheduler(updatedTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: reScheduledTasks, isDirty: true };
+        return { ...state, tasks: reScheduledTasks };
     }
     case 'UPDATE_LINK': {
         const newLinks = state.links.map(l => l.id === action.payload.id ? { ...l, ...action.payload } : l);
         const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, links: newLinks, tasks: reScheduledTasks, isDirty: true };
+        return { ...state, links: newLinks, tasks: reScheduledTasks };
     }
     case 'UPDATE_RESOURCE': {
         const newResources = state.resources.map(r => r.id === action.payload.id ? { ...r, ...action.payload } : r);
-        return { ...state, resources: newResources, isDirty: true };
+        return { ...state, resources: newResources };
     }
     case 'ADD_RESOURCE': {
-        // This is now an optimistic action, see useProject hook
         return state;
     }
     case 'ADD_RESOURCE_OPTIMISTIC': {
         const newResources = [...state.resources, action.payload.resource];
-        return { ...state, resources: newResources, isDirty: true };
+        return { ...state, resources: newResources };
     }
     case 'REMOVE_RESOURCE': {
         const { resourceId } = action.payload;
         const newResources = state.resources.filter(r => r.id !== resourceId);
-        // Also need to remove assignments associated with this resource
         const newAssignments = state.assignments.filter(a => a.resourceId !== resourceId);
         const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, resources: newResources, assignments: newAssignments, tasks: reScheduledTasks, isDirty: true };
+        return { ...state, resources: newResources, assignments: newAssignments, tasks: reScheduledTasks };
+    }
+    case 'ADD_CALENDAR':
+        return state;
+    case 'ADD_CALENDAR_OPTIMISTIC': {
+        const newCalendars = [...state.calendars, action.payload];
+        return { ...state, calendars: newCalendars };
     }
     case 'UPDATE_CALENDAR': {
         const newCalendars = state.calendars.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
         const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, state.defaultCalendarId);
-        return { ...state, calendars: newCalendars, tasks: reScheduledTasks, isDirty: true };
+        return { ...state, calendars: newCalendars, tasks: reScheduledTasks };
+    }
+     case 'REMOVE_CALENDAR': {
+        const { calendarId } = action.payload;
+        if (state.calendars.length <= 1) return state; // Prevent deleting the last calendar
+        const newCalendars = state.calendars.filter(c => c.id !== calendarId);
+        const newDefaultCalendarId = state.defaultCalendarId === calendarId ? newCalendars[0].id : state.defaultCalendarId;
+        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, newDefaultCalendarId);
+        return { ...state, calendars: newCalendars, tasks: reScheduledTasks, defaultCalendarId: newDefaultCalendarId };
     }
     case 'ADD_NOTE_TO_TASK_OPTIMISTIC': {
         const { taskId, note } = action.payload;
         const updatedTasks = state.tasks.map(t =>
             t.id === taskId ? { ...t, notes: [...(t.notes || []), note] } : t
         );
-        return { ...state, tasks: updatedTasks, isDirty: true };
+        return { ...state, tasks: updatedTasks };
     }
     case 'SELECT_TASK': {
       const { taskId, ctrlKey, shiftKey } = action.payload;
@@ -327,7 +391,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             }
             return task;
         });
-        return { ...state, tasks: newTasks, isDirty: true };
+        return { ...state, tasks: newTasks };
     }
     case 'EXPAND_ALL': {
         const shouldExpandSelected = state.selectedTaskIds.length > 0;
@@ -343,17 +407,18 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             }
             return task;
         });
-        return { ...state, tasks: newTasks, isDirty: true };
+        return { ...state, tasks: newTasks };
     }
     case 'SET_COLUMNS': {
-      return { ...state, visibleColumns: action.payload, isDirty: true };
+      const newState = { ...state, visibleColumns: action.payload };
+      return { ...newState, isDirty: checkDirty(newState) };
     }
      case 'RESIZE_COLUMN': {
       const { columnId, width } = action.payload;
       const newColumns = state.columns.map(c =>
         c.id === columnId ? { ...c, width } : c
       );
-      return { ...state, columns: newColumns, isDirty: true };
+      return { ...state, columns: newColumns };
     }
     case 'REORDER_COLUMNS': {
       const { sourceId, targetId } = action.payload;
@@ -366,7 +431,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       const [removed] = columns.splice(sourceIndex, 1);
       columns.splice(targetIndex, 0, removed);
       
-      return { ...state, columns, isDirty: true };
+      return { ...state, columns };
     }
     case 'SET_UI_DENSITY': {
       return { ...state, uiDensity: action.payload };
@@ -382,14 +447,14 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       };
       const newColumns = [...state.columns, newColumn];
       const newVisibleColumns = [...state.visibleColumns, newColumn.id];
-      
-      return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, isDirty: true };
+      const newState = { ...state, columns: newColumns, visibleColumns: newVisibleColumns };
+      return { ...newState, isDirty: checkDirty(newState) };
     }
     case 'UPDATE_COLUMN': {
       const { id, ...updates } = action.payload;
       const newColumns = state.columns.map(c => c.id === id ? { ...c, ...updates } : c);
       const reScheduledTasks = runScheduler(state.tasks, state.links, newColumns, state.calendars, state.defaultCalendarId);
-      return { ...state, tasks: reScheduledTasks, columns: newColumns, isDirty: true };
+      return { ...state, tasks: reScheduledTasks, columns: newColumns };
     }
     case 'REMOVE_COLUMN': {
       const { columnId } = action.payload;
@@ -405,12 +470,17 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
           return task;
       });
 
-      return { ...state, columns: newColumns, visibleColumns: newVisibleColumns, tasks: newTasks, isDirty: true };
+      const newState = { ...state, columns: newColumns, visibleColumns: newVisibleColumns, tasks: newTasks };
+      return { ...newState, isDirty: checkDirty(newState) };
     }
-    case 'SET_GROUPING':
-      return { ...state, grouping: action.payload, isDirty: true };
-    case 'SET_FILTERS':
-      return { ...state, filters: action.payload, isDirty: true };
+    case 'SET_GROUPING': {
+        const newState = { ...state, grouping: action.payload };
+        return { ...newState, isDirty: checkDirty(newState) };
+    }
+    case 'SET_FILTERS': {
+        const newState = { ...state, filters: action.payload };
+        return { ...newState, isDirty: checkDirty(newState) };
+    }
     case 'SET_VIEW': {
       const view = state.views.find(v => v.id === action.payload.viewId);
       if (view) {
@@ -504,7 +574,6 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             const scheduledTasks = runScheduler(allTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
             return { ...state, tasks: scheduledTasks };
         } else if (lines.length === 1 && activeCell) {
-            // Single line paste behaves like a cell edit
             const payload = { id: activeCell.taskId, [activeCell.columnId]: lines[0].trim() };
             return projectReducer(state, { type: 'UPDATE_TASK', payload });
         }
@@ -523,11 +592,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, editingCell: null };
     }
     case 'UPDATE_GANTT_SETTINGS': {
-      return { ...state, ganttSettings: action.payload, isDirty: true };
+      return { ...state, ganttSettings: action.payload };
     }
      case 'ADD_TASK': {
-        // This case is now effectively an optimistic action trigger.
-        // The actual logic is handled by the handleFirestoreAction wrapper.
         return state;
     }
     case 'ADD_TASK_OPTIMISTIC': {
@@ -543,7 +610,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
         
         const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: scheduledTasks, isDirty: true, selectedTaskIds: [newTask.id], activeCell: { taskId: newTask.id, columnId: 'name' } };
+        return { ...state, tasks: scheduledTasks, selectedTaskIds: [newTask.id], activeCell: { taskId: newTask.id, columnId: 'name' } };
     }
     case 'REMOVE_TASK': {
         const idsToRemove = new Set(state.selectedTaskIds);
@@ -567,7 +634,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newLinks = state.links.filter(l => !tasksToRemove.has(l.source) && !tasksToRemove.has(l.target));
         
         const scheduledTasks = runScheduler(newTasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: scheduledTasks, links: newLinks, isDirty: true, selectedTaskIds: [] };
+        return { ...state, tasks: scheduledTasks, links: newLinks, selectedTaskIds: [] };
     }
     case 'LINK_TASKS': {
         if (state.selectedTaskIds.length < 2) return state;
@@ -585,34 +652,34 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         const allLinks = [...state.links, ...newLinks];
         const scheduledTasks = runScheduler(state.tasks, allLinks, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, links: allLinks, tasks: scheduledTasks, isDirty: true };
+        return { ...state, links: allLinks, tasks: scheduledTasks };
     }
     case 'ADD_LINK': 
-        return state; // Handled by Firestore action
+        return state;
     
     case 'ADD_LINK_OPTIMISTIC': {
         const newLinks = [...state.links, action.payload];
         const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, links: newLinks, tasks: scheduledTasks, isDirty: true };
+        return { ...state, links: newLinks, tasks: scheduledTasks };
     }
 
     case 'REMOVE_LINK':
-        return state; // Handled by Firestore action
+        return state;
 
     case 'REMOVE_LINK_OPTIMISTIC': {
         const { linkId } = action.payload;
         const newLinks = state.links.filter(l => l.id !== linkId);
         const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, links: newLinks, tasks: scheduledTasks, isDirty: true };
+        return { ...state, links: newLinks, tasks: scheduledTasks };
     }
     
     case 'UPDATE_RELATIONSHIPS':
-        return state; // Handled by Firestore action
+        return state;
 
     case 'SET_LINKS': {
         const newLinks = action.payload;
         const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, links: newLinks, tasks: scheduledTasks, isDirty: true };
+        return { ...state, links: newLinks, tasks: scheduledTasks };
     }
     case 'INDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
@@ -628,50 +695,21 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         const firstSelectedIndex = tasks.findIndex(t => t.id === sortedSelectedIds[0]);
 
-        // Cannot indent the first task in the project list.
         if (firstSelectedIndex === 0) return state;
         
-        let parentTask = tasks[firstSelectedIndex - 1];
-        
-        // Find the "real" previous task if the one before is a child of the same parent and collapsed
-        const firstSelectedTask = taskMap.get(sortedSelectedIds[0])!;
+        let parentTask: Task | undefined = undefined;
         let potentialParentIndex = firstSelectedIndex - 1;
-        while(potentialParentIndex > 0) {
+
+        while(potentialParentIndex >= 0) {
             const p = tasks[potentialParentIndex];
-            if (p.level < firstSelectedTask.level!) {
-                break;
-            }
-             if (p.level === firstSelectedTask.level) {
-                parentTask = tasks[potentialParentIndex];
-                break;
+            if (!state.selectedTaskIds.includes(p.id)) {
+                 parentTask = p;
+                 break;
             }
             potentialParentIndex--;
         }
-
-
-        // Do not allow indenting if the new parent is also part of the selection.
-        if (state.selectedTaskIds.includes(parentTask.id)) {
-            return state;
-        }
         
-        // Check for trying to indent a task under one of its own descendants.
-        let isCircular = false;
-        for (const taskIdToIndent of sortedSelectedIds) {
-            let current: Task | undefined = parentTask;
-            while(current) {
-                if (current.id === taskIdToIndent) {
-                    isCircular = true;
-                    break;
-                }
-                current = current.parentId ? taskMap.get(current.parentId) : undefined;
-            }
-            if (isCircular) break;
-        }
-
-        if (isCircular) {
-            console.warn("Cannot indent a task under one of its own children.");
-            return state;
-        }
+        if (!parentTask) return state;
 
         for (const taskId of sortedSelectedIds) {
             const taskToIndent = taskMap.get(taskId)!;
@@ -679,7 +717,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
 
         const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: scheduledTasks, isDirty: true };
+        return { ...state, tasks: scheduledTasks };
     }
     case 'OUTDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
@@ -700,7 +738,57 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
 
         const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: scheduledTasks, isDirty: true };
+        return { ...state, tasks: scheduledTasks };
+    }
+    case 'REORDER_TASKS': {
+        const { sourceIds, targetId, position } = action.payload;
+        
+        let tasks = [...state.tasks];
+        const targetIndex = tasks.findIndex(t => t.id === targetId);
+        if (targetIndex === -1) return state;
+        
+        const sourceTasks = sourceIds.map(id => tasks.find(t => t.id === id)).filter((t): t is Task => !!t);
+        const sourceOrders = sourceTasks.map(t => t.order || 0);
+        tasks = tasks.filter(t => !sourceIds.includes(t.id));
+
+        const targetTask = tasks.find(t => t.id === targetId);
+        if (!targetTask) { // Should not happen if targetIndex is valid
+             tasks = [...state.tasks]; // revert
+             return state;
+        }
+
+        const effectiveTargetIndex = tasks.findIndex(t => t.id === targetId);
+
+        let newOrder: number;
+        if (position === 'top') {
+            const orderBefore = tasks[effectiveTargetIndex - 1]?.order ?? (targetTask.order ?? effectiveTargetIndex) - 1;
+            newOrder = (orderBefore + (targetTask.order ?? effectiveTargetIndex)) / 2;
+        } else { // bottom
+            const orderAfter = tasks[effectiveTargetIndex + 1]?.order ?? (targetTask.order ?? effectiveTargetIndex) + 1;
+            newOrder = ((targetTask.order ?? effectiveTargetIndex) + orderAfter) / 2;
+        }
+
+        const orderIncrement = (Math.abs(sourceOrders[sourceOrders.length - 1] - sourceOrders[0]) / (sourceIds.length - 1 || 1)) / 1000;
+
+        sourceTasks.forEach((task, i) => {
+            task.order = newOrder + (i * orderIncrement);
+        });
+        
+        const finalTasks = [...tasks, ...sourceTasks].sort((a,b) => (a.order || 0) - (b.order || 0));
+        
+        const scheduledTasks = runScheduler(finalTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, tasks: scheduledTasks };
+    }
+     case 'NEST_TASKS': {
+        const { sourceIds, parentId } = action.payload;
+        const newTasks = state.tasks.map(t => {
+            if (sourceIds.includes(t.id)) {
+                return { ...t, parentId: parentId };
+            }
+            return t;
+        });
+        const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+        return { ...state, tasks: scheduledTasks };
     }
     default:
       return state;
@@ -726,6 +814,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
         
         const nonHistoricActions = [
             'SET_PROJECT_DATA', 
+            'SET_PERSISTED_STATE',
             'SELECT_TASK', 
             'SET_ACTIVE_CELL', 
             'START_EDITING_CELL', 
@@ -799,6 +888,8 @@ export function useProject(user: User) {
     resources: useCollection<Resource>(useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'resources') : null, [firestore, user])),
     assignments: useCollection<Assignment>(useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'assignments') : null, [firestore, user])),
     calendars: useCollection<Calendar>(useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'calendars') : null, [firestore, user])),
+    views: useCollection<View>(useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'views') : null, [firestore, user])),
+    settings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => user ? doc(firestore, 'users', user.uid, 'settings', 'app_settings') : null, [firestore, user])),
   };
   
   const handleFirestoreAction = (action: Action) => {
@@ -807,239 +898,302 @@ export function useProject(user: User) {
         return;
     }
     
-    if (action.type === 'ADD_TASK') {
-        const newId = `task-${Date.now()}`;
-        const { tasks, selectedTaskIds } = historyState.present;
-        const lastSelectedId = selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : null;
-
-        let newOrder: number;
-
-        if (lastSelectedId) {
-            const selectedIndex = tasks.findIndex(t => t.id === lastSelectedId);
-            if (selectedIndex > -1) {
-                const orderBefore = tasks[selectedIndex].order ?? selectedIndex;
-                const nextTask = tasks[selectedIndex + 1];
-                const orderAfter = nextTask ? (nextTask.order ?? selectedIndex + 1) : orderBefore + 1;
-                newOrder = (orderBefore + orderAfter) / 2;
-            } else {
-                 const maxOrder = tasks.length > 0 ? Math.max(...tasks.map(t => t.order ?? 0)) : -1;
-                 newOrder = maxOrder + 1;
-            }
-        } else {
-            const maxOrder = tasks.length > 0 ? Math.max(...tasks.map(t => t.order ?? 0)) : -1;
-            newOrder = maxOrder + 1;
-        }
-
-        const newTask: Task = {
-            id: newId,
-            name: 'New Task',
-            start: new Date(),
-            finish: new Date(),
-            duration: 1,
-            durationUnit: 'd',
-            percentComplete: 0,
-            level: 0,
-            order: newOrder,
-        };
-        const docRef = doc(firestore, 'users', user.uid, 'tasks', newTask.id);
-        setDocumentNonBlocking(docRef, newTask, {});
-        dispatch({ type: 'ADD_TASK_OPTIMISTIC', payload: { task: newTask } });
-        return;
-    }
-
-    if (action.type === 'ADD_RESOURCE') {
-        const newResource: Resource = {
-            id: `res-${Date.now()}`,
-            name: 'New Resource',
-            type: 'Work',
-            availability: 1,
-            costPerHour: 0
-        };
-        const docRef = doc(firestore, 'users', user.uid, 'resources', newResource.id);
-        setDocumentNonBlocking(docRef, newResource, {});
-        dispatch({ type: 'ADD_RESOURCE_OPTIMISTIC', payload: { resource: newResource } });
-        return;
-    }
-
-    if (action.type === 'REMOVE_TASK') {
-        const idsToRemove = new Set(historyState.present.selectedTaskIds);
-        if (idsToRemove.size > 0) {
-            const tasksToRemove = new Set<string>(idsToRemove);
-            const findChildren = (parentId: string) => {
-                historyState.present.tasks.forEach(t => {
-                    if (t.parentId === parentId) {
-                        tasksToRemove.add(t.id);
-                        findChildren(t.id);
-                    }
-                });
-            };
-            idsToRemove.forEach(id => findChildren(id));
-
-            tasksToRemove.forEach(id => {
-                const docRef = doc(firestore, 'users', user.uid, 'tasks', id);
-                deleteDocumentNonBlocking(docRef);
-            });
-        }
-    }
-    
-    if (action.type === 'REMOVE_RESOURCE') {
-        const { resourceId } = action.payload;
-        // remove resource
-        const resourceDocRef = doc(firestore, 'users', user.uid, 'resources', resourceId);
-        deleteDocumentNonBlocking(resourceDocRef);
-
-        // remove assignments
-        const assignmentsToRemove = historyState.present.assignments.filter(a => a.resourceId === resourceId);
-        assignmentsToRemove.forEach(assignment => {
-            const assignmentDocRef = doc(firestore, 'users', user.uid, 'assignments', assignment.id);
-            deleteDocumentNonBlocking(assignmentDocRef);
-        });
-    }
-
-    if (action.type === 'ADD_NOTE_TO_TASK') {
-        const { taskId, content } = action.payload;
-        const task = historyState.present.tasks.find(t => t.id === taskId);
-        if (task) {
-            const newNote: Note = {
-                id: `note-${Date.now()}`,
-                author: user.displayName || 'Anonymous',
-                content,
-                timestamp: new Date(),
-            };
-            const newNotes = [...(task.notes || []), newNote];
-            const docRef = doc(firestore, 'users', user.uid, 'tasks', taskId);
-            updateDocumentNonBlocking(docRef, { notes: newNotes });
-            dispatch({ type: 'ADD_NOTE_TO_TASK_OPTIMISTIC', payload: { taskId, note: newNote }})
-        }
-        return;
-    }
-
-    if (action.type === 'ADD_LINK') {
-        const newLink: Link = {
-            id: `link-${Date.now()}`,
-            source: action.payload.source,
-            target: action.payload.target,
-            type: action.payload.type,
-            lag: action.payload.lag,
-        };
-        const docRef = doc(firestore, 'users', user.uid, 'links', newLink.id);
-        setDocumentNonBlocking(docRef, newLink, {});
-        dispatch({ type: 'ADD_LINK_OPTIMISTIC', payload: newLink });
-        return;
-    }
-
-    if (action.type === 'REMOVE_LINK') {
-        const { linkId } = action.payload;
-        const docRef = doc(firestore, 'users', user.uid, 'links', linkId);
-        deleteDocumentNonBlocking(docRef);
-        dispatch({ type: 'REMOVE_LINK_OPTIMISTIC', payload: { linkId } });
-        return;
-    }
-
-    if (action.type === 'UPDATE_RELATIONSHIPS') {
-        const { taskId, field, value } = action.payload;
-        const { tasks, links } = historyState.present;
-        const wbsToIdMap = new Map(tasks.map(t => [t.wbs, t.id]));
-        const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
-
-        const existingLinks = links.filter(l => (field === 'predecessors' ? l.target : l.source) === taskId);
-        const existingRelations = new Set(existingLinks.map(l => {
-            const relatedTaskWbs = idToWbsMap.get(field === 'predecessors' ? l.source : l.target) || '';
-            let lagString = '';
-            if (l.lag > 0) lagString = `+${l.lag}d`;
-            if (l.lag < 0) lagString = `${l.lag}d`;
-            return `${relatedTaskWbs}${l.type}${lagString}`;
-        }));
-        
-        const newRelations = new Set(value.split(',').map(s => s.trim()).filter(Boolean));
-        
-        const relationsToRemove = [...existingRelations].filter(r => !newRelations.has(r));
-        const relationsToAdd = [...newRelations].filter(r => !existingRelations.has(r));
-
-        const linksToRemove = existingLinks.filter(l => {
-             const relatedTaskWbs = idToWbsMap.get(field === 'predecessors' ? l.source : l.target) || '';
-             let lagString = '';
-             if (l.lag > 0) lagString = `+${l.lag}d`;
-             if (l.lag < 0) lagString = `${l.lag}d`;
-             const relationString = `${relatedTaskWbs}${l.type}${lagString}`;
-             return relationsToRemove.includes(relationString);
-        });
-
-        const linkParseRegex = /^(\d+(?:\.\d+)*)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
-        const linksToAddData: Omit<Link, 'id'>[] = relationsToAdd.map(rel => {
-            const match = rel.match(linkParseRegex);
-            if (!match) return null;
-            
-            const wbs = match[1];
-            const type = (match[2] || 'FS').toUpperCase() as LinkType;
-            const lagStr = match[3];
-            const lag = lagStr ? parseInt(lagStr) : 0;
-            const relatedTaskId = wbsToIdMap.get(wbs);
-
-            if (relatedTaskId && relatedTaskId !== taskId) {
-                return {
-                    source: field === 'predecessors' ? relatedTaskId : taskId,
-                    target: field === 'predecessors' ? taskId : relatedTaskId,
-                    type,
-                    lag,
-                };
-            }
-            return null;
-        }).filter((l): l is Omit<Link, 'id'> => l !== null);
-
-        const batch = writeBatch(firestore);
-        
-        linksToRemove.forEach(link => {
-            const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
-            batch.delete(docRef);
-        });
-
-        const newLinkObjects: Link[] = linksToAddData.map((linkData, i) => ({
-             id: `link-${Date.now()}-${i}`,
-            ...linkData
-        }));
-
-        newLinkObjects.forEach(linkObj => {
-            const docRef = doc(firestore, 'users', user.uid, 'links', linkObj.id);
-            batch.set(docRef, linkObj);
-        });
-
-        batch.commit().catch(error => console.error("Failed to update relationships in batch", error));
-
-        const finalLinks = [
-            ...links.filter(l => !linksToRemove.some(r => r.id === l.id)),
-            ...newLinkObjects
-        ];
-        
-        dispatch({ type: 'SET_LINKS', payload: finalLinks });
-        return;
-    }
-
+    // Dispatch local/optimistic update first
     dispatch(action);
-    
+
+    // Then handle persistence
     switch (action.type) {
-        case 'UPDATE_TASK': {
-            const { id, ...payload } = action.payload;
-            const docRef = doc(firestore, 'users', user.uid, 'tasks', id);
-            updateDocumentNonBlocking(docRef, payload);
+        case 'ADD_TASK': {
+            const newId = `task-${Date.now()}`;
+            const { tasks, selectedTaskIds } = historyState.present;
+            const lastSelectedId = selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : null;
+
+            let newOrder: number;
+
+            if (lastSelectedId) {
+                const selectedIndex = tasks.findIndex(t => t.id === lastSelectedId);
+                if (selectedIndex > -1) {
+                    const orderBefore = tasks[selectedIndex].order ?? selectedIndex;
+                    const nextTask = tasks[selectedIndex + 1];
+                    const orderAfter = nextTask ? (nextTask.order ?? selectedIndex + 1) : orderBefore + 1;
+                    newOrder = (orderBefore + orderAfter) / 2;
+                } else {
+                     const maxOrder = tasks.length > 0 ? Math.max(...tasks.map(t => t.order ?? 0)) : -1;
+                     newOrder = maxOrder + 1;
+                }
+            } else {
+                const maxOrder = tasks.length > 0 ? Math.max(...tasks.map(t => t.order ?? 0)) : -1;
+                newOrder = maxOrder + 1;
+            }
+
+            const newTask: Task = {
+                id: newId,
+                name: 'New Task',
+                start: new Date(),
+                finish: new Date(),
+                duration: 1,
+                durationUnit: 'd',
+                percentComplete: 0,
+                level: 0,
+                order: newOrder,
+            };
+            const docRef = doc(firestore, 'users', user.uid, 'tasks', newTask.id);
+            setDocumentNonBlocking(docRef, newTask, {});
+            dispatch({ type: 'ADD_TASK_OPTIMISTIC', payload: { task: newTask } });
             break;
         }
-        case 'UPDATE_LINK': {
-            const { id, ...payload } = action.payload;
-            const docRef = doc(firestore, 'users', user.uid, 'links', id);
-            updateDocumentNonBlocking(docRef, payload);
+
+        case 'ADD_RESOURCE': {
+            const newResource: Resource = {
+                id: `res-${Date.now()}`,
+                name: 'New Resource',
+                type: 'Work',
+                availability: 1,
+                costPerHour: 0
+            };
+            const docRef = doc(firestore, 'users', user.uid, 'resources', newResource.id);
+            setDocumentNonBlocking(docRef, newResource, {});
+            dispatch({ type: 'ADD_RESOURCE_OPTIMISTIC', payload: { resource: newResource } });
             break;
         }
-        case 'UPDATE_RESOURCE': {
-            const { id, ...payload } = action.payload;
-            const docRef = doc(firestore, 'users', user.uid, 'resources', id);
-            updateDocumentNonBlocking(docRef, payload);
+
+        case 'ADD_CALENDAR': {
+             const newCalendar: Calendar = {
+                id: `cal-${Date.now()}`,
+                name: 'New Calendar',
+                workingDays: [1,2,3,4,5], // Mon-Fri
+                exceptions: []
+            };
+            const docRef = doc(firestore, 'users', user.uid, 'calendars', newCalendar.id);
+            setDocumentNonBlocking(docRef, newCalendar, {});
+            dispatch({ type: 'ADD_CALENDAR_OPTIMISTIC', payload: newCalendar });
             break;
         }
-        case 'UPDATE_CALENDAR': {
-             const { id, ...payload } = action.payload;
-            const docRef = doc(firestore, 'users', user.uid, 'calendars', id);
-            updateDocumentNonBlocking(docRef, payload);
+
+        case 'REMOVE_TASK': {
+            const idsToRemove = new Set(historyState.present.selectedTaskIds);
+            if (idsToRemove.size > 0) {
+                const batch = writeBatch(firestore);
+                idsToRemove.forEach(id => {
+                    const docRef = doc(firestore, 'users', user.uid, 'tasks', id);
+                    batch.delete(docRef);
+                });
+                batch.commit().catch(e => console.error("Failed to batch delete tasks", e));
+            }
+            break;
+        }
+        
+        case 'REMOVE_RESOURCE': {
+            const { resourceId } = action.payload;
+            const batch = writeBatch(firestore);
+            const resourceDocRef = doc(firestore, 'users', user.uid, 'resources', resourceId);
+            batch.delete(resourceDocRef);
+
+            const assignmentsToRemove = historyState.present.assignments.filter(a => a.resourceId === resourceId);
+            assignmentsToRemove.forEach(assignment => {
+                const assignmentDocRef = doc(firestore, 'users', user.uid, 'assignments', assignment.id);
+                batch.delete(assignmentDocRef);
+            });
+            batch.commit().catch(e => console.error("Failed to batch delete resource", e));
+            break;
+        }
+
+        case 'REMOVE_CALENDAR': {
+             const { calendarId } = action.payload;
+             const docRef = doc(firestore, 'users', user.uid, 'calendars', calendarId);
+             deleteDocumentNonBlocking(docRef);
+             break;
+        }
+
+        case 'ADD_NOTE_TO_TASK': {
+            const { taskId, content } = action.payload;
+            const task = historyState.present.tasks.find(t => t.id === taskId);
+            if (task) {
+                const newNote: Note = {
+                    id: `note-${Date.now()}`,
+                    author: user.displayName || 'Anonymous',
+                    content,
+                    timestamp: new Date(),
+                };
+                const newNotes = [...(task.notes || []), newNote];
+                const docRef = doc(firestore, 'users', user.uid, 'tasks', taskId);
+                updateDocumentNonBlocking(docRef, { notes: newNotes });
+                dispatch({ type: 'ADD_NOTE_TO_TASK_OPTIMISTIC', payload: { taskId, note: newNote }})
+            }
+            break;
+        }
+
+        case 'ADD_LINK': {
+            const newLink: Link = {
+                id: `link-${Date.now()}`,
+                source: action.payload.source,
+                target: action.payload.target,
+                type: action.payload.type,
+                lag: action.payload.lag,
+            };
+            const docRef = doc(firestore, 'users', user.uid, 'links', newLink.id);
+            setDocumentNonBlocking(docRef, newLink, {});
+            dispatch({ type: 'ADD_LINK_OPTIMISTIC', payload: newLink });
+            break;
+        }
+
+        case 'REMOVE_LINK': {
+            const { linkId } = action.payload;
+            const docRef = doc(firestore, 'users', user.uid, 'links', linkId);
+            deleteDocumentNonBlocking(docRef);
+            dispatch({ type: 'REMOVE_LINK_OPTIMISTIC', payload: { linkId } });
+            break;
+        }
+
+        case 'UPDATE_RELATIONSHIPS': {
+            const { taskId, field, value } = action.payload;
+            const { tasks, links } = historyState.present;
+            const wbsToIdMap = new Map(tasks.map(t => [t.wbs, t.id]));
+            const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs]));
+
+            const existingLinks = links.filter(l => (field === 'predecessors' ? l.target : l.source) === taskId);
+            const existingRelations = new Set(existingLinks.map(l => {
+                const relatedTaskWbs = idToWbsMap.get(field === 'predecessors' ? l.source : l.target) || '';
+                let lagString = '';
+                if (l.lag > 0) lagString = `+${l.lag}d`;
+                if (l.lag < 0) lagString = `${l.lag}d`;
+                return `${relatedTaskWbs}${l.type}${lagString}`;
+            }));
+            
+            const newRelations = new Set(value.split(',').map(s => s.trim()).filter(Boolean));
+            
+            const relationsToRemove = [...existingRelations].filter(r => !newRelations.has(r));
+            const relationsToAdd = [...newRelations].filter(r => !existingRelations.has(r));
+
+            const linksToRemove = existingLinks.filter(l => {
+                 const relatedTaskWbs = idToWbsMap.get(field === 'predecessors' ? l.source : l.target) || '';
+                 let lagString = '';
+                 if (l.lag > 0) lagString = `+${l.lag}d`;
+                 if (l.lag < 0) lagString = `${l.lag}d`;
+                 const relationString = `${relatedTaskWbs}${l.type}${lagString}`;
+                 return relationsToRemove.includes(relationString);
+            });
+
+            const linkParseRegex = /^(\d+(?:\.\d+)*)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
+            const linksToAddData: Omit<Link, 'id'>[] = relationsToAdd.map(rel => {
+                const match = rel.match(linkParseRegex);
+                if (!match) return null;
+                
+                const wbs = match[1];
+                const type = (match[2] || 'FS').toUpperCase() as LinkType;
+                const lagStr = match[3];
+                const lag = lagStr ? parseInt(lagStr) : 0;
+                const relatedTaskId = wbsToIdMap.get(wbs);
+
+                if (relatedTaskId && relatedTaskId !== taskId) {
+                    return {
+                        source: field === 'predecessors' ? relatedTaskId : taskId,
+                        target: field === 'predecessors' ? taskId : relatedTaskId,
+                        type,
+                        lag,
+                    };
+                }
+                return null;
+            }).filter((l): l is Omit<Link, 'id'> => l !== null);
+
+            const batch = writeBatch(firestore);
+            
+            linksToRemove.forEach(link => {
+                const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
+                batch.delete(docRef);
+            });
+
+            const newLinkObjects: Link[] = linksToAddData.map((linkData, i) => ({
+                 id: `link-${Date.now()}-${i}`,
+                ...linkData
+            }));
+
+            newLinkObjects.forEach(linkObj => {
+                const docRef = doc(firestore, 'users', user.uid, 'links', linkObj.id);
+                batch.set(docRef, linkObj);
+            });
+
+            batch.commit().catch(error => console.error("Failed to update relationships in batch", error));
+
+            const finalLinks = [
+                ...links.filter(l => !linksToRemove.some(r => r.id === l.id)),
+                ...newLinkObjects
+            ];
+            
+            dispatch({ type: 'SET_LINKS', payload: finalLinks });
+            break;
+        }
+
+        case 'UPDATE_TASK':
+        case 'UPDATE_LINK':
+        case 'UPDATE_RESOURCE':
+        case 'UPDATE_CALENDAR':
+        case 'NEST_TASKS':
+        case 'REORDER_TASKS':
+        case 'INDENT_TASK':
+        case 'OUTDENT_TASK': {
+            const batch = writeBatch(firestore);
+            const { tasks } = projectReducer(historyState.present, action);
+             tasks.forEach(task => {
+                const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
+                const { id, ...rest } = task;
+                batch.update(docRef, { ...rest });
+            });
+            batch.commit().catch(e => console.error("Failed to batch update tasks", e));
+            break;
+        }
+
+        // Settings and Views
+        case 'SAVE_VIEW_AS': {
+            const { name } = action.payload;
+            const newView: View = {
+              id: `view-${Date.now()}`,
+              name,
+              grouping: historyState.present.grouping,
+              visibleColumns: historyState.present.visibleColumns,
+              filters: historyState.present.filters,
+            };
+            const docRef = doc(firestore, 'users', user.uid, 'views', newView.id);
+            setDocumentNonBlocking(docRef, newView, {});
+            break;
+        }
+        case 'UPDATE_CURRENT_VIEW': {
+             const { currentViewId, views, grouping, visibleColumns, filters } = historyState.present;
+             if (currentViewId) {
+                const updatedView = { ...views.find(v => v.id === currentViewId), grouping, visibleColumns, filters };
+                const docRef = doc(firestore, 'users', user.uid, 'views', currentViewId);
+                updateDocumentNonBlocking(docRef, updatedView);
+             }
+             break;
+        }
+        case 'DELETE_VIEW': {
+             const { viewId } = action.payload;
+             const docRef = doc(firestore, 'users', user.uid, 'views', viewId);
+             deleteDocumentNonBlocking(docRef);
+             break;
+        }
+        case 'SET_VIEW': {
+            const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
+            updateDocumentNonBlocking(docRef, { currentViewId: action.payload.viewId });
+            break;
+        }
+        case 'SET_COLUMNS':
+        case 'RESIZE_COLUMN':
+        case 'REORDER_COLUMNS':
+        case 'ADD_COLUMN':
+        case 'UPDATE_COLUMN':
+        case 'REMOVE_COLUMN':
+        case 'SET_UI_DENSITY':
+        case 'UPDATE_GANTT_SETTINGS': {
+            const newState = projectReducer(historyState.present, action);
+            const settingsToUpdate = {
+                columns: newState.columns,
+                uiDensity: newState.uiDensity,
+                ganttSettings: newState.ganttSettings,
+                visibleColumns: newState.visibleColumns, // Though this is part of a view...
+            }
+            const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
+            updateDocumentNonBlocking(docRef, settingsToUpdate);
             break;
         }
     }
@@ -1051,50 +1205,70 @@ export function useProject(user: User) {
     const { data: resources, isLoading: resourcesLoading } = collections.resources;
     const { data: assignments, isLoading: assignmentsLoading } = collections.assignments;
     const { data: calendars, isLoading: calendarsLoading } = collections.calendars;
+    const { data: views, isLoading: viewsLoading } = collections.views;
+    const { data: settings, isLoading: settingsLoading } = collections.settings;
 
-    const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading;
+    const isLoading = tasksLoading || linksLoading || resourcesLoading || assignmentsLoading || calendarsLoading || viewsLoading || settingsLoading;
     
     if (isSeeding || isLoading) return;
 
-    if (!isLoaded && user) { // This block runs only once after initial loading finishes
-        const needsSeeding = !tasks || tasks.length === 0 || !calendars || calendars.length === 0;
+    if (!isLoaded && user) {
+        const needsProjectSeeding = !tasks || tasks.length === 0;
+        const needsCalendarSeeding = !calendars || calendars.length === 0;
+        const needsViewsSeeding = !views || views.length === 0;
+        const needsSettingsSeeding = !settings;
+        
+        const needsSeeding = needsProjectSeeding || needsCalendarSeeding || needsViewsSeeding || needsSettingsSeeding;
 
         if (needsSeeding) {
              setIsSeeding(true);
              const batch = writeBatch(firestore);
-             initialTasks.forEach((task, index) => {
-                 const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
-                 batch.set(docRef, { ...task, order: index });
-             });
-              initialLinks.forEach(link => {
-                 const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
-                 batch.set(docRef, link);
-             });
-              initialResources.forEach(resource => {
-                 const docRef = doc(firestore, 'users', user.uid, 'resources', resource.id);
-                 batch.set(docRef, resource);
-             });
-              initialAssignments.forEach(assignment => {
-                 const docRef = doc(firestore, 'users', user.uid, 'assignments', assignment.id);
-                 batch.set(docRef, assignment);
-             });
-             initialCalendars.forEach(calendar => {
-                 const docRef = doc(firestore, 'users', user.uid, 'calendars', calendar.id);
-                 batch.set(docRef, calendar);
-             });
+             
+             if (needsProjectSeeding) {
+                 initialTasks.forEach((task, index) => {
+                     const docRef = doc(firestore, 'users', user.uid, 'tasks', task.id);
+                     batch.set(docRef, { ...task, order: index });
+                 });
+                  initialLinks.forEach(link => {
+                     const docRef = doc(firestore, 'users', user.uid, 'links', link.id);
+                     batch.set(docRef, link);
+                 });
+                  initialResources.forEach(resource => {
+                     const docRef = doc(firestore, 'users', user.uid, 'resources', resource.id);
+                     batch.set(docRef, resource);
+                 });
+                  initialAssignments.forEach(assignment => {
+                     const docRef = doc(firestore, 'users', user.uid, 'assignments', assignment.id);
+                     batch.set(docRef, assignment);
+                 });
+             }
+             if (needsCalendarSeeding) {
+                 initialCalendars.forEach(calendar => {
+                     const docRef = doc(firestore, 'users', user.uid, 'calendars', calendar.id);
+                     batch.set(docRef, calendar);
+                 });
+             }
+             if (needsViewsSeeding) {
+                 defaultViews.forEach(view => {
+                     const docRef = doc(firestore, 'users', user.uid, 'views', view.id);
+                     batch.set(docRef, view);
+                 });
+             }
+             if (needsSettingsSeeding) {
+                 const docRef = doc(firestore, 'users', user.uid, 'settings', 'app_settings');
+                 batch.set(docRef, defaultAppSettings);
+             }
+
              batch.commit().finally(() => {
                 setIsSeeding(false);
-                // Do not set isLoaded here, let the hook re-run with fresh data
              });
              return;
-        } else if (!isLoaded) {
-             // If no seeding is needed, mark as loaded immediately.
+        } else {
              setIsLoaded(true);
         }
     }
 
     if (isLoaded) {
-        // This part runs on subsequent data updates from Firestore
         const safeToDate = (value: any): Date | null => {
             if (!value) return null;
             if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
@@ -1106,7 +1280,15 @@ export function useProject(user: User) {
             }
             return null;
         }
-
+        
+        dispatch({
+            type: 'SET_PERSISTED_STATE',
+            payload: {
+                views: views || [],
+                settings: settings ? { ...defaultAppSettings, ...settings } : null
+            }
+        });
+        
         dispatch({
             type: 'SET_PROJECT_DATA',
             payload: {
@@ -1133,20 +1315,9 @@ export function useProject(user: User) {
     }
 
 }, [
-    collections.tasks.data, 
-    collections.links.data, 
-    collections.resources.data, 
-    collections.assignments.data, 
-    collections.calendars.data, 
-    collections.tasks.isLoading, 
-    collections.links.isLoading, 
-    collections.resources.isLoading, 
-    collections.assignments.isLoading, 
-    collections.calendars.isLoading,
-    isLoaded,
-    isSeeding,
-    firestore,
-    user
+    collections.tasks.data, collections.links.data, collections.resources.data, collections.assignments.data, collections.calendars.data, collections.views.data, collections.settings.data,
+    collections.tasks.isLoading, collections.links.isLoading, collections.resources.isLoading, collections.assignments.isLoading, collections.calendars.isLoading, collections.views.isLoading, collections.settings.isLoading,
+    isLoaded, isSeeding, firestore, user
 ]);
 
 

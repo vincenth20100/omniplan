@@ -323,6 +323,140 @@
         "name",
         "workingDays"
       ]
+    },
+    "View": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "View",
+      "description": "Represents a saved view configuration including columns, grouping, and filters.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "grouping": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "visibleColumns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "columnId": {
+                "type": "string"
+              },
+              "operator": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "columnId",
+              "operator"
+            ]
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "UserSettings": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User Settings",
+      "description": "Stores user-specific application settings.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "currentViewId": {
+          "type": "string"
+        },
+        "uiDensity": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "medium",
+            "large"
+          ]
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "width": {
+                "type": "number"
+              },
+              "type": {
+                "type": "string"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "width"
+            ]
+          }
+        },
+        "ganttSettings": {
+          "type": "object",
+          "properties": {
+            "viewMode": {
+              "type": "string"
+            },
+            "showDependencies": {
+              "type": "boolean"
+            },
+            "showProgress": {
+              "type": "boolean"
+            },
+            "highlightNonWorkingTime": {
+              "type": "boolean"
+            },
+            "showTodayLine": {
+              "type": "boolean"
+            },
+            "showTaskLabels": {
+              "type": "boolean"
+            },
+            "highlightCriticalPath": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "required": [
+        "id"
+      ]
     }
   },
   "auth": {
@@ -484,6 +618,46 @@
             {
               "name": "calendarId",
               "description": "The unique identifier for the calendar."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/views/{viewId}",
+        "definition": {
+          "entityName": "View",
+          "schema": {
+            "$ref": "#/entities/View"
+          },
+          "description": "Collection to store user-defined views.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "viewId",
+              "description": "The unique identifier for the view."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/settings/{settingId}",
+        "definition": {
+          "entityName": "UserSettings",
+          "schema": {
+            "$ref": "#/entities/UserSettings"
+          },
+          "description": "Collection to store user-specific application settings. A single document with a known ID 'app_settings' is used.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "settingId",
+              "description": "The unique identifier for the settings document (e.g., 'app_settings')."
             }
           ]
         }

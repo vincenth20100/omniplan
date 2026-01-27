@@ -66,6 +66,15 @@ service cloud.firestore {
     function hasMatchingId(docId) {
       return request.resource.data.id == docId;
     }
+    
+    /**
+     * @description Ensures the 'id' field of a document cannot be changed during an update.
+     */
+    function isIdImmutable() {
+      // Allow the update if the 'id' field is not being modified.
+      // If the 'id' field is present in the request, it must match the existing resource's id.
+      return !('id' in request.resource.data) || request.resource.data.id == resource.data.id;
+    }
 
     /**
      * @description Rules for the user's root document.
@@ -93,7 +102,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(taskId);
-      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
+      allow update: if isExistingOwner(userId) && isIdImmutable();
       allow delete: if isExistingOwner(userId);
     }
 
@@ -108,7 +117,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(linkId);
-      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
+      allow update: if isExistingOwner(userId) && isIdImmutable();
       allow delete: if isExistingOwner(userId);
     }
 
@@ -123,7 +132,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(zoneId);
-      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
+      allow update: if isExistingOwner(userId) && isIdImmutable();
       allow delete: if isExistingOwner(userId);
     }
 
@@ -138,7 +147,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(historyLogId);
-      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
+      allow update: if isExistingOwner(userId) && isIdImmutable();
       allow delete: if isExistingOwner(userId);
     }
 
@@ -151,7 +160,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(resourceId);
-      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
+      allow update: if isExistingOwner(userId) && isIdImmutable();
       allow delete: if isExistingOwner(userId);
     }
 
@@ -164,7 +173,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(assignmentId);
-      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
+      allow update: if isExistingOwner(userId) && isIdImmutable();
       allow delete: if isExistingOwner(userId);
     }
 
@@ -177,8 +186,34 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId) && hasMatchingId(calendarId);
-      allow update: if isExistingOwner(userId) && (!('id' in request.resource.data) || request.resource.data.id == resource.data.id);
+      allow update: if isExistingOwner(userId) && isIdImmutable();
       allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for user-owned views.
+     * @path /users/{userId}/views/{viewId}
+     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
+     */
+    match /users/{userId}/views/{viewId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasMatchingId(viewId);
+      allow update: if isExistingOwner(userId) && isIdImmutable();
+      allow delete: if isExistingOwner(userId);
+    }
+    
+    /**
+     * @description Rules for user-owned settings document.
+     * @path /users/{userId}/settings/{settingId}
+     * @principle Enforces strict document ownership.
+     */
+    match /users/{userId}/settings/{settingId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId); // list is ok, as we expect only one doc
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if false; // Settings should not be deleted.
     }
   }
 }
