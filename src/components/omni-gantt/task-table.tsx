@@ -495,6 +495,11 @@ export function TaskTable({
 
             // Type-to-edit logic
             if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && activeCell) {
+                const target = event.target as HTMLElement;
+                // Do not trigger "type-to-edit" if the event originates from an element that already accepts text input.
+                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                    return;
+                }
                 event.preventDefault();
                 dispatch({
                     type: 'START_EDITING_CELL',
@@ -503,6 +508,11 @@ export function TaskTable({
                 return;
             }
             if (event.key === 'Backspace' && activeCell) {
+                 const target = event.target as HTMLElement;
+                // Do not trigger "type-to-edit" if the event originates from an element that already accepts text input.
+                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                    return;
+                }
                 event.preventDefault();
                 dispatch({
                     type: 'START_EDITING_CELL',
