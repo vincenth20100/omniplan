@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState, useMemo, useCallback } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember, StylePreset } from '@/lib/types';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
@@ -32,21 +32,50 @@ const initialGanttSettings: GanttSettings = {
   customStyles: {}
 };
 
+const defaultStylePresets: StylePreset[] = [
+    {
+        id: 'default-dark',
+        name: 'Default Dark',
+        isDefault: true,
+        settings: {
+            theme: 'dark',
+            customStyles: {}
+        }
+    },
+    {
+        id: 'default-light',
+        name: 'Default Light',
+        isDefault: true,
+        settings: {
+            theme: 'light',
+            customStyles: {}
+        }
+    },
+    {
+        id: 'default-sepia',
+        name: 'Default Sepia',
+        isDefault: true,
+        settings: {
+            theme: 'sepia',
+            customStyles: {}
+        }
+    }
+];
+
 const defaultAppSettings = {
     id: 'app_settings',
     columns: initialColumns,
-    // uiDensity: 'compact' as UiDensity, // Now user-specific
-    // currentViewId: 'default', // Now user-specific
-    // ganttSettings: initialGanttSettings, // Now user-specific
     visibleColumns: initialVisibleColumns,
     grouping: [],
     filters: [],
+    stylePresets: defaultStylePresets,
 };
 
 const defaultUserPreferences = {
     uiDensity: 'compact' as UiDensity,
     currentViewId: 'default',
     ganttSettings: initialGanttSettings,
+    activeStylePresetId: 'default-dark',
 };
 
 
@@ -72,6 +101,8 @@ const initialState: ProjectState = {
   activeCell: null,
   editingCell: null,
   ganttSettings: initialGanttSettings,
+  stylePresets: defaultStylePresets,
+  activeStylePresetId: 'default-dark',
   notifications: [],
   currentRepresentation: 'gantt',
 };
@@ -126,6 +157,8 @@ type Action =
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
   | { type: 'STOP_EDITING_CELL' }
   | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
+  | { type: 'SET_STYLE_PRESETS', payload: StylePreset[] }
+  | { type: 'SET_ACTIVE_STYLE_PRESET', payload: { id: string } }
   | { type: '_APPLY_STATE_CHANGE', payload: { newState: ProjectState, originalAction: Action } }
   | { type: 'UNDO' }
   | { type: 'REDO' }
@@ -383,6 +416,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const finalUiDensity = userPreferences?.uiDensity || defaultUserPreferences.uiDensity;
         const finalGanttSettings = { ...initialGanttSettings, ...(userPreferences?.ganttSettings || {}) };
         const finalCurrentViewId = userPreferences?.currentViewId || defaultUserPreferences.currentViewId;
+        const finalActiveStylePresetId = userPreferences?.activeStylePresetId === null ? null : (userPreferences?.activeStylePresetId || defaultUserPreferences.activeStylePresetId);
 
         const newViews = views.length > 0 ? views : defaultViews;
         const newSharedSettings = sharedSettings ? { ...defaultAppSettings, ...sharedSettings } : defaultAppSettings;
@@ -395,6 +429,15 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             finalVisibleColumns = finalVisibleColumns.filter(colId => !hidden.includes(colId));
         }
 
+        const loadedStylePresets = newSharedSettings.stylePresets || defaultStylePresets;
+        if (finalActiveStylePresetId) {
+            const preset = loadedStylePresets.find(p => p.id === finalActiveStylePresetId);
+            if (preset) {
+                finalGanttSettings.theme = preset.settings.theme;
+                finalGanttSettings.customStyles = preset.settings.customStyles || {};
+            }
+        }
+        
         const tempStateForDirtyCheck: ProjectState = {
             ...state,
             views: newViews,
@@ -410,6 +453,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             columns: newSharedSettings.columns || initialColumns,
             uiDensity: finalUiDensity,
             ganttSettings: finalGanttSettings,
+            stylePresets: loadedStylePresets,
+            activeStylePresetId: finalActiveStylePresetId,
             currentViewId: currentView.id,
             grouping: currentView.grouping || [],
             visibleColumns: finalVisibleColumns,
@@ -893,7 +938,42 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'UPDATE_GANTT_SETTINGS': {
       const newState = { ...state, ganttSettings: action.payload };
-      return { ...newState, isDirty: checkDirty(newState) };
+      const activePreset = state.stylePresets.find(p => p.id === state.activeStylePresetId);
+      
+      let newActiveStylePresetId = state.activeStylePresetId;
+      if (activePreset) {
+          const presetSettings = activePreset.settings;
+          const currentSettings = action.payload;
+
+          const customStylesMatch = JSON.stringify(presetSettings.customStyles || {}) === JSON.stringify(currentSettings.customStyles || {});
+          const themeMatch = presetSettings.theme === currentSettings.theme;
+
+          if (!customStylesMatch || !themeMatch) {
+              newActiveStylePresetId = null; // Mark as custom
+          }
+      } else {
+        newActiveStylePresetId = null; // Was already custom
+      }
+      
+      const dirtyState = { ...newState, activeStylePresetId: newActiveStylePresetId };
+
+      return { ...dirtyState, isDirty: checkDirty(dirtyState) };
+    }
+    case 'SET_STYLE_PRESETS': {
+        return { ...state, stylePresets: action.payload };
+    }
+    case 'SET_ACTIVE_STYLE_PRESET': {
+        const { id } = action.payload;
+        const preset = state.stylePresets.find(p => p.id === id);
+        if (preset) {
+            const newGanttSettings = {
+                ...state.ganttSettings,
+                theme: preset.settings.theme,
+                customStyles: preset.settings.customStyles || {},
+            };
+            return { ...state, activeStylePresetId: id, ganttSettings: newGanttSettings };
+        }
+        return state;
     }
     case 'ADD_TASK': {
         const newId = `task-${Date.now()}`;
@@ -1445,11 +1525,13 @@ export function useProject(user: User, projectId: string | null) {
     const sharedSettingsActions: Action['type'][] = [
       'SAVE_VIEW_AS', 'UPDATE_CURRENT_VIEW', 'SET_GROUPING', 'SET_FILTERS',
       'SET_COLUMNS', 'ADD_COLUMN', 'UPDATE_COLUMN', 'REMOVE_COLUMN',
-      'RESIZE_COLUMN', 'REORDER_COLUMNS', 'DELETE_VIEW'
+      'RESIZE_COLUMN', 'REORDER_COLUMNS', 'DELETE_VIEW',
+      'SET_STYLE_PRESETS',
     ];
     
     const userSettingsActions: Action['type'][] = [
-        'UPDATE_GANTT_SETTINGS', 'SET_UI_DENSITY', 'SET_VIEW'
+        'UPDATE_GANTT_SETTINGS', 'SET_UI_DENSITY', 'SET_VIEW',
+        'SET_ACTIVE_STYLE_PRESET'
     ];
 
     if ((dataWriteActions.includes(action.type) || sharedSettingsActions.includes(action.type)) && !isEditorOrOwner) {
@@ -1475,12 +1557,17 @@ export function useProject(user: User, projectId: string | null) {
         const prefsToUpdate: Partial<typeof defaultUserPreferences> = {};
         if (action.type === 'UPDATE_GANTT_SETTINGS') {
              prefsToUpdate.ganttSettings = newState.ganttSettings;
+             prefsToUpdate.activeStylePresetId = newState.activeStylePresetId;
         }
         if (action.type === 'SET_UI_DENSITY') {
             prefsToUpdate.uiDensity = newState.uiDensity;
         }
          if (action.type === 'SET_VIEW') {
             prefsToUpdate.currentViewId = newState.currentViewId;
+        }
+        if (action.type === 'SET_ACTIVE_STYLE_PRESET') {
+            prefsToUpdate.activeStylePresetId = newState.activeStylePresetId;
+            prefsToUpdate.ganttSettings = newState.ganttSettings;
         }
 
         setDocumentNonBlocking(userPrefsDocRef, prefsToUpdate, { merge: true });
@@ -1543,6 +1630,7 @@ export function useProject(user: User, projectId: string | null) {
                 visibleColumns: newState.visibleColumns,
                 grouping: newState.grouping,
                 filters: newState.filters,
+                stylePresets: newState.stylePresets,
             };
             batch.set(sharedSettingsDocRef, settingsToUpdate, { merge: true });
             
