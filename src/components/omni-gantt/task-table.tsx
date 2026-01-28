@@ -612,10 +612,72 @@ export function TaskTable({
                 }
             }
         };
+
+        const handleCopy = (e: ClipboardEvent) => {
+            const { selectedTaskIds, tasks, editingCell } = stateRef.current;
+            if (selectedTaskIds.length === 0 || editingCell) return;
+
+            e.preventDefault();
+
+            const taskMap = new Map(tasks.map(t => [t.id, t]));
+            const tasksToCopyIds = new Set<string>();
+
+            const getChildrenRecursive = (parentId: string) => {
+                tasks.forEach(t => {
+                    if (t.parentId === parentId) {
+                        tasksToCopyIds.add(t.id);
+                        if (t.isSummary) {
+                            getChildrenRecursive(t.id);
+                        }
+                    }
+                });
+            };
+
+            const sortedSelectedTasks = tasks.filter(t => selectedTaskIds.includes(t.id));
+            sortedSelectedTasks.forEach(task => {
+                tasksToCopyIds.add(task.id);
+                if (task.isSummary) {
+                    getChildrenRecursive(task.id);
+                }
+            });
+            
+            const tasksToCopy = tasks
+                .filter(t => tasksToCopyIds.has(t.id))
+                .map(t => {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { isCritical, totalFloat, lateStart, lateFinish, ...rest } = t;
+                    return rest;
+                });
+
+            const data = {
+                type: 'omniplan-tasks',
+                tasks: tasksToCopy
+            };
+            
+            e.clipboardData?.setData('text/plain', JSON.stringify(data));
+        };
+
+        const handlePaste = (e: ClipboardEvent) => {
+            const { editingCell } = stateRef.current;
+            if (editingCell) return; // Don't handle paste when editing a cell
+
+            const pastedData = e.clipboardData?.getData('text/plain');
+            if (pastedData) {
+                e.preventDefault();
+                dispatch({ 
+                    type: 'ADD_TASKS_FROM_PASTE', 
+                    payload: { data: pastedData, activeCell: stateRef.current.activeCell }
+                });
+            }
+        };
         
         window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('copy', handleCopy);
+        window.addEventListener('paste', handlePaste);
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('copy', handleCopy);
+            window.removeEventListener('paste', handlePaste);
         };
     }, [renderableRows, dispatch, getCellValueForEditing]);
 

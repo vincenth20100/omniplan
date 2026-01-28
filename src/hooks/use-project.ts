@@ -162,9 +162,9 @@ type Action =
  * removing calculated fields and converting `undefined` to `null`.
  */
 const toFirestoreTask = (task: Task) => {
-  const { isCritical, totalFloat, lateStart, lateFinish, ...rest } = task;
+  const { isCritical, totalFloat, lateStart, lateFinish, wbs, level, isSummary, ...rest } = task;
 
-  const cleanTask: Record<string, any> = { ...rest };
+  const cleanTask: Record<string, any> = { wbs, level, isSummary, ...rest };
 
   // Ensure no undefined values are sent
   for (const key in cleanTask) {
@@ -743,31 +743,112 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'ADD_TASKS_FROM_PASTE': {
         const { data, activeCell } = action.payload;
+        try {
+            const parsedData = JSON.parse(data);
+            if (parsedData.type === 'omniplan-tasks' && Array.isArray(parsedData.tasks)) {
+                const pastedTasks: Task[] = parsedData.tasks;
+                if (pastedTasks.length === 0) return state;
+
+                const idMap = new Map<string, string>();
+                pastedTasks.forEach(t => idMap.set(t.id, `task-${Date.now()}-${Math.random()}`.replace('.','')));
+                
+                let targetIndex = state.tasks.length;
+                if (activeCell) {
+                    const activeTaskIndex = state.tasks.findIndex(t => t.id === activeCell.taskId);
+                    if (activeTaskIndex !== -1) {
+                        targetIndex = activeTaskIndex + 1;
+                    }
+                }
+
+                const orderBefore = state.tasks[targetIndex - 1]?.order ?? (state.tasks.length > 0 ? Math.max(...state.tasks.map(t => t.order ?? 0)) : -1);
+                const orderAfter = state.tasks[targetIndex]?.order ?? orderBefore + 2;
+                const orderStep = (orderAfter - orderBefore) / (pastedTasks.length + 1);
+
+                const newTasks: Task[] = pastedTasks.map((task, index) => {
+                    const newId = idMap.get(task.id)!;
+                    const newParentId = task.parentId && idMap.has(task.parentId) ? idMap.get(task.parentId) : undefined;
+                    
+                    return {
+                        ...task,
+                        id: newId,
+                        parentId: newParentId,
+                        percentComplete: 0,
+                        start: new Date(),
+                        finish: new Date(),
+                        order: orderBefore + (index + 1) * orderStep,
+                        // Reset calculated fields
+                        isCritical: undefined,
+                        totalFloat: undefined,
+                        lateStart: undefined,
+                        lateFinish: undefined,
+                        wbs: undefined,
+                        schedulingConflict: false,
+                        deadlineMissed: false,
+                    };
+                });
+                
+                const allTasks = [...state.tasks];
+                allTasks.splice(targetIndex, 0, ...newTasks);
+                
+                const scheduledTasks = runScheduler(allTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+                const newSelectedIds = newTasks.map(t => t.id);
+
+                return { ...state, tasks: scheduledTasks, selectedTaskIds: newSelectedIds };
+            }
+        } catch (e) {
+            // Not JSON, fall through to plain text handling
+        }
+
+        // Plain text handling
         const lines = data.split('\n').filter(line => line.trim() !== '');
-
         if (lines.length === 0) return state;
-
+        
         if (lines.length > 1) {
-            const newTasks: Task[] = lines.map((line, index) => {
-                const id = `task-${Date.now()}-${index}`;
-                const name = line.trim();
-                return {
-                    id,
-                    name,
-                    start: new Date(),
-                    finish: new Date(),
-                    duration: 1,
-                    percentComplete: 0,
-                    level: 0,
-                    order: state.tasks.length + index,
-                };
-            });
+            let targetIndex = state.tasks.length;
+            if (activeCell) {
+                const activeTaskIndex = state.tasks.findIndex(t => t.id === activeCell.taskId);
+                if (activeTaskIndex > -1) {
+                    targetIndex = activeTaskIndex + 1;
+                }
+            }
+            
+            const orderBefore = state.tasks[targetIndex - 1]?.order ?? (state.tasks.length > 0 ? Math.max(...state.tasks.map(t => t.order ?? 0)) : -1);
+            const orderAfter = state.tasks[targetIndex]?.order ?? orderBefore + lines.length + 1;
+            const orderStep = (orderAfter - orderBefore) / (lines.length + 1);
 
-            const allTasks = [...state.tasks, ...newTasks];
+            const newTasks: Task[] = lines.map((line, index) => ({
+                id: `task-${Date.now()}-${index}`,
+                name: line.trim(),
+                start: new Date(),
+                finish: new Date(),
+                duration: 1,
+                percentComplete: 0,
+                level: 0,
+                order: orderBefore + (index + 1) * orderStep,
+            }));
+
+            const allTasks = [...state.tasks];
+            allTasks.splice(targetIndex, 0, ...newTasks);
+            
             const scheduledTasks = runScheduler(allTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
-            return { ...state, tasks: scheduledTasks };
+            const newSelectedIds = newTasks.map(t => t.id);
+            
+            return { ...state, tasks: scheduledTasks, selectedTaskIds: newSelectedIds };
+
         } else if (lines.length === 1 && activeCell) {
-            const payload = { id: activeCell.taskId, [activeCell.columnId]: lines[0].trim() };
+            const { taskId, columnId } = activeCell;
+            const value = lines[0].trim();
+            
+            if (columnId === 'predecessors' || columnId === 'successors') {
+                 return projectReducer(state, { type: 'UPDATE_RELATIONSHIPS', payload: { taskId, field: columnId, value } });
+            }
+            if (columnId === 'duration') {
+                const parsed = parseDuration(value);
+                if (parsed) {
+                    return projectReducer(state, { type: 'UPDATE_TASK', payload: { id: taskId, duration: parsed.value, durationUnit: parsed.unit } });
+                }
+            }
+            const payload = { id: taskId, [columnId]: value };
             return projectReducer(state, { type: 'UPDATE_TASK', payload });
         }
         return state;
@@ -1339,7 +1420,8 @@ export function useProject(user: User) {
         'ADD_TASK', 'REMOVE_TASK', 
         'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
         'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
-        'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR'
+        'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
+        'ADD_TASKS_FROM_PASTE',
     ];
 
     if (nonOptimisticActions.includes(action.type)) {
