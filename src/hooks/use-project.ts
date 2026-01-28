@@ -321,11 +321,29 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         };
     }
     case 'UPDATE_TASK': {
+        const { id, ...update } = action.payload;
+
+        let requiresReschedule = false;
+        if (
+            'start' in update ||
+            'finish' in update ||
+            'duration' in update ||
+            'constraintType' in update ||
+            'constraintDate' in update
+        ) {
+            requiresReschedule = true;
+        }
+
         const updatedTasks = state.tasks.map(t =>
-            t.id === action.payload.id ? { ...t, ...action.payload } : t
+            t.id === id ? { ...t, ...update } : t
         );
-        const reScheduledTasks = runScheduler(updatedTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: reScheduledTasks, isDirty: checkDirty({ ...state, tasks: reScheduledTasks }) };
+        
+        // If an update doesn't affect the schedule, we can skip the expensive reschedule
+        const finalTasks = requiresReschedule 
+            ? runScheduler(updatedTasks, state.links, state.columns, state.calendars, state.defaultCalendarId)
+            : updateHierarchyAndSort(updatedTasks);
+
+        return { ...state, tasks: finalTasks, isDirty: checkDirty({ ...state, tasks: finalTasks }) };
     }
     case 'UPDATE_LINK': {
         const newLinks = state.links.map(l => l.id === action.payload.id ? { ...l, ...action.payload } : l);
@@ -734,12 +752,17 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     case 'LINK_TASKS': {
         if (state.selectedTaskIds.length < 2) return state;
         
-        const newLinks: Link[] = [];
         const existingLinkPairs = new Set(state.links.map(l => `${l.source}-${l.target}`));
+        const visibleTasks = getVisibleTasks(state.tasks);
+        const selectedVisibleTasks = visibleTasks.filter(t => state.selectedTaskIds.includes(t.id));
 
-        for (let i = 0; i < state.selectedTaskIds.length - 1; i++) {
-            const source = state.selectedTaskIds[i];
-            const target = state.selectedTaskIds[i + 1];
+        if (selectedVisibleTasks.length < 2) return state;
+        
+        const newLinks: Link[] = [];
+
+        for (let i = 0; i < selectedVisibleTasks.length - 1; i++) {
+            const source = selectedVisibleTasks[i].id;
+            const target = selectedVisibleTasks[i + 1].id;
             const linkKey = `${source}-${target}`;
 
             if (!existingLinkPairs.has(linkKey)) {
@@ -844,34 +867,48 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     case 'INDENT_TASK': {
         const tasksToIndent = state.selectedTaskIds;
         if (tasksToIndent.length === 0) return state;
-        
+
         const tasks = [...state.tasks];
         const taskMap = new Map(tasks.map(t => [t.id, t]));
 
-        const firstSelectedIndex = tasks.findIndex(t => t.id === tasksToIndent[0]);
-        if (firstSelectedIndex === 0) return state;
+        // This logic will apply the same parent to all selected tasks.
+        // It finds the parent based on the position of the *first* selected task.
+        const firstSelectedId = tasks.find(t => tasksToIndent.includes(t.id))?.id;
+        if (!firstSelectedId) return state;
 
-        let parentTask: Task | undefined = undefined;
-        let potentialParentIndex = firstSelectedIndex - 1;
-        while(potentialParentIndex >= 0) {
-            const p = tasks[potentialParentIndex];
-            if (!tasksToIndent.includes(p.id)) {
-                 parentTask = p;
-                 break;
+        const firstSelectedIndex = tasks.findIndex(t => t.id === firstSelectedId);
+        if (firstSelectedIndex === 0) return state; // Cannot indent the first task
+
+        // Find the first visible task above the selection
+        const taskAbove = tasks[firstSelectedIndex - 1];
+
+        // New Logic: Determine the parent based on the task above.
+        // If the task above is already indented (has a parent), the selected tasks
+        // become its siblings by taking its parent.
+        // If the task above is a root-level item, the selected tasks become its children.
+        const newParentId = taskAbove.parentId || taskAbove.id;
+        const newParent = taskMap.get(newParentId);
+
+        if (!newParent) return state; // Should not happen
+
+        // Prevent indenting a task under one of its own descendants (creating a cycle)
+        for (const taskId of tasksToIndent) {
+            let p: Task | undefined = newParent;
+            while (p) {
+                if (p.id === taskId) {
+                    return state; // Invalid indent
+                }
+                p = p.parentId ? taskMap.get(p.parentId) : undefined;
             }
-            potentialParentIndex--;
         }
-        
-        if (!parentTask) return state;
 
-        // Ensure parent is expanded
-        if (parentTask.isCollapsed) {
-            taskMap.get(parentTask.id)!.isCollapsed = false;
+        if (newParent.isCollapsed) {
+            taskMap.get(newParent.id)!.isCollapsed = false;
         }
 
         tasksToIndent.forEach(taskId => {
             const taskToIndent = taskMap.get(taskId)!;
-            taskToIndent.parentId = parentTask!.id;
+            taskToIndent.parentId = newParentId;
         });
 
         const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId);
