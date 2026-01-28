@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "./ui/label";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 export function PrintPreviewDialog({
   open,
@@ -30,6 +32,7 @@ export function PrintPreviewDialog({
   projectState: ProjectState;
 }) {
   const [printSettings, setPrintSettings] = useState<GanttSettings>(projectState.ganttSettings);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
       // Reset settings when dialog opens
@@ -60,12 +63,18 @@ export function PrintPreviewDialog({
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl h-[90vh] flex flex-col" data-radix-dialog-content>
+      <DialogContent
+        className={cn(
+            "flex flex-col",
+            isMobile ? "h-dvh max-h-dvh w-screen max-w-screen rounded-none border-none p-2 sm:p-4" : "max-w-7xl h-[90vh]"
+        )}
+        data-radix-dialog-content
+      >
         <DialogHeader id="print-preview-dialog-header">
           <DialogTitle>Print Preview</DialogTitle>
         </DialogHeader>
         
-        <div id="print-preview-dialog-controls" className="grid grid-cols-4 gap-4 items-center border-b pb-4">
+        <div id="print-preview-dialog-controls" className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center border-b pb-4">
             <div>
                 <Label htmlFor="view-mode">Timeline Scale</Label>
                 <Select

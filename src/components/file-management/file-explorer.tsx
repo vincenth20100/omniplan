@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button";
 import { FilePlus, FolderOpen, Save, Printer } from "lucide-react";
 import { useRef } from 'react';
 import type { ProjectState } from "@/lib/types";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { useToast } from "@/hooks/use-toast";
 
 export function FileExplorer({ 
     projectState, 
@@ -17,8 +15,6 @@ export function FileExplorer({
     onPrintPreview: () => void,
 }) {
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const isMobile = useIsMobile();
-    const { toast } = useToast();
 
     const handleNew = () => {
         if (window.confirm('Are you sure you want to create a new project? All unsaved changes will be lost.')) {
@@ -69,15 +65,7 @@ export function FileExplorer({
     };
 
     const handlePrint = () => {
-        if (isMobile) {
-            toast({
-                title: "Export to PDF on Mobile",
-                description: "To save as a PDF, please use your browser's built-in 'Share' or 'Print' function and select the 'Save to PDF' option.",
-                duration: 10000,
-            });
-        } else {
-            onPrintPreview();
-        }
+        onPrintPreview();
     };
 
     return (
