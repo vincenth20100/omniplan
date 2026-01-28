@@ -160,7 +160,7 @@ type Action =
  * removing calculated fields and converting `undefined` to `null`.
  */
 const toFirestoreTask = (task: Task) => {
-  const { id, isCritical, totalFloat, lateStart, lateFinish, wbs, level, isSummary, ...rest } = task;
+  const { id, isCritical, totalFloat, lateStart, lateFinish, ...rest } = task;
 
   const cleanTask: Record<string, any> = { ...rest };
 
@@ -886,23 +886,26 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         // If the task above is already indented (has a parent), the selected tasks
         // become its siblings by taking its parent.
         // If the task above is a root-level item, the selected tasks become its children.
-        const newParentId = taskAbove.parentId || taskAbove.id;
-        const newParent = taskMap.get(newParentId);
+        const newParentId = (taskAbove.level || 0) > 0 ? taskAbove.parentId : taskAbove.id;
+        
+        if (newParentId === null) { // We are trying to make it a sibling of a root task, which is not an indent.
+            return state;
+        }
 
-        if (!newParent) return state; // Should not happen
+        const newParent = newParentId ? taskMap.get(newParentId) : null;
 
         // Prevent indenting a task under one of its own descendants (creating a cycle)
         for (const taskId of tasksToIndent) {
-            let p: Task | undefined = newParent;
+            let p: Task | undefined | null = newParent;
             while (p) {
                 if (p.id === taskId) {
                     return state; // Invalid indent
                 }
-                p = p.parentId ? taskMap.get(p.parentId) : undefined;
+                p = p.parentId ? taskMap.get(p.parentId) : null;
             }
         }
-
-        if (newParent.isCollapsed) {
+        
+        if (newParent && newParent.isCollapsed) {
             taskMap.get(newParent.id)!.isCollapsed = false;
         }
 
