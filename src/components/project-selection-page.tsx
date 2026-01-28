@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useAuth } from '@/firebase';
 import { collection, doc, getDoc, getDocs, writeBatch, deleteDoc, updateDoc, arrayRemove, query, arrayUnion } from 'firebase/firestore';
 import type { Project } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { ALL_COLUMNS } from '@/lib/columns';
+import { signOut } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,8 +23,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Copy, Trash2, Loader2, Settings } from 'lucide-react';
+import { Plus, Copy, Trash2, Loader2, Settings, LogOut } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 
@@ -34,6 +44,7 @@ type ProjectWithMetadata = Project & {
 
 export function ProjectSelectionPage({ user }: { user: User }) {
     const firestore = useFirestore();
+    const auth = useAuth();
     const router = useRouter();
     const { toast } = useToast();
     const [projects, setProjects] = useState<ProjectWithMetadata[]>([]);
@@ -47,6 +58,10 @@ export function ProjectSelectionPage({ user }: { user: User }) {
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState<ProjectWithMetadata | null>(null);
+
+    const handleSignOut = () => {
+        signOut(auth);
+    }
 
     const handleOpenSettings = (project: ProjectWithMetadata) => {
         setSelectedProject(project);
@@ -307,17 +322,42 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     
     return (
         <div className="container mx-auto p-4 md:p-8">
-            <div className="flex justify-between items-center mb-8">
+            <header className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold">{isAdmin ? 'All Projects' : 'Your Projects'}</h1>
-                <Button onClick={handleCreateProject} disabled={isCreating}>
-                    {isCreating ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                        <Plus className="mr-2 h-4 w-4" />
-                    )}
-                    Create New Project
-                </Button>
-            </div>
+                <div className="flex items-center gap-4">
+                    <Button onClick={handleCreateProject} disabled={isCreating}>
+                        {isCreating ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Plus className="mr-2 h-4 w-4" />
+                        )}
+                        Create New Project
+                    </Button>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                                <Avatar className="h-10 w-10">
+                                    <AvatarImage src={user.photoURL || undefined} alt={user.displayName || 'User'} />
+                                    <AvatarFallback>{user.displayName?.charAt(0) || 'U'}</AvatarFallback>
+                                </Avatar>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-56" align="end" forceMount>
+                            <DropdownMenuLabel className="font-normal">
+                                <div className="flex flex-col space-y-1">
+                                    <p className="text-sm font-medium leading-none">{user.displayName}</p>
+                                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                                </div>
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={handleSignOut}>
+                                <LogOut className="mr-2 h-4 w-4" />
+                                <span>Log out</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            </header>
 
             {projects.length > 0 ? (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -389,5 +429,3 @@ export function ProjectSelectionPage({ user }: { user: User }) {
         </div>
     );
 }
-
-    
