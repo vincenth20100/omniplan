@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from "@/components/ui/button";
-import { FilePlus, FolderOpen, Save } from "lucide-react";
+import { FilePlus, FolderOpen, Save, Printer } from "lucide-react";
 import { useRef } from 'react';
 import type { ProjectState } from "@/lib/types";
 
@@ -56,6 +56,10 @@ export function FileExplorer({ projectState, dispatch }: { projectState: Project
         downloadAnchorNode.remove();
     };
 
+    const handlePrint = () => {
+        window.print();
+    };
+
     return (
         <div className="p-2">
             <h3 className="text-sm font-semibold mb-2 px-2 text-muted-foreground">FILE</h3>
@@ -78,6 +82,10 @@ export function FileExplorer({ projectState, dispatch }: { projectState: Project
                 <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleSave}>
                     <Save className="h-4 w-4" />
                     Save
+                </Button>
+                <Button variant="ghost" className="w-full justify-start gap-2" onClick={handlePrint}>
+                    <Printer className="h-4 w-4" />
+                    Print / Export PDF
                 </Button>
             </div>
         </div>

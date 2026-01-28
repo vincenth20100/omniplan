@@ -79,3 +79,48 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Hide all interactive UI elements not part of the main content */
+  header, 
+  .group.peer,
+  button,
+  [role="dialog"],
+  [data-resize-handle-id] {
+    display: none !important;
+  }
+
+  /* Reset layout of main content area */
+  main, .flex-1.p-4.md\:p-6, .h-full {
+    display: block !important;
+    height: auto !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Ensure the gantt container doesn't get hidden */
+  .border.rounded-lg.overflow-hidden {
+      overflow: visible !important;
+  }
+  
+  /* Make scroll areas show their full content */
+  [data-radix-scroll-area-viewport] {
+      overflow: visible !important;
+      height: auto !important;
+  }
+  .pb-40 {
+      padding-bottom: 0 !important;
+  }
+
+  /* Remove stickiness from table/timeline headers */
+  .sticky.top-0 {
+    position: static !important;
+  }
+}
