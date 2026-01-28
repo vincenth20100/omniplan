@@ -119,7 +119,7 @@ export function Timeline({
     <div className="h-full w-full relative">
       <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
         <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
-          <div style={{ width: totalWidth, minHeight: '100%' }} className="relative">
+          <div style={{ width: totalWidth, minHeight: '100%' }} className="relative pb-40">
             <TimelineHeader startDate={viewStartDate} endDate={viewEndDate} scale={scale} />
             <div className="relative h-full" style={{height: `${totalHeight}px`}}>
               {defaultCalendar && ganttSettings.highlightNonWorkingTime && days.map((day, index) => {

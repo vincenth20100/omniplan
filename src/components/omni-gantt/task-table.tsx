@@ -891,6 +891,7 @@ export function TaskTable({
         <>
         <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
             <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
+                <div className="pb-40">
                 <Table className="w-auto">
                     <colgroup>
                         {orderedAndVisibleColumns.map((col) => (
@@ -1066,6 +1067,7 @@ export function TaskTable({
                         })}
                     </TableBody>
                 </Table>
+                </div>
             </ScrollAreaPrimitive.Viewport>
             <ScrollBar orientation="vertical" />
             <ScrollBar orientation="horizontal" />
