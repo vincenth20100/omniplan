@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect } from 'react';
@@ -37,6 +37,7 @@ export function ProjectPage({ user }: { user: User }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
   const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
 
@@ -117,6 +118,9 @@ export function ProjectPage({ user }: { user: User }) {
             <Redo2 />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
+        <Button variant={state.multiSelectMode ? "secondary" : "outline"} size="icon" onClick={handleToggleMultiSelect} title="Toggle Multi-Select Mode">
+          <ListChecks />
+        </Button>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK' })} title="Add Task">
             <Plus />
         </Button>
@@ -171,6 +175,14 @@ export function ProjectPage({ user }: { user: User }) {
         <Button variant="outline" size="icon" onClick={() => setIsShortcutsDialogOpen(true)} title="Keyboard Shortcuts">
             <Keyboard />
         </Button>
+        {isMobile && (
+            <>
+                <Separator orientation="vertical" className="h-6 mx-1" />
+                <Button variant="outline" size="icon" onClick={() => setIsMobileSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
+                    <Info />
+                </Button>
+            </>
+        )}
     </div>
   );
 
@@ -219,7 +231,7 @@ export function ProjectPage({ user }: { user: User }) {
       {isLoaded && (
         <>
           {isMobile && (
-            <Sheet open={!!selectedTask} onOpenChange={(open) => !open && dispatch({ type: 'SET_SELECTION', payload: { activeCell: null, selectionAnchorCell: null, selectedTaskIds: [], selectedCells: [] } })}>
+            <Sheet open={isMobileSheetOpen} onOpenChange={setIsMobileSheetOpen}>
                 <SheetContent side="bottom" className="h-[80vh] p-0">
                   {selectedTask && (
                     <>
@@ -229,7 +241,7 @@ export function ProjectPage({ user }: { user: User }) {
                           links={state.links} 
                           tasks={state.tasks}
                           dispatch={dispatch}
-                          onClose={() => dispatch({ type: 'SET_SELECTION', payload: { activeCell: null, selectionAnchorCell: null, selectedTaskIds: [], selectedCells: [] } })}
+                          onClose={() => setIsMobileSheetOpen(false)}
                           uiDensity={state.uiDensity}
                           defaultCalendar={defaultCalendar}
                       />
