@@ -37,6 +37,13 @@ service cloud.firestore {
       allow read, create, update: if request.auth.uid == userId || isGlobalAdmin();
       allow delete: if false;
     }
+    
+    // --- User Preferences ---
+    match /user_preferences/{prefId} {
+      // Allow user to read/write their own preferences. prefId is formatted as {userId}_{projectId}
+      allow read, create, update, delete: if isSignedIn() && request.auth.uid == prefId.split('_')[0];
+    }
+
 
     // --- Projects and Subcollections ---
     match /projects/{projectId} {

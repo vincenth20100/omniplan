@@ -35,13 +35,20 @@ const initialGanttSettings: GanttSettings = {
 const defaultAppSettings = {
     id: 'app_settings',
     columns: initialColumns,
-    uiDensity: 'compact' as UiDensity,
-    currentViewId: 'default',
-    ganttSettings: initialGanttSettings,
+    // uiDensity: 'compact' as UiDensity, // Now user-specific
+    // currentViewId: 'default', // Now user-specific
+    // ganttSettings: initialGanttSettings, // Now user-specific
     visibleColumns: initialVisibleColumns,
     grouping: [],
     filters: [],
 };
+
+const defaultUserPreferences = {
+    uiDensity: 'compact' as UiDensity,
+    currentViewId: 'default',
+    ganttSettings: initialGanttSettings,
+};
+
 
 const initialState: ProjectState = {
   tasks: [],
@@ -71,7 +78,7 @@ const initialState: ProjectState = {
 
 type Action =
   | { type: 'SET_PROJECT_DATA', payload: { tasks: Task[], links: Link[], resources: Resource[], assignments: Assignment[], calendars: Calendar[] } }
-  | { type: 'SET_PERSISTED_STATE', payload: { views: View[], settings: typeof defaultAppSettings | null, member: ProjectMember | null } }
+  | { type: 'SET_PERSISTED_STATE', payload: { views: View[], sharedSettings: typeof defaultAppSettings | null, userPreferences: typeof defaultUserPreferences | null, member: ProjectMember | null } }
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
@@ -371,12 +378,17 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       };
     }
     case 'SET_PERSISTED_STATE': {
-        const { views, settings, member } = action.payload;
-        const newViews = views.length > 0 ? views : defaultViews;
-        const newSettings = settings ? { ...defaultAppSettings, ...settings } : defaultAppSettings;
-        const currentView = newViews.find(v => v.id === newSettings.currentViewId) || newViews[0];
+        const { views, sharedSettings, userPreferences, member } = action.payload;
+        
+        const finalUiDensity = userPreferences?.uiDensity || defaultUserPreferences.uiDensity;
+        const finalGanttSettings = { ...initialGanttSettings, ...(userPreferences?.ganttSettings || {}) };
+        const finalCurrentViewId = userPreferences?.currentViewId || defaultUserPreferences.currentViewId;
 
-        let finalVisibleColumns = newSettings.visibleColumns || initialVisibleColumns;
+        const newViews = views.length > 0 ? views : defaultViews;
+        const newSharedSettings = sharedSettings ? { ...defaultAppSettings, ...sharedSettings } : defaultAppSettings;
+        const currentView = newViews.find(v => v.id === finalCurrentViewId) || newViews[0];
+
+        let finalVisibleColumns = currentView.visibleColumns || initialVisibleColumns;
 
         if (member?.permissions?.hiddenColumns) {
             const hidden = member.permissions.hiddenColumns;
@@ -387,21 +399,21 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             ...state,
             views: newViews,
             currentViewId: currentView.id,
-            grouping: newSettings.grouping || [],
+            grouping: currentView.grouping || [],
             visibleColumns: finalVisibleColumns,
-            filters: newSettings.filters || [],
+            filters: currentView.filters || [],
         };
         
         return {
             ...state,
             views: newViews,
-            columns: newSettings.columns || initialColumns,
-            uiDensity: newSettings.uiDensity || 'compact',
-            ganttSettings: newSettings.ganttSettings || initialGanttSettings,
+            columns: newSharedSettings.columns || initialColumns,
+            uiDensity: finalUiDensity,
+            ganttSettings: finalGanttSettings,
             currentViewId: currentView.id,
-            grouping: newSettings.grouping || [],
+            grouping: currentView.grouping || [],
             visibleColumns: finalVisibleColumns,
-            filters: newSettings.filters || [],
+            filters: currentView.filters || [],
             isDirty: checkDirty(tempStateForDirtyCheck),
         };
     }
@@ -1388,19 +1400,23 @@ export function useProject(user: User, projectId: string | null) {
   const firestore = useFirestore();
   const { toast } = useToast();
 
+  const [isEditorOrOwner, setIsEditorOrOwner] = useState(false);
+
+  // This effect ensures we clear the permission state when the user or project changes.
+  useEffect(() => {
+    setIsEditorOrOwner(false);
+  }, [user, projectId]);
+
   const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
       useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
   );
-
-  const isEditorOrOwner = useMemo(() => {
-      if (isMemberLoading) {
-          return false;
-      }
-      return !!(member && (member.role === 'editor' || member.role === 'owner'));
+  
+  useEffect(() => {
+    if (!isMemberLoading) {
+      setIsEditorOrOwner(!!(member && (member.role === 'editor' || member.role === 'owner')));
+    }
   }, [isMemberLoading, member]);
   
-  const { data: project, isLoading: isProjectLoading } = useDoc<Project>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]));
-
   const collections = {
     tasks: useCollection<Task>(useMemoFirebase(() => projectId ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId])),
     links: useCollection<Link>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId])),
@@ -1408,39 +1424,35 @@ export function useProject(user: User, projectId: string | null) {
     assignments: useCollection<Assignment>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId])),
     calendars: useCollection<Calendar>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId])),
     views: useCollection<View>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId])),
-    settings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId])),
+    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId])),
+    userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
   };
   
-  const handleFirestoreAction = useCallback((action: Action) => {
+  const dispatch = useCallback((action: Action) => {
     if (!user || !projectId) {
         internalDispatch(action);
         return;
     }
 
-    // Define action categories
-    const settingsActions = [
-      'SAVE_VIEW_AS', 'UPDATE_CURRENT_VIEW', 'SET_GROUPING', 'SET_FILTERS',
-      'SET_COLUMNS', 'ADD_COLUMN', 'UPDATE_COLUMN', 'REMOVE_COLUMN',
-      'RESIZE_COLUMN', 'REORDER_COLUMNS', 'SET_UI_DENSITY',
-      'UPDATE_GANTT_SETTINGS', 'DELETE_VIEW', 'SET_VIEW'
-    ];
-    const optimisticActions: Action['type'][] = [
-      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
-    ];
-    const nonOptimisticActions: Action['type'][] = [
+    const dataWriteActions: Action['type'][] = [
+      'UPDATE_TASK', 'ADD_NOTE_TO_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
       'UPDATE_LINK', 'ADD_TASK', 'REMOVE_TASK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK',
       'UPDATE_RELATIONSHIPS', 'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
       'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
       'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE',
     ];
-    
-    // Determine if the action requires write permissions
-    const isWriteAction = optimisticActions.includes(action.type) || 
-                          nonOptimisticActions.includes(action.type) ||
-                          settingsActions.includes(action.type);
 
-    // Centralized permission check
-    if (isWriteAction && !isEditorOrOwner) {
+    const sharedSettingsActions: Action['type'][] = [
+      'SAVE_VIEW_AS', 'UPDATE_CURRENT_VIEW', 'SET_GROUPING', 'SET_FILTERS',
+      'SET_COLUMNS', 'ADD_COLUMN', 'UPDATE_COLUMN', 'REMOVE_COLUMN',
+      'RESIZE_COLUMN', 'REORDER_COLUMNS', 'DELETE_VIEW'
+    ];
+    
+    const userSettingsActions: Action['type'][] = [
+        'UPDATE_GANTT_SETTINGS', 'SET_UI_DENSITY', 'SET_VIEW'
+    ];
+
+    if ((dataWriteActions.includes(action.type) || sharedSettingsActions.includes(action.type)) && !isEditorOrOwner) {
         toast({
             variant: 'destructive',
             title: 'Permission Denied',
@@ -1449,8 +1461,31 @@ export function useProject(user: User, projectId: string | null) {
         return;
     }
 
-    // Now, handle the action based on its category
-    if (optimisticActions.includes(action.type)) {
+    // --- All checks passed, proceed with action handling ---
+
+    const optimisticActions: Action['type'][] = [
+      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
+    ];
+    
+    if (userSettingsActions.includes(action.type)) {
+        internalDispatch(action); // Optimistically update UI
+        const newState = projectReducer(historyState.present, action);
+        const userPrefsDocRef = doc(firestore, 'user_preferences', `${user.uid}_${projectId}`);
+
+        const prefsToUpdate: Partial<typeof defaultUserPreferences> = {};
+        if (action.type === 'UPDATE_GANTT_SETTINGS') {
+             prefsToUpdate.ganttSettings = newState.ganttSettings;
+        }
+        if (action.type === 'SET_UI_DENSITY') {
+            prefsToUpdate.uiDensity = newState.uiDensity;
+        }
+         if (action.type === 'SET_VIEW') {
+            prefsToUpdate.currentViewId = newState.currentViewId;
+        }
+
+        setDocumentNonBlocking(userPrefsDocRef, prefsToUpdate, { merge: true });
+
+    } else if (optimisticActions.includes(action.type)) {
         internalDispatch(action); // Optimistically update UI
 
         // Perform Firestore write in the background
@@ -1477,11 +1512,12 @@ export function useProject(user: User, projectId: string | null) {
                 break;
             }
         }
-    } else if (nonOptimisticActions.includes(action.type)) {
+    } else { // Handle non-optimistic and shared settings actions via batch
         const currentState = historyState.present;
         const newState = projectReducer(currentState, action);
         const batch = writeBatch(firestore);
 
+        // --- Data changes ---
         newState.tasks.forEach(newTask => {
             const oldTask = currentState.tasks.find(t => t.id === newTask.id);
             if (!oldTask) {
@@ -1498,75 +1534,31 @@ export function useProject(user: User, projectId: string | null) {
                 batch.delete(doc(firestore, 'projects', projectId, 'tasks', oldTask.id));
             }
         });
-
-        newState.links.forEach(newLink => {
-            const oldLink = currentState.links.find(l => l.id === newLink.id);
-            const { isDriving, ...linkToSave } = newLink;
-
-            if (!oldLink) {
-                 batch.set(doc(firestore, 'projects', projectId, 'links', newLink.id), linkToSave);
-            } else {
-                const { isDriving: oldIsDriving, ...oldLinkToCompare } = oldLink;
-                 if (JSON.stringify(oldLinkToCompare) !== JSON.stringify(linkToSave)) {
-                     const { id, ...updateData } = linkToSave;
-                     batch.update(doc(firestore, 'projects', projectId, 'links', newLink.id), updateData);
-                 }
-            }
-        });
-        currentState.links.forEach(oldLink => {
-            if (!newState.links.some(l => l.id === oldLink.id)) {
-                batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
-            }
-        });
-
-        newState.calendars.forEach(newCalendar => {
-            const oldCalendar = currentState.calendars.find(c => c.id === newCalendar.id);
-            const calendarToSave = {
-                ...newCalendar,
-                exceptions: (newCalendar.exceptions || []).map(e => {
-                    const { start, finish, ...rest } = e;
-                    return { start: start, finish: finish, ...rest };
-                })
-            };
-
-            if (!oldCalendar) {
-                batch.set(doc(firestore, 'projects', projectId, 'calendars', newCalendar.id), calendarToSave);
-            } else {
-                const oldCalendarToCompare = {
-                    ...oldCalendar,
-                    exceptions: (oldCalendar.exceptions || []).map(e => {
-                        const { start, finish, ...rest } = e;
-                        return { start: start, finish: finish, ...rest };
-                    })
-                };
-                if (JSON.stringify(oldCalendarToCompare) !== JSON.stringify(calendarToSave)) {
-                     const { id, ...updateData } = calendarToSave;
-                     batch.update(doc(firestore, 'projects', projectId, 'calendars', newCalendar.id), updateData);
-                }
-            }
-        });
-        currentState.calendars.forEach(oldCalendar => {
-            if (!newState.calendars.some(c => c.id === oldCalendar.id)) {
-                batch.delete(doc(firestore, 'projects', projectId, 'calendars', oldCalendar.id));
-            }
-        });
         
-        newState.resources.forEach(newResource => {
-            const oldResource = currentState.resources.find(r => r.id === newResource.id);
-            if (!oldResource) {
-                batch.set(doc(firestore, 'projects', projectId, 'resources', newResource.id), newResource);
-            } else {
-                if (JSON.stringify(oldResource) !== JSON.stringify(newResource)) {
-                     const { id, ...updateData } = newResource;
-                     batch.update(doc(firestore, 'projects', projectId, 'resources', newResource.id), updateData);
+        // --- Shared Settings Changes ---
+        if (sharedSettingsActions.includes(action.type)) {
+            const sharedSettingsDocRef = doc(firestore, 'projects', projectId, 'settings', 'app_settings');
+             const settingsToUpdate: Partial<typeof defaultAppSettings> = {
+                columns: newState.columns,
+                visibleColumns: newState.visibleColumns,
+                grouping: newState.grouping,
+                filters: newState.filters,
+            };
+            batch.set(sharedSettingsDocRef, settingsToUpdate, { merge: true });
+            
+            if (action.type === 'SAVE_VIEW_AS') {
+                 const newView = newState.views.find(v => v.id === newState.currentViewId);
+                 if (newView) batch.set(doc(firestore, 'projects', projectId, 'views', newView.id), newView);
+            } else if (action.type === 'UPDATE_CURRENT_VIEW' && newState.currentViewId) {
+                const updatedView = newState.views.find(v => v.id === newState.currentViewId);
+                if (updatedView) {
+                    const { id, ...viewData } = updatedView;
+                    batch.update(doc(firestore, 'projects', projectId, 'views', id), viewData);
                 }
+            } else if (action.type === 'DELETE_VIEW') {
+                 batch.delete(doc(firestore, 'projects', projectId, 'views', (action.payload as any).viewId));
             }
-        });
-        currentState.resources.forEach(oldResource => {
-            if (!newState.resources.some(r => r.id === oldResource.id)) {
-                batch.delete(doc(firestore, 'projects', projectId, 'resources', oldResource.id));
-            }
-        });
+        }
 
         batch.commit().then(() => {
             internalDispatch({ type: '_APPLY_STATE_CHANGE', payload: { newState, originalAction: action } });
@@ -1578,54 +1570,6 @@ export function useProject(user: User, projectId: string | null) {
               description: `Your action (${action.type}) could not be saved. Please try again.`,
             });
         });
-    } else {
-        // This block handles settings actions and read-only (UI-only) actions
-        internalDispatch(action);
-
-        if (settingsActions.includes(action.type)) {
-            // Firestore write is only performed for settings actions
-            const newState = projectReducer(historyState.present, action);
-             const settingsToUpdate = {
-                columns: newState.columns,
-                uiDensity: newState.uiDensity,
-                ganttSettings: newState.ganttSettings,
-                visibleColumns: newState.visibleColumns,
-                grouping: newState.grouping,
-                filters: newState.filters,
-            };
-            
-             switch(action.type) {
-                case 'SAVE_VIEW_AS': {
-                    updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), settingsToUpdate);
-                    const newView = newState.views.find(v => v.id === newState.currentViewId);
-                    if (newView) setDocumentNonBlocking(doc(firestore, 'projects', projectId, 'views', newView.id), newView, {});
-                    break;
-                }
-                case 'UPDATE_CURRENT_VIEW': {
-                    updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), settingsToUpdate);
-                     if (newState.currentViewId) {
-                        const updatedView = newState.views.find(v => v.id === newState.currentViewId);
-                        if (updatedView) {
-                            const { id, ...viewData } = updatedView;
-                            updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'views', id), viewData);
-                        }
-                    }
-                    break;
-                }
-                case 'DELETE_VIEW': {
-                     updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), settingsToUpdate);
-                    deleteDocumentNonBlocking(doc(firestore, 'projects', projectId, 'views', (action.payload as any).viewId));
-                    break;
-                }
-                case 'SET_VIEW': {
-                    updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), { currentViewId: (action.payload as any).viewId });
-                    break;
-                }
-                 default: { // Catches UPDATE_GANTT_SETTINGS and other setting changes
-                    updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), settingsToUpdate);
-                 }
-            }
-        }
     }
   }, [user, projectId, isEditorOrOwner, firestore, toast, historyState.present]);
   
@@ -1692,16 +1636,17 @@ export function useProject(user: User, projectId: string | null) {
 
   // Effect 2: Sync Settings Data
   useEffect(() => {
-    if (!isLoaded || collections.views.isLoading || collections.settings.isLoading || isProjectLoading) return;
+    if (!isLoaded || collections.views.isLoading || collections.sharedSettings.isLoading || collections.userPreferences.isLoading) return;
     
-    let settingsToApply = collections.settings.data ? { ...defaultAppSettings, ...collections.settings.data } : defaultAppSettings;
+    let sharedSettings = collections.sharedSettings.data ? { ...defaultAppSettings, ...collections.sharedSettings.data } : defaultAppSettings;
+    let userPreferences = collections.userPreferences.data ? { ...defaultUserPreferences, ...collections.userPreferences.data } : null;
 
-    if (settingsToApply?.ganttSettings?.dateFormat) {
+    if (sharedSettings?.ganttSettings?.dateFormat) {
         try {
-            format(new Date(), settingsToApply.ganttSettings.dateFormat);
+            format(new Date(), sharedSettings.ganttSettings.dateFormat);
         } catch (e) {
-            console.warn(`Invalid date format string "${settingsToApply.ganttSettings.dateFormat}" found in settings. Resetting to default.`);
-            settingsToApply.ganttSettings.dateFormat = defaultAppSettings.ganttSettings.dateFormat;
+            console.warn(`Invalid date format string "${sharedSettings.ganttSettings.dateFormat}" found in settings. Resetting to default.`);
+            sharedSettings.ganttSettings.dateFormat = defaultAppSettings.ganttSettings.dateFormat;
         }
     }
     
@@ -1709,11 +1654,12 @@ export function useProject(user: User, projectId: string | null) {
       type: 'SET_PERSISTED_STATE',
       payload: {
         views: collections.views.data || [],
-        settings: settingsToApply,
+        sharedSettings: sharedSettings,
+        userPreferences: userPreferences,
         member: member,
       }
     });
-  }, [isLoaded, collections.views.data, collections.views.isLoading, collections.settings.data, collections.settings.isLoading, isProjectLoading, project, member]);
+  }, [isLoaded, collections.views.data, collections.views.isLoading, collections.sharedSettings.data, collections.sharedSettings.isLoading, collections.userPreferences.data, collections.userPreferences.isLoading, member]);
 
 
   useEffect(() => {
@@ -1745,7 +1691,7 @@ export function useProject(user: User, projectId: string | null) {
 
   return { 
     state: historyState.present, 
-    dispatch: handleFirestoreAction,
+    dispatch,
     isLoaded: isLoaded && projectId,
     isEditorOrOwner,
     canUndo: historyState.past.length > 0,
