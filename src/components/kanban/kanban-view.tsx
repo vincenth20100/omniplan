@@ -7,7 +7,8 @@ import { NotesSection } from '@/components/details/notes-section';
 const KANBAN_COLUMNS = ['To Do', 'In Progress', 'Done'];
 
 export function KanbanView({ projectState, dispatch }: { projectState: ProjectState, dispatch: any }) {
-    const { tasks, selectedTaskIds } = projectState;
+    const { tasks, selectedTaskIds, ganttSettings } = projectState;
+    const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
     const lastSelectedId = selectedTaskIds[selectedTaskIds.length - 1];
     const selectedTask = tasks.find(t => t.id === lastSelectedId);

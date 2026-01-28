@@ -19,19 +19,21 @@ export function EditableDateCell({
     onSave,
     className,
     calendar,
+    dateFormat = 'MMM d, yyyy',
 }: {
     value: Date | null | undefined;
     onSave: (newValue: Date | null) => void;
     className?: string;
     calendar: CalendarType | null;
+    dateFormat?: string;
 }) {
     const [popoverOpen, setPopoverOpen] = useState(false);
     const [inputValue, setInputValue] = useState('');
 
     useEffect(() => {
         // Update input value when the external date `value` changes
-        setInputValue(value ? format(value, 'MMM d, yyyy') : '');
-    }, [value]);
+        setInputValue(value ? format(value, dateFormat) : '');
+    }, [value, dateFormat]);
 
     const handleSaveFromPicker = (date: Date | undefined | null) => {
         setPopoverOpen(false);
@@ -45,7 +47,7 @@ export function EditableDateCell({
     };
 
     const tryParseAndSave = () => {
-        if (inputValue === (value ? format(value, 'MMM d, yyyy') : '')) {
+        if (inputValue === (value ? format(value, dateFormat) : '')) {
             return; // No change
         }
 
@@ -54,26 +56,21 @@ export function EditableDateCell({
             return;
         }
 
-        // Try parsing common date formats
-        const formats = ['MMM d, yyyy', 'M/d/yy', 'M/d/yyyy', 'yyyy-MM-dd', 'MM/dd/yyyy'];
-        let parsedDate: Date | null = null;
-        for (const fmt of formats) {
-            const dt = parse(inputValue, fmt, new Date());
-            if (isValid(dt)) {
-                parsedDate = dt;
-                break;
-            }
-        }
+        // Use the specified dateFormat for parsing
+        const parsedDate = parse(inputValue, dateFormat, new Date());
         
-        if (parsedDate) {
+        if (isValid(parsedDate)) {
             const oldTime = value?.getTime();
             const newTime = parsedDate?.getTime();
             if (oldTime !== newTime) {
                 onSave(parsedDate);
+            } else {
+                 // Even if time is same, format might have changed, so we reset input
+                 if(value) setInputValue(format(value, dateFormat));
             }
         } else {
             // Invalid date typed, revert to original value
-            setInputValue(value ? format(value, 'MMM d, yyyy') : '');
+            setInputValue(value ? format(value, dateFormat) : '');
         }
     }
 
@@ -86,7 +83,7 @@ export function EditableDateCell({
             tryParseAndSave();
             (e.target as HTMLInputElement).blur(); // Remove focus
         } else if (e.key === 'Escape') {
-             setInputValue(value ? format(value, 'MMM d, yyyy') : '');
+             setInputValue(value ? format(value, dateFormat) : '');
              (e.target as HTMLInputElement).blur();
         }
     };

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { GanttSettings } from "@/lib/types";
+import { Input } from "../ui/input";
 
 export function GanttSettingsPanel({
   open,
@@ -144,6 +145,31 @@ export function GanttSettingsPanel({
                  <p className="text-xs text-muted-foreground -mt-2">Custom color coding rules are coming soon.</p>
             </div>
           </div>
+
+          <Separator />
+
+            <div>
+                <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Date Formatting</h4>
+                <div className="space-y-2">
+                    <Label htmlFor="date-format">Date Format</Label>
+                    <Input
+                    id="date-format"
+                    value={settings.dateFormat || 'MMM d, yyyy'}
+                    onChange={(e) => handleSettingChange('dateFormat', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                    Uses <a href="https://date-fns.org/v3.6.0/docs/format" target="_blank" rel="noopener noreferrer" className="underline font-mono">date-fns</a> format tokens.
+                    <br />
+                    <strong>Examples:</strong>
+                    <br />
+                    <code className="bg-muted px-1 rounded-sm">MMM d, yyyy</code> → Aug 14, 2025
+                    <br />
+                    <code className="bg-muted px-1 rounded-sm">MM/dd/yyyy</code> → 08/14/2025
+                    <br />
+                    <code className="bg-muted px-1 rounded-sm">dd-MM-yy</code> → 14-08-25
+                    </p>
+                </div>
+            </div>
 
         </div>
       </SheetContent>

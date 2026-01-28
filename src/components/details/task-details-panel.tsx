@@ -1,5 +1,5 @@
 'use client';
-import type { Task, Link, UiDensity, Calendar } from '@/lib/types';
+import type { Task, Link, UiDensity, Calendar, GanttSettings } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { PredecessorList } from './predecessor-list';
@@ -11,7 +11,7 @@ import { NotesSection } from './notes-section';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { InfoSection } from './info-section';
 
-export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDensity, defaultCalendar }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null }) {
+export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDensity, defaultCalendar, dateFormat }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null, dateFormat: string }) {
 
     const predecessors = links.filter(l => l.target === task.id);
     const successors = links.filter(l => l.source === task.id);
@@ -37,7 +37,7 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                          uiDensity === 'medium' && 'text-xs',
                          uiDensity === 'compact' && 'text-xs'
                     )}>
-                        {format(new Date(task.start), 'EEE, MMM d, yyyy')} - {format(new Date(task.finish), 'EEE, MMM d, yyyy')} ({task.duration} working days)
+                        {format(new Date(task.start), dateFormat)} - {format(new Date(task.finish), dateFormat)} ({task.duration} working days)
                     </p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={onClose}>
@@ -71,14 +71,14 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                                 <ResizablePanel>
                                     <div className="h-full flex flex-col pr-1">
                                         <h3 className="text-sm font-semibold mb-2 shrink-0">Predecessors</h3>
-                                        <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
+                                        <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
                                     </div>
                                 </ResizablePanel>
                                 <ResizableHandle withHandle />
                                 <ResizablePanel>
                                     <div className="h-full flex flex-col pl-1">
                                          <h3 className="text-sm font-semibold mb-2 shrink-0">Successors</h3>
-                                         <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} />
+                                         <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
                                     </div>
                                 </ResizablePanel>
                            </ResizablePanelGroup>
@@ -91,7 +91,7 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                             uiDensity === 'medium' && 'p-3',
                             uiDensity === 'compact' && 'p-2'
                         )}>
-                            <InfoSection task={task} dispatch={dispatch} defaultCalendar={defaultCalendar} />
+                            <InfoSection task={task} dispatch={dispatch} defaultCalendar={defaultCalendar} dateFormat={dateFormat} />
                         </div>
                     </TabsContent>
                     <TabsContent value="notes" className="m-0 h-full">

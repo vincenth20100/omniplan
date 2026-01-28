@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 
-export function KanbanCard({ task, projectState, dispatch }: { task: Task, projectState: ProjectState, dispatch: any }) {
+export function KanbanCard({ task, projectState, dispatch, dateFormat }: { task: Task, projectState: ProjectState, dispatch: any, dateFormat: string }) {
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
         e.dataTransfer.setData('text/plain', task.id);
@@ -33,7 +33,7 @@ export function KanbanCard({ task, projectState, dispatch }: { task: Task, proje
             </CardHeader>
             <CardContent className="p-4 pt-0 text-sm space-y-2">
                 <p className="text-muted-foreground">
-                    {format(task.start, 'MMM d')} - {format(task.finish, 'MMM d')} ({task.duration}d)
+                    {format(task.start, dateFormat)} - {format(task.finish, dateFormat)} ({task.duration}d)
                 </p>
                 {resourceNames && (
                     <p className="text-muted-foreground text-xs">

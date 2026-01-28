@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RelationshipComboboxContent } from './relationship-combobox';
 
-export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dispatch, uiDensity }: { currentTaskId: string, predecessorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
+export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dispatch, uiDensity, dateFormat }: { currentTaskId: string, predecessorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity, dateFormat: string }) {
 
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
     const [editingLinkId, setEditingLinkId] = React.useState<string | null>(null);
@@ -202,7 +202,7 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
                                 </TableCell>
                                 <TableCell className={cellClass}>
                                     <div className={cellInnerDivClass}>
-                                        {linkDate ? format(linkDate, 'MMM d, yyyy') : ''}
+                                        {linkDate ? format(linkDate, dateFormat) : ''}
                                     </div>
                                 </TableCell>
                                 <TableCell className={cellClass}>

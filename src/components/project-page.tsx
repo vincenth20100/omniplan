@@ -80,6 +80,7 @@ export function ProjectPage({ user }: { user: User }) {
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
   const selectedTask = state.tasks.find(t => t.id === lastSelectedId);
   const defaultCalendar = state.calendars.find(c => c.id === state.defaultCalendarId) || state.calendars[0] || null;
+  const dateFormat = state.ganttSettings.dateFormat || 'MMM d, yyyy';
 
   const handleToggleMultiSelect = () => {
     dispatch({ type: 'TOGGLE_MULTI_SELECT_MODE' });
@@ -276,6 +277,7 @@ export function ProjectPage({ user }: { user: User }) {
                 onClose={() => dispatch({ type: 'SET_SELECTION', payload: { activeCell: null, selectionAnchorCell: null, selectedTaskIds: [], selectedCells: [] } })}
                 uiDensity={state.uiDensity}
                 defaultCalendar={defaultCalendar}
+                dateFormat={dateFormat}
               />
             </ResizablePanel>
           </>
@@ -311,6 +313,7 @@ export function ProjectPage({ user }: { user: User }) {
                           onClose={() => setIsMobileSheetOpen(false)}
                           uiDensity={state.uiDensity}
                           defaultCalendar={defaultCalendar}
+                          dateFormat={dateFormat}
                       />
                     </>
                   )}

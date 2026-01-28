@@ -113,6 +113,7 @@ export function Timeline({
   }, [visibleTasks, defaultDateRange]);
   
   const days = useMemo(() => eachDayOfInterval({ start: viewStartDate, end: viewEndDate }), [viewStartDate, viewEndDate]);
+  const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
   const totalWidth = useMemo(() => {
     return (differenceInCalendarDays(viewEndDate, viewStartDate) + 1) * scale;
@@ -168,7 +169,7 @@ export function Timeline({
                 <div
                     className="absolute top-0 h-full w-0.5 bg-accent z-10"
                     style={{ left: `${todayOffset}px` }}
-                    title={`Today: ${format(today, 'MMM d, yyyy')}`}
+                    title={`Today: ${format(today, dateFormat)}`}
                 >
                   <div className="absolute -top-1.5 -ml-1.5 h-3 w-3 rounded-full bg-accent" />
                 </div>
@@ -183,7 +184,7 @@ export function Timeline({
                         const children = allTasks.filter(t => t.parentId === task.id);
                         if (children.length === 0) {
                              // Render as normal task bar if no children, it will become a milestone
-                            return <TaskBar key={task.id} task={task} ganttStartDate={viewStartDate} scale={scale} dispatch={dispatch} row={index} isSelected={selectedTaskIds.includes(task.id)} onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })} registerBarElement={registerBarElement} uiDensity={uiDensity} showProgress={ganttSettings.showProgress} showTaskLabels={ganttSettings.showTaskLabels} highlightCriticalPath={ganttSettings.highlightCriticalPath} defaultCalendar={defaultCalendar} />;
+                            return <TaskBar key={task.id} task={task} ganttStartDate={viewStartDate} scale={scale} dispatch={dispatch} row={index} isSelected={selectedTaskIds.includes(task.id)} onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })} registerBarElement={registerBarElement} uiDensity={uiDensity} showProgress={ganttSettings.showProgress} showTaskLabels={ganttSettings.showTaskLabels} highlightCriticalPath={ganttSettings.highlightCriticalPath} defaultCalendar={defaultCalendar} dateFormat={dateFormat} />;
                         }
 
                         children.sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -276,6 +277,7 @@ export function Timeline({
                         showTaskLabels={ganttSettings.showTaskLabels}
                         highlightCriticalPath={ganttSettings.highlightCriticalPath}
                         defaultCalendar={defaultCalendar}
+                        dateFormat={dateFormat}
                         />
                     );
                 }

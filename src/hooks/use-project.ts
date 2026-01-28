@@ -65,6 +65,7 @@ const initialGanttSettings: GanttSettings = {
   showTaskLabels: true,
   highlightCriticalPath: true,
   renderSplitTasks: false,
+  dateFormat: 'MMM d, yyyy',
 };
 
 const defaultAppSettings = {
@@ -915,7 +916,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         let newTasks = [...state.tasks];
         if (lastSelectedId) {
             const selectedIndex = newTasks.findIndex(t => t.id === lastSelectedId);
-            newTasks.splice(selectedIndex + 1, 0, newTask);
+            newTasks.splice(selectedIndex + 1, 0, ...[newTask]);
         } else {
             newTasks.push(newTask);
         }

@@ -291,6 +291,7 @@ export function CalendarView({
                             value={exception.start}
                             onSave={(newValue) => handleUpdateException(exception.id, { start: newValue })}
                             calendar={null}
+                            dateFormat="MMM d, yyyy"
                         />
                       </TableCell>
                       <TableCell>
@@ -298,6 +299,7 @@ export function CalendarView({
                             value={exception.finish}
                             onSave={(newValue) => handleUpdateException(exception.id, { finish: newValue })}
                             calendar={null}
+                            dateFormat="MMM d, yyyy"
                         />
                       </TableCell>
                       <TableCell>

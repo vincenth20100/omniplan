@@ -39,7 +39,8 @@ const TaskCellRenderer = React.memo(({
     defaultCalendar,
     isEditing,
     editingInitialValue,
-    onStopEditing
+    onStopEditing,
+    dateFormat,
 }: {
     task: Task;
     column: ColumnSpec;
@@ -56,6 +57,7 @@ const TaskCellRenderer = React.memo(({
     isEditing: boolean;
     editingInitialValue?: string;
     onStopEditing: () => void;
+    dateFormat: string;
 }) => {
     const isEditable = !task.isSummary || grouping.length > 0;
 
@@ -102,7 +104,7 @@ const TaskCellRenderer = React.memo(({
                     )}
                     {hasNotes && <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" title="Task has notes or additional information" />}
                     {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive flex-shrink-0" title="Scheduling Conflict" />}
-                    {task.deadlineMissed && task.deadline && <Flag className="h-4 w-4 text-destructive flex-shrink-0" title={`Deadline missed. Deadline was ${format(task.deadline, 'MMM d, yyyy')}`} />}
+                    {task.deadlineMissed && task.deadline && <Flag className="h-4 w-4 text-destructive flex-shrink-0" title={`Deadline missed. Deadline was ${format(task.deadline, dateFormat)}`} />}
                     <div className="flex-grow">
                             {task.isSummary && !isGrouped ? (
                             <span className="truncate">{task.name}</span>
@@ -217,7 +219,7 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'start': {
-            if (!isEditable) return <>{format(task.start, 'MMM d, yyyy')}</>;
+            if (!isEditable) return <>{format(task.start, dateFormat)}</>;
 
             return (
                 <EditableDateCell
@@ -228,11 +230,12 @@ const TaskCellRenderer = React.memo(({
                         }
                     }}
                     calendar={defaultCalendar}
+                    dateFormat={dateFormat}
                 />
             );
         }
         case 'finish': {
-            if (!isEditable) return <>{format(task.finish, 'MMM d, yyyy')}</>;
+            if (!isEditable) return <>{format(task.finish, dateFormat)}</>;
 
             return (
                 <EditableDateCell
@@ -243,6 +246,7 @@ const TaskCellRenderer = React.memo(({
                         }
                     }}
                     calendar={defaultCalendar}
+                    dateFormat={dateFormat}
                 />
             );
         }
@@ -299,6 +303,7 @@ const TaskCellRenderer = React.memo(({
                     }}
                     calendar={defaultCalendar}
                     className={cn(isConstraintDriven && "text-blue-500 font-semibold")}
+                    dateFormat={dateFormat}
                 />
             );
         }
@@ -394,7 +399,7 @@ export function TaskTable({
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
 }) {
-    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell, calendars, defaultCalendarId, editingCell } = projectState;
+    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell, calendars, defaultCalendarId, ganttSettings, editingCell } = projectState;
     const stateRef = useRef(projectState);
     const isMobile = useIsMobile();
 
@@ -905,6 +910,7 @@ export function TaskTable({
     }, [columns, visibleColumns]);
 
     const defaultCalendar = React.useMemo(() => calendars.find(c => c.id === defaultCalendarId) || calendars[0] || null, [calendars, defaultCalendarId]);
+    const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
     return (
         <>
@@ -1076,6 +1082,7 @@ export function TaskTable({
                                                         isEditing={isEditing}
                                                         editingInitialValue={editingCell?.initialValue}
                                                         onStopEditing={onStopEditing}
+                                                        dateFormat={dateFormat}
                                                 />
                                                 </div>
                                             </TableCell>

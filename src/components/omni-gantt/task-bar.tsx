@@ -9,7 +9,7 @@ import { DENSITY_SETTINGS } from '@/lib/settings';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, highlightCriticalPath, defaultCalendar }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, highlightCriticalPath, defaultCalendar, dateFormat }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
@@ -23,6 +23,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     showTaskLabels: boolean;
     highlightCriticalPath: boolean;
     defaultCalendar: Calendar | null;
+    dateFormat: string;
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
     const dragStartInfo = useRef<{
@@ -134,7 +135,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                     height: `${milestoneSize}px`,
                 }}
                 onClick={onSelect}
-                title={`${task.name}\n${format(task.start, 'MMM d, yyyy')}`}
+                title={`${task.name}\n${format(task.start, dateFormat)}`}
             >
                 <svg width={milestoneSize} height={milestoneSize} viewBox="0 0 24 24" className={cn(
                     "drop-shadow-md",

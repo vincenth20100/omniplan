@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { EditableSelectCell } from '@/components/omni-gantt/editable-select-cell';
 import { EditableDateCell } from '@/components/omni-gantt/editable-date-cell';
 
-export function InfoSection({ task, dispatch, defaultCalendar }: { task: Task; dispatch: any, defaultCalendar: Calendar | null }) {
+export function InfoSection({ task, dispatch, defaultCalendar, dateFormat }: { task: Task; dispatch: any, defaultCalendar: Calendar | null, dateFormat: string }) {
   const handleConstraintTypeChange = (newValue: string | null) => {
     const payload: Partial<Task> & { id: string } = {
         id: task.id,
@@ -62,6 +62,7 @@ export function InfoSection({ task, dispatch, defaultCalendar }: { task: Task; d
                             value={task.constraintDate}
                             onSave={handleConstraintDateChange}
                             calendar={defaultCalendar}
+                            dateFormat={dateFormat}
                         />
                     </div>
                 </div>
@@ -76,6 +77,7 @@ export function InfoSection({ task, dispatch, defaultCalendar }: { task: Task; d
                         value={task.deadline}
                         onSave={handleDeadlineChange}
                         calendar={defaultCalendar}
+                        dateFormat={dateFormat}
                     />
                 </div>
                  <div />
