@@ -26,10 +26,14 @@ export function LoginPage() {
         } catch (error) {
             console.error("Error signing in anonymously: ", error);
             if (error instanceof FirebaseError) {
+                let description = error.message;
+                if (error.code === 'auth/operation-not-allowed') {
+                    description = "Anonymous sign-in is not enabled. Please enable it in your Firebase project's Authentication settings.";
+                }
                  toast({
                     variant: "destructive",
                     title: "Guest Sign-In Failed",
-                    description: error.message,
+                    description: description,
                 });
             }
         }
@@ -46,10 +50,16 @@ export function LoginPage() {
                 if (error.code === 'auth/popup-closed-by-user') {
                     return;
                 }
+                
+                let description = error.message;
+                if (error.code === 'auth/operation-not-allowed') {
+                    description = "Google Sign-In is not enabled. Please enable it in your Firebase project's Authentication settings and ensure your domain is authorized.";
+                }
+                
                 toast({
                     variant: "destructive",
                     title: "Google Sign-In Failed",
-                    description: error.message,
+                    description: description,
                 });
             } else {
                  toast({
