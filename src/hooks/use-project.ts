@@ -150,6 +150,7 @@ type Action =
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
   | { type: 'STOP_EDITING_CELL' }
   | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
+  | { type: '_APPLY_STATE_CHANGE', payload: { newState: ProjectState, originalAction: Action } }
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'JUMP_TO_HISTORY', payload: { index: number } };
@@ -245,6 +246,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null): Task[] => {
       const defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
       if (!defaultCalendar) {
+          console.warn("No default calendar found for scheduling.");
           return tasks;
       }
       const hierarchicalTasks = updateHierarchyAndSort(tasks);
@@ -735,7 +737,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newLinks: Link[] = [];
         for (let i = 0; i < state.selectedTaskIds.length - 1; i++) {
             newLinks.push({
-                id: `link-${Date.now()}-${i}`,
+                id: crypto.randomUUID(),
                 source: state.selectedTaskIds[i],
                 target: state.selectedTaskIds[i + 1],
                 type: 'FS',
@@ -749,7 +751,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'ADD_LINK': {
         const newLink: Link = {
-            id: `link-${Date.now()}`,
+            id: crypto.randomUUID(),
             source: action.payload.source,
             target: action.payload.target,
             type: action.payload.type,
@@ -808,7 +810,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
             if (relatedTaskId && relatedTaskId !== taskId) {
                 return {
-                    id: `link-${Date.now()}-${i}`,
+                    id: crypto.randomUUID(),
                     source: field === 'predecessors' ? relatedTaskId : taskId,
                     target: field === 'predecessors' ? taskId : relatedTaskId,
                     type,
@@ -957,10 +959,19 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             'SET_ACTIVE_CELL', 
             'START_EDITING_CELL', 
             'STOP_EDITING_CELL',
-            'UNDO',
-            'REDO',
-            'JUMP_TO_HISTORY',
         ];
+
+        if (action.type === '_APPLY_STATE_CHANGE') {
+            const { newState, originalAction } = action.payload;
+            if (originalAction.type === 'UNDO' || originalAction.type === 'REDO' || originalAction.type === 'JUMP_TO_HISTORY') {
+                return { ...state, present: newState };
+            }
+            return {
+                past: [...past, { state: present, action: originalAction }],
+                present: newState,
+                future: [],
+            };
+        }
 
         switch (action.type) {
             case 'UNDO': {
@@ -1005,6 +1016,10 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
         if (nonHistoricActions.includes(action.type)) {
             return { ...state, present: newPresent };
         }
+        
+        if (action.type === 'UPDATE_TASK' && JSON.stringify(present.tasks) === JSON.stringify(newPresent.tasks)) {
+             return state;
+        }
 
         return {
             past: [ ...past, { state: present, action } ],
@@ -1040,6 +1055,7 @@ export function useProject(user: User) {
     // Optimistic updates for simple field changes
     const optimisticActions: Action['type'][] = [
         'ADD_NOTE_TO_TASK',
+        'UPDATE_TASK',
     ];
 
     if (optimisticActions.includes(action.type)) {
@@ -1047,8 +1063,9 @@ export function useProject(user: User) {
 
         // Perform the Firestore write in the background
         switch(action.type) {
-            case 'ADD_NOTE_TO_TASK': {
-                 const { taskId } = action.payload;
+            case 'ADD_NOTE_TO_TASK':
+            case 'UPDATE_TASK': {
+                 const taskId = action.payload.id;
                  const updatedState = projectReducer(historyState.present, action);
                  const updatedTask = updatedState.tasks.find(t => t.id === taskId);
                  if (updatedTask) {
@@ -1064,7 +1081,6 @@ export function useProject(user: User) {
 
     // Non-optimistic updates for complex or destructive actions
     const nonOptimisticActions: Action['type'][] = [
-        'UPDATE_TASK',
         'UPDATE_LINK',
         'UPDATE_RESOURCE',
         'UPDATE_CALENDAR',
@@ -1086,10 +1102,10 @@ export function useProject(user: User) {
             if (!oldTask) {
                 batch.set(doc(firestore, 'users', user.uid, 'tasks', newTask.id), toFirestoreTask(newTask));
             } else {
-                if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
-                    const { id, ...updateData } = toFirestoreTask(newTask);
-                    batch.update(doc(firestore, 'users', user.uid, 'tasks', newTask.id), updateData);
-                }
+                 if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
+                     const { id, ...updateData } = toFirestoreTask(newTask);
+                     batch.update(doc(firestore, 'users', user.uid, 'tasks', newTask.id), updateData);
+                 }
             }
         });
         currentState.tasks.forEach(oldTask => {
@@ -1171,7 +1187,7 @@ export function useProject(user: User) {
         });
 
         batch.commit().then(() => {
-            internalDispatch(action); // On success, update UI and history
+            internalDispatch({ type: '_APPLY_STATE_CHANGE', payload: { newState, originalAction: action } });
         }).catch(e => {
             console.error(`Action ${action.type} failed to commit.`, e);
             toast({

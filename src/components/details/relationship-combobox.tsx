@@ -35,6 +35,13 @@ export function RelationshipComboboxContent({
        t.wbs?.toLowerCase().includes(search.toLowerCase()))
   );
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === 'Enter' || e.key === 'Tab') && availableTasks.length > 0) {
+      e.preventDefault();
+      onSelectTask(availableTasks[0].id);
+    }
+  };
+
   return (
     <>
       <div className="p-2 border-b">
@@ -43,6 +50,7 @@ export function RelationshipComboboxContent({
           placeholder={searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={handleKeyDown}
           className="h-8"
         />
       </div>
