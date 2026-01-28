@@ -32,6 +32,7 @@ import type { Representation, GanttSettings, ProjectMember } from '@/lib/types';
 import { PrintPreviewDialog } from './print-preview';
 import { ProjectMembers } from './project-members';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], customStyles: GanttSettings['customStyles'] }) => {
   useEffect(() => {
