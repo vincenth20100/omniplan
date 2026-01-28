@@ -192,14 +192,6 @@ export interface Project {
   ownerId: string;
   createdAt: any;
   memberIds: string[];
-  rolePermissions?: {
-      viewer?: {
-          hiddenColumns?: string[];
-      },
-      editor?: {
-          hiddenColumns?: string[];
-      }
-  };
 }
 
 export interface ProjectMember {
@@ -207,6 +199,9 @@ export interface ProjectMember {
   role: 'owner' | 'editor' | 'viewer';
   displayName: string;
   photoURL: string;
+  permissions?: {
+    hiddenColumns?: string[];
+  };
 }
 
 export interface AppUser {

@@ -939,7 +939,18 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
 
         if (newLinks.length === 0) {
-            return state;
+            return {
+                ...state,
+                notifications: [
+                    ...state.notifications,
+                    {
+                        id: `toast-links-exist-${Date.now()}`,
+                        type: 'toast',
+                        title: "Links Already Exist",
+                        description: "The selected tasks are already linked in sequence."
+                    }
+                ]
+            };
         }
 
         const allLinks = [...state.links, ...newLinks];
@@ -1625,12 +1636,8 @@ export function useProject(user: User, projectId: string | null) {
     
     let finalVisibleColumns = settingsToApply.visibleColumns || initialVisibleColumns;
 
-    if (member?.role === 'viewer' && project?.rolePermissions?.viewer?.hiddenColumns) {
-        const hidden = project.rolePermissions.viewer.hiddenColumns;
-        finalVisibleColumns = finalVisibleColumns.filter(colId => !hidden.includes(colId));
-    }
-    if (member?.role === 'editor' && project?.rolePermissions?.editor?.hiddenColumns) {
-        const hidden = project.rolePermissions.editor.hiddenColumns;
+    if (member?.permissions?.hiddenColumns) {
+        const hidden = member.permissions.hiddenColumns;
         finalVisibleColumns = finalVisibleColumns.filter(colId => !hidden.includes(colId));
     }
 
