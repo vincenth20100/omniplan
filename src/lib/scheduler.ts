@@ -191,16 +191,6 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         // This is already filtered by sortedTasks, but as a safeguard.
         if (task.isSummary) continue;
 
-        // If a task has progress, its start date is fixed.
-        if ((task.percentComplete || 0) > 0) {
-            task.finish = calendarService.calculateFinishDate(task.start, task.duration, task.durationUnit || 'd', calendar);
-            
-            if (task.deadline && task.finish > startOfDay(task.deadline)) {
-                task.deadlineMissed = true;
-            }
-            continue; // Skip rescheduling for tasks in progress.
-        }
-
         // --- Calculate Early Start from Predecessors ---
         let predecessorDrivenStart = new Date(0);
         const predecessorLinks = predecessorsMap.get(taskId) || [];
@@ -334,7 +324,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         // Also constrain by the task's own deadline or late-finish constraints
         if (task.constraintType && task.constraintDate) {
             if (task.constraintType === 'Finish No Later Than' || task.constraintType === 'Must Finish On') {
-                lateFinish = new Date(Math.min(lateFinish.getTime(), startOfDay(task.constraintDate).getTime()));
+                lateFinish = new Date(Math.min(lateFinish.getTime(), startOfDay(constraintDate).getTime()));
             }
         }
         if (task.deadline) {
