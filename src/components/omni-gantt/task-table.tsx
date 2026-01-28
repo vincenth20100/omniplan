@@ -519,19 +519,30 @@ export function TaskTable({
                 });
                 return;
             }
-            if (event.key === 'Backspace' && activeCell) {
-                 const target = event.target as HTMLElement;
+
+            if ((event.key === 'Backspace' || event.key === 'Delete') && activeCell && !isEditing) {
+                const target = event.target as HTMLElement;
                 // Do not trigger "type-to-edit" if the event originates from an element that already accepts text input.
                 if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
                     return;
                 }
                 event.preventDefault();
-                dispatch({
-                    type: 'START_EDITING_CELL',
-                    payload: { ...activeCell, initialValue: '' }
-                });
+                
+                const { taskId, columnId } = activeCell;
+
+                // Delete on relationship columns clears them directly, this is a "hard delete"
+                if (event.key === 'Delete' && (columnId === 'predecessors' || columnId === 'successors')) {
+                     dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId, field: columnId as 'predecessors' | 'successors', value: '' } });
+                } else {
+                    // Backspace on any column, or Delete on other columns, starts editing with empty value ("soft delete")
+                    dispatch({
+                        type: 'START_EDITING_CELL',
+                        payload: { ...activeCell, initialValue: '' }
+                    });
+                }
                 return;
             }
+
 
             if (event.key.startsWith('Arrow') && activeCell) {
                 event.preventDefault();
