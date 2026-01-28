@@ -822,6 +822,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 start: new Date(),
                 finish: new Date(),
                 duration: 1,
+                durationUnit: 'd',
                 percentComplete: 0,
                 level: 0,
                 order: orderBefore + (index + 1) * orderStep,
@@ -1437,7 +1438,8 @@ export function useProject(user: User) {
                 batch.set(doc(firestore, 'users', user.uid, 'tasks', newTask.id), toFirestoreTask(newTask));
             } else {
                  if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
-                     const { ...updateData } = toFirestoreTask(newTask);
+                     const updateData = toFirestoreTask(newTask);
+                     delete (updateData as Partial<Task>).id;
                      batch.update(doc(firestore, 'users', user.uid, 'tasks', newTask.id), updateData);
                  }
             }
