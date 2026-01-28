@@ -1054,9 +1054,9 @@ export function TaskTable({
                                                 <div 
                                                     className={cn(
                                                         "flex items-center h-full",
-                                                        "data-[density=large]:px-4 data-[density=large]:text-sm",
-                                                        "data-[density=medium]:px-3 data-[density=medium]:text-sm",
-                                                        "data-[density=compact]:px-2 data-[density=compact]:text-xs",
+                                                        "data-[density=large]:px-4 data-[density=large]:text-xs md:text-sm",
+                                                        "data-[density=medium]:px-3 data-[density=medium]:text-xs md:text-sm",
+                                                        "data-[density=compact]:px-2 data-[density=compact]:text-xs"
                                                     )}
                                                     data-density={uiDensity}
                                                 >
