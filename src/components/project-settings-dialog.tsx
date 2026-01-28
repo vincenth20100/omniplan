@@ -18,9 +18,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import type { Project, ProjectMember, ColumnSpec } from "@/lib/types";
+import type { Project, ProjectMember, ColumnSpec, Invitation } from "@/lib/types";
 import { useState, useEffect, useMemo } from 'react';
-import { collection, doc, writeBatch, updateDoc, arrayUnion, arrayRemove, addDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, updateDoc, arrayUnion, arrayRemove, addDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/firebase";
@@ -47,9 +47,14 @@ export function ProjectSettingsDialog({
     const { currentUser } = useAuth();
     const { toast } = useToast();
 
+    // Fetch confirmed members
     const membersQuery = useMemoFirebase(() => project ? collection(firestore, 'projects', project.id, 'members') : null, [firestore, project.id]);
     const { data: fetchedMembers, isLoading: membersLoading } = useCollection<ProjectMember>(membersQuery);
     
+    // Fetch pending invitations for this project
+    const invitationsQuery = useMemoFirebase(() => project ? query(collection(firestore, "invitations"), where("projectId", "==", project.id)) : null, [firestore, project.id]);
+    const { data: fetchedInvitations, isLoading: invitationsLoading } = useCollection<Invitation>(invitationsQuery);
+
     const [name, setName] = useState(project.name);
     const [description, setDescription] = useState(project.description || '');
     const [members, setMembers] = useState<EditableMember[]>([]);
@@ -58,7 +63,7 @@ export function ProjectSettingsDialog({
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('viewer');
     const [isAddingUser, setIsAddingUser] = useState(false);
-
+    const [isRemovingInvitation, setIsRemovingInvitation] = useState<string | null>(null);
 
     const originalMembers = useMemo(() => {
         return fetchedMembers?.map(m => ({
@@ -88,8 +93,8 @@ export function ProjectSettingsDialog({
 
         const currentHidden = member.permissions?.hiddenColumns || [];
         const newHidden = checked
-            ? [...currentHidden, columnId]
-            : currentHidden.filter(id => id !== columnId);
+            ? currentHidden.filter(id => id !== columnId)
+            : [...currentHidden, columnId];
         
         handleMemberChange(userId, { permissions: { ...(member.permissions || {}), hiddenColumns: newHidden } });
     };
@@ -158,6 +163,20 @@ export function ProjectSettingsDialog({
         }
     };
 
+    const handleRemoveInvitation = async (invitationId: string) => {
+        if (!firestore) return;
+        setIsRemovingInvitation(invitationId);
+        try {
+            await deleteDoc(doc(firestore, "invitations", invitationId));
+            toast({ title: "Invitation revoked" });
+        } catch (error) {
+            console.error("Error revoking invitation:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not revoke the invitation." });
+        } finally {
+            setIsRemovingInvitation(null);
+        }
+    };
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
@@ -179,8 +198,8 @@ export function ProjectSettingsDialog({
                     </div>
                     <Separator />
 
-                     {/* Members */}
-                    <div className="space-y-2 flex-grow flex flex-col min-h-0">
+                     {/* Members Section */}
+                    <div className="space-y-4 flex-grow flex flex-col min-h-0">
                         <h3 className="font-semibold">Members</h3>
                         <div className="flex-grow border rounded-md overflow-hidden">
                              <ScrollArea className="h-full">
@@ -188,8 +207,8 @@ export function ProjectSettingsDialog({
                                      <Accordion type="multiple" className="w-full">
                                         {members.map(member => (
                                             <AccordionItem value={member.userId} key={member.userId}>
-                                                <div className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md px-2">
-                                                    <AccordionTrigger className="py-2">
+                                                <div className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md">
+                                                    <AccordionTrigger className="flex-1 py-2 px-2">
                                                         <div className="flex items-center gap-3">
                                                             <Avatar className="h-8 w-8">
                                                                 <AvatarImage src={member.photoURL} alt={member.displayName} />
@@ -218,14 +237,15 @@ export function ProjectSettingsDialog({
                                                 <AccordionContent>
                                                     <div className="p-4 bg-muted/50 rounded-md">
                                                         <h4 className="font-semibold text-sm mb-2">Column Permissions</h4>
-                                                        <p className="text-xs text-muted-foreground mb-4">Select columns to HIDE for this user.</p>
+                                                        <p className="text-xs text-muted-foreground mb-4">Uncheck columns to HIDE them for this user.</p>
                                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                                              {allColumns.filter(c => c.id !== 'wbs' && c.id !== 'name').map(col => (
                                                                 <div key={col.id} className="flex items-center space-x-2">
                                                                     <Checkbox
                                                                         id={`col-vis-${member.userId}-${col.id}`}
-                                                                        checked={member.permissions?.hiddenColumns?.includes(col.id)}
+                                                                        checked={!member.permissions?.hiddenColumns?.includes(col.id)}
                                                                         onCheckedChange={(checked) => handleColumnVisibilityChange(member.userId, col.id, !!checked)}
+                                                                        disabled={member.userId === currentUser?.uid}
                                                                     />
                                                                     <label
                                                                         htmlFor={`col-vis-${member.userId}-${col.id}`}
@@ -241,11 +261,37 @@ export function ProjectSettingsDialog({
                                             </AccordionItem>
                                         ))}
                                      </Accordion>
+
+                                     {/* Pending Invitations List */}
+                                     {fetchedInvitations && fetchedInvitations.length > 0 && (
+                                         <div className="mt-4">
+                                            <h4 className="font-semibold text-sm px-2 mb-2">Pending Invitations</h4>
+                                            <div className="space-y-1">
+                                                {fetchedInvitations.map(invitation => (
+                                                    <div key={invitation.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent/50">
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar className="h-8 w-8">
+                                                                <AvatarFallback>?</AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="text-sm text-muted-foreground">{invitation.email}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <span className="text-sm capitalize text-muted-foreground">{invitation.role}</span>
+                                                            <Button variant="ghost" size="icon" onClick={() => handleRemoveInvitation(invitation.id)} disabled={isRemovingInvitation === invitation.id}>
+                                                                {isRemovingInvitation === invitation.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                         </div>
+                                     )}
                                 </div>
                              </ScrollArea>
                         </div>
                     </div>
                     <Separator />
+                    {/* Add New Member Section */}
                     <div className="space-y-2">
                         <h3 className="font-semibold">Add New Member</h3>
                         <div className="flex items-center gap-2">
