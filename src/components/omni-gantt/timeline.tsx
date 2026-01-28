@@ -96,7 +96,10 @@ export function Timeline({
   }, [viewStartDate, viewEndDate, scale]);
 
   const registerBarElement = useCallback((taskId: string, element: HTMLDivElement | null) => {
-    setTaskBarElements(prev => ({ ...prev, [taskId]: element }));
+    setTaskBarElements(prev => {
+        if (prev[taskId] === element) return prev;
+        return { ...prev, [taskId]: element };
+    });
   }, []);
   
   const taskIndexMap = useMemo(() => {
