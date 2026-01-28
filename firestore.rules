@@ -7,6 +7,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isGlobalAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
     // --- Functions for reading existing documents ---
     function isProjectMember(projectId) {
       return isSignedIn() && exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
@@ -30,85 +34,85 @@ service cloud.firestore {
 
     // --- User Profile ---
     match /users/{userId} {
-      allow read, create, update: if request.auth.uid == userId;
+      allow read, create, update: if request.auth.uid == userId || isGlobalAdmin();
       allow delete: if false;
     }
 
     // --- Projects and Subcollections ---
     match /projects/{projectId} {
       // Project Document
-      allow read: if isProjectMember(projectId);
-      allow list: if false; // Users should query based on their own user doc
+      allow read: if isProjectMember(projectId) || isGlobalAdmin();
+      allow list: if isGlobalAdmin();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isProjectEditor(projectId); // e.g., renaming the project
-      allow delete: if isProjectOwner(projectId);
+      allow update: if isProjectEditor(projectId) || isGlobalAdmin();
+      allow delete: if isProjectOwner(projectId) || isGlobalAdmin();
 
       // Project Members
       match /members/{userId} {
-        allow read, list: if isProjectMember(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
         // Allow a user to create their own membership doc IF they are the project owner (checked via getAfter)
-        // OR allow an existing owner to add/edit members.
-        allow create: if (getAfter(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid && request.auth.uid == userId) || isProjectOwner(projectId);
-        allow update, delete: if isProjectOwner(projectId);
+        // OR allow an existing owner/admin to add/edit members.
+        allow create: if (getAfter(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid && request.auth.uid == userId) || isProjectOwner(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectOwner(projectId) || isGlobalAdmin();
       }
 
       // Tasks
       match /tasks/{taskId} {
-        allow read, list: if isProjectMember(projectId);
-        allow create: if isProjectEditorAfter(projectId);
-        allow update, delete: if isProjectEditor(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Links
       match /links/{linkId} {
-        allow read, list: if isProjectMember(projectId);
-        allow create: if isProjectEditorAfter(projectId);
-        allow update, delete: if isProjectEditor(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Resources
       match /resources/{resourceId} {
-        allow read, list: if isProjectMember(projectId);
-        allow create: if isProjectEditorAfter(projectId);
-        allow update, delete: if isProjectEditor(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
       
       // Assignments
       match /assignments/{assignmentId} {
-        allow read, list: if isProjectMember(projectId);
-        allow create: if isProjectEditorAfter(projectId);
-        allow update, delete: if isProjectEditor(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
       
       // Calendars
       match /calendars/{calendarId} {
-        allow read, list: if isProjectMember(projectId);
-        allow create: if isProjectEditorAfter(projectId);
-        allow update, delete: if isProjectEditor(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
       
       // Views
       match /views/{viewId} {
-        allow read, list: if isProjectMember(projectId);
-        allow create, update, delete: if isProjectEditor(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create, update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Settings
       match /settings/{settingId} {
-        allow read, list: if isProjectMember(projectId);
-        allow create, update, delete: if isProjectEditor(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create, update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Other collections with same simple logic
       match /zones/{zoneId} {
-        allow read, list: if isProjectMember(projectId);
-        allow create: if isProjectEditorAfter(projectId);
-        allow update, delete: if isProjectEditor(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
       match /history_logs/{historyLogId} {
-        allow read, list: if isProjectMember(projectId);
-        allow create: if isProjectEditorAfter(projectId);
-        allow update, delete: if isProjectEditor(projectId);
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
     }
   }

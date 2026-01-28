@@ -40,42 +40,78 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     const [isCloning, setIsCloning] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [projectToDelete, setProjectToDelete] = useState<ProjectWithMetadata | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
+
+    useEffect(() => {
+        if (user) {
+            user.getIdTokenResult().then((idTokenResult) => {
+                setIsAdmin(!!idTokenResult.claims.admin);
+                setIsCheckingAdmin(false);
+            });
+        }
+    }, [user]);
 
     useEffect(() => {
         const fetchProjects = async () => {
-            if (!firestore || !user) return;
+            if (!firestore || !user || isCheckingAdmin) return;
             setIsLoading(true);
 
-            const userDocRef = doc(firestore, 'users', user.uid);
-            const userDoc = await getDoc(userDocRef);
-
-            if (userDoc.exists()) {
-                const projectIds = userDoc.data().projectIds || [];
-                if (projectIds.length > 0) {
-                    const projectPromises = projectIds.map((id: string) => getDoc(doc(firestore, 'projects', id)));
-                    const projectSnapshots = await Promise.all(projectPromises);
-                    const fetchedProjects: ProjectWithMetadata[] = projectSnapshots
-                        .filter(snap => snap.exists())
-                        .map(snap => {
-                            const data = snap.data() as Project;
-                            return {
-                                ...data,
-                                id: snap.id,
-                                createdAt: data.createdAt ? (data.createdAt as any).toDate() : new Date(),
-                            } as ProjectWithMetadata;
-                        });
+            try {
+                if (isAdmin) {
+                    const projectsQuery = query(collection(firestore, 'projects'));
+                    const querySnapshot = await getDocs(projectsQuery);
+                    const fetchedProjects: ProjectWithMetadata[] = querySnapshot.docs.map(snap => {
+                         const data = snap.data() as Project;
+                         return {
+                             ...data,
+                             id: snap.id,
+                             createdAt: data.createdAt ? (data.createdAt as any).toDate() : new Date(),
+                         } as ProjectWithMetadata;
+                    });
                     setProjects(fetchedProjects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+
                 } else {
-                    setProjects([]);
+                    const userDocRef = doc(firestore, 'users', user.uid);
+                    const userDoc = await getDoc(userDocRef);
+
+                    if (userDoc.exists()) {
+                        const projectIds = userDoc.data().projectIds || [];
+                        if (projectIds.length > 0) {
+                            const projectPromises = projectIds.map((id: string) => getDoc(doc(firestore, 'projects', id)));
+                            const projectSnapshots = await Promise.all(projectPromises);
+                            const fetchedProjects: ProjectWithMetadata[] = projectSnapshots
+                                .filter(snap => snap.exists())
+                                .map(snap => {
+                                    const data = snap.data() as Project;
+                                    return {
+                                        ...data,
+                                        id: snap.id,
+                                        createdAt: data.createdAt ? (data.createdAt as any).toDate() : new Date(),
+                                    } as ProjectWithMetadata;
+                                });
+                            setProjects(fetchedProjects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+                        } else {
+                            setProjects([]);
+                        }
+                    } else {
+                        setProjects([]);
+                    }
                 }
-            } else {
-                setProjects([]);
+            } catch (error) {
+                console.error("Error fetching projects:", error);
+                toast({
+                    variant: "destructive",
+                    title: "Error fetching projects",
+                    description: "Could not load your projects. Please check your connection and permissions."
+                });
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
 
         fetchProjects();
-    }, [firestore, user]);
+    }, [firestore, user, isAdmin, isCheckingAdmin, toast]);
 
     const handleCreateProject = async () => {
         if (!firestore) return;
@@ -202,8 +238,8 @@ export function ProjectSelectionPage({ user }: { user: User }) {
         setIsDeleting(projectToDelete.id);
 
         try {
-            if (projectToDelete.ownerId !== user.uid) {
-                throw new Error("You are not the owner of this project.");
+            if (projectToDelete.ownerId !== user.uid && !isAdmin) {
+                throw new Error("You do not have permission to delete this project.");
             }
             
             const subcollections = ['tasks', 'links', 'resources', 'assignments', 'calendars', 'views', 'settings', 'members'];
@@ -221,11 +257,15 @@ export function ProjectSelectionPage({ user }: { user: User }) {
 
             await deleteDoc(doc(firestore, 'projects', projectToDelete.id));
 
-            const userDocRef = doc(firestore, 'users', user.uid);
-            await updateDoc(userDocRef, {
-                projectIds: arrayRemove(projectToDelete.id)
-            });
-
+            // Remove project ID from all members' user docs
+            if (projectToDelete.memberIds && projectToDelete.memberIds.length > 0) {
+                const memberUpdatePromises = projectToDelete.memberIds.map(memberId => {
+                    const userDocRef = doc(firestore, 'users', memberId);
+                    return updateDoc(userDocRef, { projectIds: arrayRemove(projectToDelete.id) });
+                });
+                await Promise.all(memberUpdatePromises);
+            }
+            
             toast({
                 title: "Project Deleted",
                 description: `"${projectToDelete.name}" has been deleted.`,
@@ -247,7 +287,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     }
 
 
-    if (isLoading) {
+    if (isLoading || isCheckingAdmin) {
         return (
             <div className="flex items-center justify-center h-screen bg-background">
                 <p>Loading projects...</p>
@@ -258,7 +298,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     return (
         <div className="container mx-auto p-4 md:p-8">
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold">Your Projects</h1>
+                <h1 className="text-3xl font-bold">{isAdmin ? 'All Projects' : 'Your Projects'}</h1>
                 <Button onClick={handleCreateProject} disabled={isCreating}>
                     {isCreating ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -281,7 +321,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                             </CardHeader>
                             <CardContent>
                                 <p className="text-sm text-muted-foreground">
-                                    Owner: {project.ownerId === user.uid ? 'You' : 'Someone else'}
+                                    Owner ID: {project.ownerId}
                                 </p>
                             </CardContent>
                             <CardFooter className="flex justify-between">
@@ -292,7 +332,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                                     </Button>
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                            <Button variant="destructive" size="icon" disabled={project.ownerId !== user.uid || !!isDeleting} onClick={() => setProjectToDelete(project)}>
+                                            <Button variant="destructive" size="icon" disabled={!isAdmin && project.ownerId !== user.uid || !!isDeleting} onClick={() => setProjectToDelete(project)}>
                                                 {isDeleting === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                             </Button>
                                         </AlertDialogTrigger>
