@@ -289,14 +289,14 @@ export function CalendarView({
                       <TableCell>
                         <EditableDateCell
                             value={exception.start}
-                            onSave={(newValue) => newValue && handleUpdateException(exception.id, { start: newValue })}
+                            onSave={(newValue) => handleUpdateException(exception.id, { start: newValue })}
                             calendar={null}
                         />
                       </TableCell>
                       <TableCell>
                          <EditableDateCell
                             value={exception.finish}
-                            onSave={(newValue) => newValue && handleUpdateException(exception.id, { finish: newValue })}
+                            onSave={(newValue) => handleUpdateException(exception.id, { finish: newValue })}
                             calendar={null}
                         />
                       </TableCell>

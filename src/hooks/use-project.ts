@@ -159,7 +159,7 @@ type Action =
  * removing calculated fields and converting `undefined` to `null`.
  */
 const toFirestoreTask = (task: Task) => {
-  const { isCritical, totalFloat, lateStart, lateFinish, wbs, level, isSummary, ...rest } = task;
+  const { id, isCritical, totalFloat, lateStart, lateFinish, wbs, level, isSummary, ...rest } = task;
 
   const cleanTask: Record<string, any> = { ...rest };
 
@@ -170,11 +170,6 @@ const toFirestoreTask = (task: Task) => {
     }
   }
   
-  // Convert dates
-  if (cleanTask.start) cleanTask.start = cleanTask.start; // Already a date from scheduler
-  if (cleanTask.finish) cleanTask.finish = cleanTask.finish;
-  if (cleanTask.constraintDate) cleanTask.constraintDate = cleanTask.constraintDate;
-  if (cleanTask.deadline) cleanTask.deadline = cleanTask.deadline;
   if (cleanTask.notes) {
       cleanTask.notes = cleanTask.notes.map((n: Note) => ({...n, timestamp: n.timestamp}));
   }
@@ -281,7 +276,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
   switch (action.type) {
     case 'SET_PROJECT_DATA': {
       const { tasks, links, resources, assignments, calendars } = action.payload;
-      const scheduledTasks = runScheduler(tasks, links, state.columns, calendars, state.defaultCalendarId);
+      const defaultCalendarId = state.defaultCalendarId || calendars.find(c => c.name === "Standard")?.id || calendars[0]?.id || null;
+      const scheduledTasks = runScheduler(tasks, links, state.columns, calendars, defaultCalendarId);
       return {
         ...state,
         tasks: scheduledTasks,
@@ -289,7 +285,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         resources,
         assignments,
         calendars,
-        defaultCalendarId: state.defaultCalendarId || calendars[0]?.id || null,
+        defaultCalendarId,
       };
     }
     case 'SET_PERSISTED_STATE': {
@@ -1043,7 +1039,7 @@ export function useProject(user: User) {
     
     // Optimistic updates for simple field changes
     const optimisticActions: Action['type'][] = [
-        'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR', 'ADD_NOTE_TO_TASK', 'UPDATE_LINK'
+        'ADD_NOTE_TO_TASK',
     ];
 
     if (optimisticActions.includes(action.type)) {
@@ -1051,35 +1047,13 @@ export function useProject(user: User) {
 
         // Perform the Firestore write in the background
         switch(action.type) {
-            case 'UPDATE_TASK': {
-                const { id, ...updateData } = action.payload;
-                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'tasks', id), updateData);
-                break;
-            }
-            case 'UPDATE_LINK': {
-                const { id, ...updateData } = action.payload;
-                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'links', id), updateData);
-                break;
-            }
-            case 'UPDATE_RESOURCE': {
-                const { id, ...updateData } = action.payload;
-                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'resources', id), updateData);
-                break;
-            }
-            case 'UPDATE_CALENDAR': {
-                const { id, ...updateData } = action.payload;
-                if (updateData.exceptions) {
-                    updateData.exceptions = updateData.exceptions.map(ex => ({ ...ex, start: ex.start, finish: ex.finish }));
-                }
-                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'calendars', id), updateData);
-                break;
-            }
             case 'ADD_NOTE_TO_TASK': {
                  const { taskId } = action.payload;
                  const updatedState = projectReducer(historyState.present, action);
                  const updatedTask = updatedState.tasks.find(t => t.id === taskId);
                  if (updatedTask) {
-                     updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'tasks', taskId), { notes: updatedTask.notes });
+                     const { id, ...updateData } = toFirestoreTask(updatedTask);
+                     updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'tasks', taskId), updateData);
                  }
                  break;
             }
@@ -1090,6 +1064,10 @@ export function useProject(user: User) {
 
     // Non-optimistic updates for complex or destructive actions
     const nonOptimisticActions: Action['type'][] = [
+        'UPDATE_TASK',
+        'UPDATE_LINK',
+        'UPDATE_RESOURCE',
+        'UPDATE_CALENDAR',
         'ADD_TASK', 'REMOVE_TASK', 
         'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
         'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
@@ -1123,7 +1101,7 @@ export function useProject(user: User) {
         // Diff links
         newState.links.forEach(newLink => {
             const oldLink = currentState.links.find(l => l.id === newLink.id);
-            const { isDriving, ...linkToSave } = newLink; // remove calculated prop
+            const { isDriving, ...linkToSave } = newLink;
 
             if (!oldLink) {
                  batch.set(doc(firestore, 'users', user.uid, 'links', newLink.id), linkToSave);
@@ -1141,23 +1119,56 @@ export function useProject(user: User) {
             }
         });
 
+        // Diff calendars
+        newState.calendars.forEach(newCalendar => {
+            const oldCalendar = currentState.calendars.find(c => c.id === newCalendar.id);
+            const calendarToSave = {
+                ...newCalendar,
+                exceptions: (newCalendar.exceptions || []).map(e => {
+                    const { start, finish, ...rest } = e;
+                    return { start: start, finish: finish, ...rest };
+                })
+            };
 
-        // Handle other non-optimistic actions
-        if (action.type === 'ADD_RESOURCE') {
-            const newResource = newState.resources[newState.resources.length - 1];
-            batch.set(doc(firestore, 'users', user.uid, 'resources', newResource.id), newResource);
-        }
-        if (action.type === 'REMOVE_RESOURCE') {
-             batch.delete(doc(firestore, 'users', user.uid, 'resources', action.payload.resourceId));
-        }
-         if (action.type === 'ADD_CALENDAR') {
-            const newCalendar = newState.calendars[newState.calendars.length - 1];
-            batch.set(doc(firestore, 'users', user.uid, 'calendars', newCalendar.id), newCalendar);
-        }
-        if (action.type === 'REMOVE_CALENDAR') {
-            batch.delete(doc(firestore, 'users', user.uid, 'calendars', action.payload.calendarId));
-        }
-
+            if (!oldCalendar) {
+                batch.set(doc(firestore, 'users', user.uid, 'calendars', newCalendar.id), calendarToSave);
+            } else {
+                const oldCalendarToCompare = {
+                    ...oldCalendar,
+                    exceptions: (oldCalendar.exceptions || []).map(e => {
+                        const { start, finish, ...rest } = e;
+                        return { start: start, finish: finish, ...rest };
+                    })
+                };
+                if (JSON.stringify(oldCalendarToCompare) !== JSON.stringify(calendarToSave)) {
+                     const { id, ...updateData } = calendarToSave;
+                     batch.update(doc(firestore, 'users', user.uid, 'calendars', newCalendar.id), updateData);
+                }
+            }
+        });
+        currentState.calendars.forEach(oldCalendar => {
+            if (!newState.calendars.some(c => c.id === oldCalendar.id)) {
+                batch.delete(doc(firestore, 'users', user.uid, 'calendars', oldCalendar.id));
+            }
+        });
+        
+        // Diff resources
+        newState.resources.forEach(newResource => {
+            const oldResource = currentState.resources.find(r => r.id === newResource.id);
+            if (!oldResource) {
+                batch.set(doc(firestore, 'users', user.uid, 'resources', newResource.id), newResource);
+            } else {
+                if (JSON.stringify(oldResource) !== JSON.stringify(newResource)) {
+                     const { id, ...updateData } = newResource;
+                     batch.update(doc(firestore, 'users', user.uid, 'resources', newResource.id), updateData);
+                }
+            }
+        });
+        currentState.resources.forEach(oldResource => {
+            if (!newState.resources.some(r => r.id === oldResource.id)) {
+                batch.delete(doc(firestore, 'users', user.uid, 'resources', oldResource.id));
+            }
+        });
 
         batch.commit().then(() => {
             internalDispatch(action); // On success, update UI and history
@@ -1368,5 +1379,3 @@ export function useProject(user: User) {
     }
   };
 }
-
-    
