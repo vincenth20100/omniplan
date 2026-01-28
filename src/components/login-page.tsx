@@ -28,7 +28,7 @@ export function LoginPage() {
             console.error("Error signing in with Google: ", error);
             if (error instanceof FirebaseError) {
                 // Don't show toast for user-cancelled popups
-                if (error.code === 'auth/popup-closed-by-user') {
+                if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
                     return;
                 }
                 
