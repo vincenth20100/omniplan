@@ -1647,7 +1647,9 @@ export function useProject(user: User, projectId: string | null) {
   }, [projectId]);
 
   useEffect(() => {
-    const allLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading;
+    const allCollectionsLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading;
+    const allLoading = allCollectionsLoading || isMemberLoading;
+
     if (!projectId || allLoading) {
         return;
     };
@@ -1689,7 +1691,7 @@ export function useProject(user: User, projectId: string | null) {
         setIsLoaded(true);
     }
   }, [
-    projectId, isLoaded,
+    projectId, isLoaded, isMemberLoading,
     collections.tasks.data, collections.tasks.isLoading,
     collections.links.data, collections.links.isLoading,
     collections.resources.data, collections.resources.isLoading,
