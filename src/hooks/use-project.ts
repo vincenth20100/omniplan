@@ -98,6 +98,7 @@ const initialState: ProjectState = {
   activeCell: null,
   editingCell: null,
   ganttSettings: initialGanttSettings,
+  notifications: [],
 };
 
 type Action =
@@ -153,7 +154,8 @@ type Action =
   | { type: '_APPLY_STATE_CHANGE', payload: { newState: ProjectState, originalAction: Action } }
   | { type: 'UNDO' }
   | { type: 'REDO' }
-  | { type: 'JUMP_TO_HISTORY', payload: { index: number } };
+  | { type: 'JUMP_TO_HISTORY', payload: { index: number } }
+  | { type: 'CLEAR_NOTIFICATIONS' };
 
 /**
  * Creates a "clean" task object suitable for Firestore,
@@ -871,35 +873,24 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const tasks = [...state.tasks];
         const taskMap = new Map(tasks.map(t => [t.id, t]));
 
-        // This logic will apply the same parent to all selected tasks.
-        // It finds the parent based on the position of the *first* selected task.
         const firstSelectedId = tasks.find(t => tasksToIndent.includes(t.id))?.id;
         if (!firstSelectedId) return state;
 
         const firstSelectedIndex = tasks.findIndex(t => t.id === firstSelectedId);
-        if (firstSelectedIndex === 0) return state; // Cannot indent the first task
+        if (firstSelectedIndex === 0) return state;
 
-        // Find the first visible task above the selection
         const taskAbove = tasks[firstSelectedIndex - 1];
-
-        // New Logic: Determine the parent based on the task above.
-        // If the task above is already indented (has a parent), the selected tasks
-        // become its siblings by taking its parent.
-        // If the task above is a root-level item, the selected tasks become its children.
         const newParentId = (taskAbove.level || 0) > 0 ? taskAbove.parentId : taskAbove.id;
         
-        if (newParentId === null) { // We are trying to make it a sibling of a root task, which is not an indent.
-            return state;
-        }
+        if (newParentId === null) return state;
 
         const newParent = newParentId ? taskMap.get(newParentId) : null;
 
-        // Prevent indenting a task under one of its own descendants (creating a cycle)
         for (const taskId of tasksToIndent) {
             let p: Task | undefined | null = newParent;
             while (p) {
                 if (p.id === taskId) {
-                    return state; // Invalid indent
+                    return state;
                 }
                 p = p.parentId ? taskMap.get(p.parentId) : null;
             }
@@ -909,13 +900,42 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             taskMap.get(newParent.id)!.isCollapsed = false;
         }
 
+        const oldTaskMap = new Map(state.tasks.map(t => [t.id, {...t}]));
+        const newlySummaryTasks = new Set<string>();
+
         tasksToIndent.forEach(taskId => {
             const taskToIndent = taskMap.get(taskId)!;
             taskToIndent.parentId = newParentId;
+
+            if (newParentId && !oldTaskMap.get(newParentId)?.isSummary) {
+                newlySummaryTasks.add(newParentId);
+            }
         });
 
-        const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: scheduledTasks };
+        let newLinks = [...state.links];
+        const notifications: ProjectState['notifications'] = [];
+
+        if (newlySummaryTasks.size > 0) {
+            const parentTaskName = taskMap.get(Array.from(newlySummaryTasks)[0])?.name;
+
+            const linksToBeRemoved = state.links.filter(link => 
+                newlySummaryTasks.has(link.source) || newlySummaryTasks.has(link.target)
+            );
+            if (linksToBeRemoved.length > 0) {
+                 newLinks = state.links.filter(link => !linksToBeRemoved.some(l => l.id === link.id));
+                 notifications.push({
+                     id: `toast-${Date.now()}`,
+                     type: 'toast',
+                     title: "Dependencies Removed",
+                     description: `Existing links on "${parentTaskName}" were removed as it became a summary task. This prevents scheduling conflicts.`
+                 });
+            }
+        }
+
+        const updatedTasks = Array.from(taskMap.values());
+        const scheduledTasks = runScheduler(updatedTasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        
+        return { ...state, tasks: scheduledTasks, links: newLinks, notifications };
     }
     case 'OUTDENT_TASK': {
         if (state.selectedTaskIds.length === 0) return state;
@@ -988,6 +1008,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, tasks: scheduledTasks };
     }
+    case 'CLEAR_NOTIFICATIONS': {
+        return { ...state, notifications: [] };
+    }
     default:
       return state;
   }
@@ -1017,6 +1040,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             'SET_ACTIVE_CELL', 
             'START_EDITING_CELL', 
             'STOP_EDITING_CELL',
+            'CLEAR_NOTIFICATIONS',
         ];
 
         if (action.type === '_APPLY_STATE_CHANGE') {

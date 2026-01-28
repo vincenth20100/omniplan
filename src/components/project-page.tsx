@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ResourceManagementDialog } from '@/components/resources/resource-management-dialog';
 import { CalendarManagementDialog } from '@/components/calendars/calendar-management-dialog';
 import { GroupingDialog } from '@/components/view-options/grouping-dialog';
@@ -24,6 +24,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { HistoryPanel } from '@/components/history/history-panel';
 import type { User } from 'firebase/auth';
 import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
+import { useToast } from "@/hooks/use-toast";
 
 export function ProjectPage({ user }: { user: User }) {
   const { state, dispatch, isLoaded, canUndo, canRedo, history } = useProject(user);
@@ -35,6 +36,18 @@ export function ProjectPage({ user }: { user: User }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
   const isMobile = useIsMobile();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (state.notifications && state.notifications.length > 0) {
+      state.notifications.forEach(notif => {
+        if (notif.type === 'toast') {
+          toast({ title: notif.title, description: notif.description });
+        }
+      });
+      dispatch({ type: 'CLEAR_NOTIFICATIONS' });
+    }
+  }, [state.notifications, dispatch, toast]);
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
   const selectedTask = state.tasks.find(t => t.id === lastSelectedId);

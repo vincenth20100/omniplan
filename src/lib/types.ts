@@ -176,4 +176,5 @@ export interface ProjectState {
     activeCell?: { taskId: string, columnId: string } | null;
     editingCell?: { taskId: string, columnId: string, initialValue?: string } | null;
     ganttSettings: GanttSettings;
+    notifications: { id: string; type: 'toast'; title: string; description: string }[];
 }
