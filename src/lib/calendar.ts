@@ -5,6 +5,13 @@ import type { Calendar, DurationUnit, Exception } from './types';
 class CalendarService {
 
   public isWorkingDay(date: Date, calendar: Calendar): boolean {
+    if (!calendar) {
+      // This is a fallback to prevent crashes if a calendar is not provided.
+      // It assumes a standard Monday-Friday work week.
+      console.warn("isWorkingDay called without a calendar. Falling back to a standard work week.");
+      const day = date.getDay();
+      return day >= 1 && day <= 5;
+    }
     const sDate = startOfDay(date);
 
     // Check exceptions first. Exceptions are non-working days.

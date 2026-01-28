@@ -1,7 +1,7 @@
 'use client';
 import React, { useRef, useEffect } from 'react';
 import { differenceInCalendarDays, addDays, format } from 'date-fns';
-import type { Task, UiDensity } from '@/lib/types';
+import type { Task, UiDensity, Calendar } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
 import { Flame } from 'lucide-react';
@@ -9,7 +9,7 @@ import { DENSITY_SETTINGS } from '@/lib/settings';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, highlightCriticalPath }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, highlightCriticalPath, defaultCalendar }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
@@ -22,6 +22,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     showProgress: boolean;
     showTaskLabels: boolean;
     highlightCriticalPath: boolean;
+    defaultCalendar: Calendar | null;
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
     const dragStartInfo = useRef<{
@@ -75,12 +76,16 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     };
 
     const handleDragMove = (clientX: number) => {
-        if (!dragStartInfo.current) return;
+        if (!dragStartInfo.current || !defaultCalendar) {
+            if (!defaultCalendar) console.error("Cannot move task: no default calendar available.");
+            return;
+        }
+
         const dx = clientX - dragStartInfo.current.startX;
         const dayDelta = Math.round(dx / scale);
 
         if (dragStartInfo.current.mode === 'move') {
-            const newStart = calendarService.addWorkingDays(dragStartInfo.current.originalStart, dayDelta);
+            const newStart = calendarService.addWorkingDays(dragStartInfo.current.originalStart, dayDelta, defaultCalendar);
             dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, start: newStart } });
         } else if (dragStartInfo.current.mode === 'resize-end') {
             const newDuration = Math.max(1, dragStartInfo.current.originalDuration + dayDelta);

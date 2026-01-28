@@ -166,6 +166,7 @@ export function Timeline({
                         showProgress={ganttSettings.showProgress}
                         showTaskLabels={ganttSettings.showTaskLabels}
                         highlightCriticalPath={ganttSettings.highlightCriticalPath}
+                        defaultCalendar={defaultCalendar}
                         />
                     );
                 }
