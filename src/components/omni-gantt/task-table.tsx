@@ -912,6 +912,13 @@ export function TaskTable({
                                                     dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: task.id, columnId: column.id } });
                                                     handleSelectTask(e, task.id);
                                                 }}
+                                                onDoubleClick={() => {
+                                                    const value = getCellValueForEditing(task.id, column.id);
+                                                    dispatch({
+                                                        type: 'START_EDITING_CELL',
+                                                        payload: { taskId: task.id, columnId: column.id, initialValue: value }
+                                                    });
+                                                }}
                                             >
                                                 <div 
                                                     className={cn(

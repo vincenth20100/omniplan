@@ -1054,7 +1054,7 @@ export function useProject(user: User) {
     
     // Non-optimistic updates: calculate new state, write to DB, then update UI state.
     const nonOptimisticActions: Action['type'][] = [
-        'UPDATE_TASK', 'UPDATE_LINK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
+        'UPDATE_LINK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
         'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS', 'REMOVE_TASK', 'ADD_TASK'
     ];
 
@@ -1108,6 +1108,10 @@ export function useProject(user: User) {
         internalDispatch(action);
 
         switch (action.type) {
+             case 'UPDATE_TASK': {
+                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'tasks', action.payload.id), action.payload);
+                break;
+            }
             case 'ADD_RESOURCE': {
                 const newState = projectReducer(historyState.present, action);
                 const newResource = newState.resources[newState.resources.length - 1];
