@@ -10,7 +10,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect } from 'react';
@@ -28,7 +28,7 @@ import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
 import { FindReplaceDialog } from './find-replace-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import type { Representation } from '@/lib/types';
+import type { Representation, GanttSettings } from '@/lib/types';
 import { PrintPreviewDialog } from './print-preview';
 
 
@@ -83,6 +83,23 @@ export function ProjectPage({ user }: { user: User }) {
 
   const handleToggleMultiSelect = () => {
     dispatch({ type: 'TOGGLE_MULTI_SELECT_MODE' });
+  };
+  
+  const zoomLevels: GanttSettings['viewMode'][] = ['day', 'week', 'month'];
+  const currentZoomIndex = zoomLevels.indexOf(state.ganttSettings.viewMode);
+
+  const handleZoomIn = () => {
+    if (currentZoomIndex > 0) {
+        const newViewMode = zoomLevels[currentZoomIndex - 1];
+        dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, viewMode: newViewMode }});
+    }
+  };
+
+  const handleZoomOut = () => {
+      if (currentZoomIndex < zoomLevels.length - 1) {
+          const newViewMode = zoomLevels[currentZoomIndex + 1];
+          dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, viewMode: newViewMode }});
+      }
   };
 
   const sidebarContent = (
@@ -172,6 +189,12 @@ export function ProjectPage({ user }: { user: User }) {
         </Button>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'EXPAND_ALL' })} title="Expand Selection/All">
             <ChevronsDown />
+        </Button>
+        <Button variant="outline" size="icon" onClick={handleZoomOut} disabled={state.currentRepresentation !== 'gantt' || currentZoomIndex >= zoomLevels.length - 1} title="Zoom Out">
+            <ZoomOut />
+        </Button>
+        <Button variant="outline" size="icon" onClick={handleZoomIn} disabled={state.currentRepresentation !== 'gantt' || currentZoomIndex <= 0} title="Zoom In">
+            <ZoomIn />
         </Button>
         {isLoaded && (
           <>

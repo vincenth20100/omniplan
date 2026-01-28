@@ -21,6 +21,7 @@ import {
 import { Label } from "./ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { ZoomIn, ZoomOut } from "lucide-react";
 
 export function PrintPreviewDialog({
   open,
@@ -61,6 +62,23 @@ export function PrintPreviewDialog({
       setPrintSettings(prev => ({...prev, [key]: value}));
   };
   
+  const zoomLevels: GanttSettings['viewMode'][] = ['day', 'week', 'month'];
+  const currentZoomIndex = zoomLevels.indexOf(printSettings.viewMode);
+
+  const handleZoomIn = () => {
+      if (currentZoomIndex > 0) {
+          const newViewMode = zoomLevels[currentZoomIndex - 1];
+          handleSettingChange('viewMode', newViewMode);
+      }
+  };
+
+  const handleZoomOut = () => {
+      if (currentZoomIndex < zoomLevels.length - 1) {
+          const newViewMode = zoomLevels[currentZoomIndex + 1];
+          handleSettingChange('viewMode', newViewMode);
+      }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -75,13 +93,13 @@ export function PrintPreviewDialog({
         </DialogHeader>
         
         <div id="print-preview-dialog-controls" className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center border-b pb-4">
-            <div>
+            <div className="flex items-center gap-2">
                 <Label htmlFor="view-mode">Timeline Scale</Label>
                 <Select
                     value={printSettings.viewMode}
                     onValueChange={(value: 'day' | 'week' | 'month') => handleSettingChange('viewMode', value)}
                   >
-                    <SelectTrigger id="view-mode">
+                    <SelectTrigger id="view-mode" className="w-[120px]">
                       <SelectValue placeholder="Select view mode" />
                     </SelectTrigger>
                     <SelectContent>
@@ -90,6 +108,12 @@ export function PrintPreviewDialog({
                       <SelectItem value="month">Month</SelectItem>
                     </SelectContent>
                 </Select>
+                 <Button variant="outline" size="icon" onClick={handleZoomOut} disabled={currentZoomIndex >= zoomLevels.length - 1}>
+                    <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={handleZoomIn} disabled={currentZoomIndex <= 0}>
+                    <ZoomIn className="h-4 w-4" />
+                </Button>
             </div>
         </div>
 
