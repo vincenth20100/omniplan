@@ -20,7 +20,7 @@ import { FilterDialog } from '@/components/view-options/filter-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ColumnSelector } from '@/components/layout/column-selector';
 import { GanttSettingsPanel } from '@/components/gantt-settings/gantt-settings-panel';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { HistoryPanel } from '@/components/history/history-panel';
 import type { User } from 'firebase/auth';
 import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
@@ -198,17 +198,20 @@ export function ProjectPage({ user }: { user: User }) {
           {isMobile && (
             <Sheet open={!!selectedTask} onOpenChange={(open) => !open && dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}>
                 <SheetContent side="bottom" className="h-[80vh] p-0">
-                {selectedTask && (
-                    <TaskDetailsPanel 
-                        task={selectedTask} 
-                        links={state.links} 
-                        tasks={state.tasks}
-                        dispatch={dispatch}
-                        onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
-                        uiDensity={state.uiDensity}
-                        defaultCalendar={defaultCalendar}
-                    />
-                )}
+                  {selectedTask && (
+                    <>
+                      <SheetTitle className="sr-only">Task Details: {selectedTask.name}</SheetTitle>
+                      <TaskDetailsPanel 
+                          task={selectedTask} 
+                          links={state.links} 
+                          tasks={state.tasks}
+                          dispatch={dispatch}
+                          onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
+                          uiDensity={state.uiDensity}
+                          defaultCalendar={defaultCalendar}
+                      />
+                    </>
+                  )}
                 </SheetContent>
             </Sheet>
           )}
