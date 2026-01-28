@@ -10,10 +10,13 @@ import { Trash2 } from 'lucide-react';
 import { AddRelationshipRow } from './add-relationship-row';
 import React from 'react';
 import { format } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { RelationshipComboboxContent } from './relationship-combobox';
 
 export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatch, uiDensity }: { currentTaskId: string, successorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity }) {
 
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
+    const [editingLinkId, setEditingLinkId] = React.useState<string | null>(null);
     
     const [colWidths, setColWidths] = React.useState({
         id: 50,
@@ -148,17 +151,27 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                                     <div className={cellInnerDivClass}>{targetTask?.wbs || 'N/A'}</div>
                                 </TableCell>
                                 <TableCell className={cellClass} title={targetTask?.name}>
-                                    <div className={cellInnerDivClass}>
-                                        <EditableCell 
-                                            value={targetTask.name}
-                                            onSave={(newValue) => {
-                                                if(newValue.trim()){
-                                                    dispatch({ type: 'UPDATE_TASK', payload: { id: targetTask.id, name: newValue } });
-                                                }
-                                            }}
-                                            className="w-full"
-                                        />
-                                    </div>
+                                     <Popover open={editingLinkId === link.id} onOpenChange={(open) => !open && setEditingLinkId(null)}>
+                                        <PopoverTrigger asChild>
+                                            <div
+                                                onClick={() => setEditingLinkId(link.id)}
+                                                className={cn(cellInnerDivClass, "cursor-pointer")}
+                                            >
+                                                {targetTask.name}
+                                            </div>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[400px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                                <RelationshipComboboxContent
+                                                allTasks={allTasks}
+                                                currentTaskId={currentTaskId}
+                                                excludedTaskIds={successorLinks.map(l => l.target).filter(id => id !== link.target)}
+                                                onSelectTask={(newTargetId) => {
+                                                    dispatch({ type: 'UPDATE_LINK', payload: { id: link.id, target: newTargetId } });
+                                                    setEditingLinkId(null);
+                                                }}
+                                                />
+                                        </PopoverContent>
+                                    </Popover>
                                 </TableCell>
                                 <TableCell className={cellClass}>
                                     <div className={cellInnerDivClass}>

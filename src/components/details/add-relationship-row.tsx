@@ -1,9 +1,12 @@
 'use client';
-import type { Task, UiDensity, LinkType } from '@/lib/types';
+import type { Task, UiDensity } from '@/lib/types';
 import { TableRow, TableCell } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronsUpDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { RelationshipComboboxContent } from './relationship-combobox';
+import { useState } from 'react';
 
 export function AddRelationshipRow({
     allTasks,
@@ -20,6 +23,8 @@ export function AddRelationshipRow({
     type: 'predecessor' | 'successor',
     uiDensity: UiDensity
 }) {
+    const [open, setOpen] = useState(false);
+    
     const cellInnerDivClass = cn(
         "flex items-center h-full",
         uiDensity === 'large' && "px-4 text-sm",
@@ -34,8 +39,6 @@ export function AddRelationshipRow({
         uiDensity === 'compact' && "h-8"
     );
 
-    const availableTasks = allTasks.filter(t => t.id !== currentTaskId && !existingLinkedTaskIds.includes(t.id));
-
     const handleAddTask = (selectedTaskId: string) => {
         if (!selectedTaskId) return;
 
@@ -48,29 +51,37 @@ export function AddRelationshipRow({
                 lag: 0,
             }
         });
+        setOpen(false);
     };
 
     return (
         <TableRow>
             <TableCell colSpan={6} className={cn(cellClass, "p-0")}>
                 <div className={cellInnerDivClass}>
-                    <Select onValueChange={handleAddTask}>
-                        <SelectTrigger className="h-8 border-dashed w-full text-xs">
-                            <SelectValue placeholder={
-                                <span className="flex items-center gap-2 text-muted-foreground">
-                                    <Plus className="h-3 w-3" />
-                                    Add new {type}
-                                </span>
-                            } />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {availableTasks.length > 0 ? availableTasks.map(task => (
-                                <SelectItem key={task.id} value={task.id}>
-                                    {task.wbs} - {task.name}
-                                </SelectItem>
-                            )) : <p className="p-2 text-xs text-muted-foreground">No tasks available to link.</p>}
-                        </SelectContent>
-                    </Select>
+                    <Popover open={open} onOpenChange={setOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={open}
+                          className="w-full justify-between h-8 border-dashed text-xs text-muted-foreground"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Plus className="h-3 w-3" />
+                            Add new {type}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0">
+                          <RelationshipComboboxContent
+                            allTasks={allTasks}
+                            currentTaskId={currentTaskId}
+                            excludedTaskIds={existingLinkedTaskIds}
+                            onSelectTask={handleAddTask}
+                          />
+                      </PopoverContent>
+                    </Popover>
                 </div>
             </TableCell>
         </TableRow>
