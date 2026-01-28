@@ -96,6 +96,17 @@ export function ProjectPage({ user }: { user: User }) {
             <Redo2 />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
+        {isMobile && (
+            <Button
+                variant={state.multiSelectMode ? "secondary" : "outline"}
+                size="sm"
+                onClick={handleToggleMultiSelect}
+                className="w-9 px-0"
+                title="Toggle Multi-Select"
+            >
+                <ListChecks />
+            </Button>
+        )}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK' })} title="Add Task">
             <Plus />
         </Button>
@@ -150,17 +161,6 @@ export function ProjectPage({ user }: { user: User }) {
         <Button variant="outline" size="icon" onClick={() => setIsShortcutsDialogOpen(true)} title="Keyboard Shortcuts">
             <Keyboard />
         </Button>
-        {isMobile && (
-            <Button
-                variant={state.multiSelectMode ? "secondary" : "outline"}
-                size="sm"
-                onClick={handleToggleMultiSelect}
-                className="w-9 px-0"
-                title="Toggle Multi-Select"
-            >
-                <ListChecks />
-            </Button>
-        )}
     </div>
   );
 
