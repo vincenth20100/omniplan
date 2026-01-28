@@ -177,7 +177,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     
     if (sortedTasks.length !== schedulableTasks.length) {
         console.warn("Scheduling conflict detected: A circular dependency exists in your project links. The schedule may be incorrect until the cycle is removed.");
-        // We don't return here, we try to schedule what we can.
+        return tasks;
     }
 
     // Forward pass: Calculate Early Start (ES) and Early Finish (EF)
