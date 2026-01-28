@@ -71,7 +71,7 @@ export const TimelineHeader = React.memo(({ startDate, endDate, scale }: { start
                 ) : (
                      weeks.map((week) => (
                         <div
-                            key={week.name}
+                            key={week.date.toISOString()}
                             className="flex items-center justify-center flex-shrink-0 text-center border-r"
                             style={{ width: week.days * scale }}
                         >
