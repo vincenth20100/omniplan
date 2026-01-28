@@ -339,7 +339,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             t.id === action.payload.id ? { ...t, ...action.payload } : t
         );
         const reScheduledTasks = runScheduler(updatedTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: reScheduledTasks };
+        return { ...state, tasks: reScheduledTasks, isDirty: checkDirty({ ...state, tasks: reScheduledTasks }) };
     }
     case 'UPDATE_LINK': {
         const newLinks = state.links.map(l => l.id === action.payload.id ? { ...l, ...action.payload } : l);
@@ -381,7 +381,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     case 'UPDATE_CALENDAR': {
         const newCalendars = state.calendars.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
         const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, state.defaultCalendarId);
-        return { ...state, calendars: newCalendars, tasks: reScheduledTasks };
+        return { ...state, calendars: newCalendars, tasks: reScheduledTasks, isDirty: checkDirty({ ...state, calendars: newCalendars }) };
     }
      case 'REMOVE_CALENDAR': {
         const { calendarId } = action.payload;
@@ -1052,10 +1052,55 @@ export function useProject(user: User) {
         return;
     }
     
-    // Non-optimistic updates: calculate new state, write to DB, then update UI state.
+    // Optimistic updates for simple field changes
+    const optimisticActions: Action['type'][] = [
+        'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR', 'ADD_NOTE_TO_TASK'
+    ];
+
+    if (optimisticActions.includes(action.type)) {
+        internalDispatch(action); // Update UI immediately
+
+        const newState = projectReducer(historyState.present, action);
+
+        // Perform the Firestore write in the background
+        switch(action.type) {
+            case 'UPDATE_TASK': {
+                const { id, ...updateData } = action.payload;
+                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'tasks', id), updateData);
+                break;
+            }
+            case 'UPDATE_RESOURCE': {
+                const { id, ...updateData } = action.payload;
+                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'resources', id), updateData);
+                break;
+            }
+            case 'UPDATE_CALENDAR': {
+                const { id, ...updateData } = action.payload;
+                if (updateData.exceptions) {
+                    updateData.exceptions = updateData.exceptions.map(ex => ({ ...ex, start: ex.start, finish: ex.finish }));
+                }
+                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'calendars', id), updateData);
+                break;
+            }
+            case 'ADD_NOTE_TO_TASK': {
+                 const { taskId } = action.payload;
+                 const updatedTask = newState.tasks.find(t => t.id === taskId);
+                 if (updatedTask) {
+                     updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'tasks', taskId), { notes: updatedTask.notes });
+                 }
+                 break;
+            }
+        }
+        return;
+    }
+
+
+    // Non-optimistic updates for complex or destructive actions
     const nonOptimisticActions: Action['type'][] = [
-        'UPDATE_LINK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
-        'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS', 'REMOVE_TASK', 'ADD_TASK'
+        'ADD_TASK', 'REMOVE_TASK', 
+        'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
+        'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
+        'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR'
     ];
 
     if (nonOptimisticActions.includes(action.type)) {
@@ -1080,7 +1125,7 @@ export function useProject(user: User) {
         // Diff links and add to batch
         newState.links.forEach(newLink => {
             const oldLink = currentState.links.find(l => l.id === newLink.id);
-            const { isDriving, ...linkToSave } = newLink; // This is the object shape we want to save and compare
+            const { isDriving, ...linkToSave } = newLink;
 
             if (oldLink) {
                 const { isDriving: oldIsDriving, ...oldLinkToCompare } = oldLink;
@@ -1088,7 +1133,6 @@ export function useProject(user: User) {
                     batch.set(doc(firestore, 'users', user.uid, 'links', newLink.id), linkToSave);
                 }
             } else {
-                // New link
                 batch.set(doc(firestore, 'users', user.uid, 'links', newLink.id), linkToSave);
             }
         });
@@ -1098,67 +1142,33 @@ export function useProject(user: User) {
             }
         });
 
+        // Handle other non-optimistic actions
+        if (action.type === 'ADD_RESOURCE') {
+            const newResource = newState.resources[newState.resources.length - 1];
+            batch.set(doc(firestore, 'users', user.uid, 'resources', newResource.id), newResource);
+        }
+        if (action.type === 'REMOVE_RESOURCE') {
+             batch.delete(doc(firestore, 'users', user.uid, 'resources', action.payload.resourceId));
+        }
+         if (action.type === 'ADD_CALENDAR') {
+            const newCalendar = newState.calendars[newState.calendars.length - 1];
+            batch.set(doc(firestore, 'users', user.uid, 'calendars', newCalendar.id), newCalendar);
+        }
+        if (action.type === 'REMOVE_CALENDAR') {
+            batch.delete(doc(firestore, 'users', user.uid, 'calendars', action.payload.calendarId));
+        }
+
+
         batch.commit().then(() => {
             internalDispatch(action); // On success, update UI and history
         }).catch(e => {
             console.error(`Action ${action.type} failed to commit.`, e);
         });
 
-    } else { // All other actions can be dispatched directly
+    } else { // Settings & View actions can be dispatched and saved in background
         internalDispatch(action);
 
         switch (action.type) {
-             case 'UPDATE_TASK': {
-                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'tasks', action.payload.id), action.payload);
-                break;
-            }
-            case 'ADD_RESOURCE': {
-                const newState = projectReducer(historyState.present, action);
-                const newResource = newState.resources[newState.resources.length - 1];
-                setDocumentNonBlocking(doc(firestore, 'users', user.uid, 'resources', newResource.id), newResource, {});
-                break;
-            }
-            case 'REMOVE_RESOURCE': {
-                const batch = writeBatch(firestore);
-                const resourceDocRef = doc(firestore, 'users', user.uid, 'resources', action.payload.resourceId);
-                batch.delete(resourceDocRef);
-                historyState.present.assignments
-                    .filter(a => a.resourceId === action.payload.resourceId)
-                    .forEach(a => batch.delete(doc(firestore, 'users', user.uid, 'assignments', a.id)));
-                batch.commit().catch(e => console.error("Failed to batch delete resource", e));
-                break;
-            }
-            case 'UPDATE_RESOURCE': {
-                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'resources', action.payload.id), action.payload);
-                break;
-            }
-            case 'ADD_CALENDAR': {
-                 const newState = projectReducer(historyState.present, action);
-                 const newCalendar = newState.calendars[newState.calendars.length - 1];
-                 setDocumentNonBlocking(doc(firestore, 'users', user.uid, 'calendars', newCalendar.id), newCalendar, {});
-                 break;
-            }
-            case 'REMOVE_CALENDAR': {
-                 deleteDocumentNonBlocking(doc(firestore, 'users', user.uid, 'calendars', action.payload.calendarId));
-                 break;
-            }
-            case 'UPDATE_CALENDAR': {
-                const payload = {...action.payload};
-                 if (payload.exceptions) {
-                    payload.exceptions = payload.exceptions.map(ex => ({ ...ex, start: ex.start, finish: ex.finish }));
-                 }
-                 updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'calendars', action.payload.id), payload);
-                 break;
-            }
-            case 'ADD_NOTE_TO_TASK': {
-                const { taskId } = action.payload;
-                const newState = projectReducer(historyState.present, action);
-                const updatedTask = newState.tasks.find(t => t.id === taskId);
-                if (updatedTask) {
-                    updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'tasks', taskId), { notes: updatedTask.notes });
-                }
-                break;
-            }
             case 'SAVE_VIEW_AS':
             case 'UPDATE_CURRENT_VIEW':
             case 'SET_GROUPING':
@@ -1188,7 +1198,10 @@ export function useProject(user: User) {
                 }
                 if (action.type === 'UPDATE_CURRENT_VIEW' && newState.currentViewId) {
                     const updatedView = newState.views.find(v => v.id === newState.currentViewId);
-                    if (updatedView) updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'views', newState.currentViewId), updatedView);
+                    if (updatedView) {
+                        const { id, ...viewData } = updatedView;
+                        updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'views', id), viewData);
+                    }
                 }
                 break;
             }
