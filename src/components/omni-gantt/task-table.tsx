@@ -522,16 +522,25 @@ export function TaskTable({
                 
                 const { taskId, columnId } = activeCell;
 
-                // Delete on relationship columns clears them directly, this is a "hard delete"
-                if (event.key === 'Delete' && (columnId === 'predecessors' || columnId === 'successors')) {
-                     dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId, field: columnId as 'predecessors' | 'successors', value: '' } });
-                } else {
-                    // Backspace on any column, or Delete on other columns, starts editing with empty value ("soft delete")
-                    dispatch({
-                        type: 'START_EDITING_CELL',
-                        payload: { ...activeCell, initialValue: '' }
-                    });
+                if (event.key === 'Delete') {
+                    // If WBS column is active, delete the whole task
+                    if (columnId === 'wbs') {
+                        dispatch({ type: 'REMOVE_TASK' });
+                        return; // Action handled
+                    }
+                    // If relationship columns, just clear the content
+                    if (columnId === 'predecessors' || columnId === 'successors') {
+                        dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId, field: columnId as 'predecessors' | 'successors', value: '' } });
+                        return; // Action handled
+                    }
                 }
+
+                // For Backspace on any column, or Delete on other columns, start editing with empty content
+                dispatch({
+                    type: 'START_EDITING_CELL',
+                    payload: { ...activeCell, initialValue: '' }
+                });
+
                 return;
             }
 
