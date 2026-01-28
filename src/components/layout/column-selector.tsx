@@ -1,7 +1,6 @@
 'use client';
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -9,10 +8,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button";
-import { Columns3, Plus } from "lucide-react";
+import { Columns3, Plus, ArrowUp, ArrowDown, Pencil } from "lucide-react";
 import type { ColumnSpec } from "@/lib/types";
 import { useState, useEffect } from "react";
 import { ColumnConfigDialog, type ColumnConfig } from "../view-options/column-config-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export function ColumnSelector({
     visibleColumns,
@@ -75,6 +76,12 @@ export function ColumnSelector({
         setIsConfigOpen(open);
     }
 
+    const handleMoveColumn = (index: number, direction: 'up' | 'down') => {
+        const newIndex = direction === 'up' ? index - 1 : index + 1;
+        if (newIndex < 0 || newIndex >= columns.length) return;
+        dispatch({ type: 'REORDER_COLUMNS', payload: { sourceId: columns[index].id, targetId: columns[newIndex].id } });
+    }
+
     return (
         <>
             <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
@@ -83,22 +90,55 @@ export function ColumnSelector({
                         <Columns3 className="h-4 w-4" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56">
+                <DropdownMenuContent className="w-64">
                     <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {columns.map(column => (
-                        <DropdownMenuCheckboxItem
-                            key={column.id}
-                            checked={visibleColumns.includes(column.id)}
-                            onCheckedChange={(checked) => handleCheckedChange(column.id, Boolean(checked))}
-                             onSelect={(e) => {
-                                // Prevent dropdown from closing when checking the box
-                                e.preventDefault();
-                            }}
-                        >
-                            <span className="flex-grow">{column.name}</span>
-                        </DropdownMenuCheckboxItem>
-                    ))}
+                    <ScrollArea className="h-[240px] pr-2">
+                        {columns.map((column, index) => (
+                             <DropdownMenuItem
+                                key={column.id}
+                                onSelect={(e) => e.preventDefault()}
+                                className="p-0 focus:bg-transparent"
+                            >
+                                <div className="flex items-center w-full hover:bg-accent rounded-sm p-1">
+                                    <Checkbox
+                                        id={`col-vis-${column.id}`}
+                                        checked={visibleColumns.includes(column.id)}
+                                        onCheckedChange={(checked) => handleCheckedChange(column.id, Boolean(checked))}
+                                        className="mr-2"
+                                    />
+                                    <label htmlFor={`col-vis-${column.id}`} className="flex-grow truncate cursor-pointer">{column.name}</label>
+                                    <div className="flex items-center ml-2">
+                                        {column.id.startsWith('custom-') && (
+                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenEdit(column)} title="Edit column">
+                                                <Pencil className="h-3 w-3" />
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            disabled={index === 0}
+                                            onClick={() => handleMoveColumn(index, 'up')}
+                                            title="Move up"
+                                        >
+                                            <ArrowUp className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            disabled={index === columns.length - 1}
+                                            onClick={() => handleMoveColumn(index, 'down')}
+                                            title="Move down"
+                                        >
+                                            <ArrowDown className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </DropdownMenuItem>
+                        ))}
+                    </ScrollArea>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleOpenNew}>
                         <Plus className="mr-2 h-4 w-4" />
