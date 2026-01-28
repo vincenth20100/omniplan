@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useReducer, useEffect, useState, useMemo, useCallback } from 'react';
@@ -937,27 +938,30 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, editingCell: null };
     }
     case 'UPDATE_GANTT_SETTINGS': {
-      const newState = { ...state, ganttSettings: action.payload };
-      const activePreset = state.stylePresets.find(p => p.id === state.activeStylePresetId);
+      const presets = state.stylePresets || defaultStylePresets;
+      const activePreset = presets.find(p => p.id === state.activeStylePresetId);
       
       let newActiveStylePresetId = state.activeStylePresetId;
       if (activePreset) {
           const presetSettings = activePreset.settings;
           const currentSettings = action.payload;
-
           const customStylesMatch = JSON.stringify(presetSettings.customStyles || {}) === JSON.stringify(currentSettings.customStyles || {});
           const themeMatch = presetSettings.theme === currentSettings.theme;
-
           if (!customStylesMatch || !themeMatch) {
-              newActiveStylePresetId = null; // Mark as custom
+              newActiveStylePresetId = null;
           }
       } else {
-        newActiveStylePresetId = null; // Was already custom
+        newActiveStylePresetId = null;
       }
       
-      const dirtyState = { ...newState, activeStylePresetId: newActiveStylePresetId };
+      const newState = {
+          ...state,
+          ganttSettings: action.payload,
+          stylePresets: presets,
+          activeStylePresetId: newActiveStylePresetId,
+      };
 
-      return { ...dirtyState, isDirty: checkDirty(dirtyState) };
+      return { ...newState, isDirty: checkDirty(newState) };
     }
     case 'SET_STYLE_PRESETS': {
         return { ...state, stylePresets: action.payload };
@@ -974,6 +978,21 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             return { ...state, activeStylePresetId: id, ganttSettings: newGanttSettings };
         }
         return state;
+    }
+    case 'LOAD_PROJECT': {
+        const loaded = action.payload;
+        const loadedState = { 
+            ...initialState, 
+            ...loaded,
+            ganttSettings: { ...initialState.ganttSettings, ...(loaded.ganttSettings || {}) },
+            stylePresets: loaded.stylePresets || defaultStylePresets,
+        };
+        const scheduledTasks = runScheduler(loadedState.tasks, loadedState.links, loadedState.columns, loadedState.calendars, loadedState.defaultCalendarId);
+        return {
+            ...loadedState,
+            tasks: scheduledTasks,
+            isDirty: false
+        };
     }
     case 'ADD_TASK': {
         const newId = `task-${Date.now()}`;
@@ -1491,42 +1510,47 @@ export function useProject(user: User, projectId: string | null) {
       useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
   );
   
-  useEffect(() => {
-    if (!isMemberLoading) {
-      setIsEditorOrOwner(!!(member && (member.role === 'editor' || member.role === 'owner')));
-    }
-  }, [isMemberLoading, member]);
-  
-  const collections = {
-    tasks: useCollection<Task>(useMemoFirebase(() => projectId ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId])),
-    links: useCollection<Link>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId])),
-    resources: useCollection<Resource>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId])),
-    assignments: useCollection<Assignment>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId])),
-    calendars: useCollection<Calendar>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId])),
-    views: useCollection<View>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId])),
-    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId])),
-    userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
-  };
-  
   const dispatch = useCallback((action: Action) => {
     if (!user || !projectId) {
         internalDispatch(action);
         return;
     }
+    
+    // This is the new centralized permission guard.
+    const isEditAction = (act: Action): boolean => {
+        const dataWriteActions: Action['type'][] = [
+            'UPDATE_TASK', 'ADD_NOTE_TO_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
+            'UPDATE_LINK', 'ADD_TASK', 'REMOVE_TASK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK',
+            'UPDATE_RELATIONSHIPS', 'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
+            'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
+            'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE',
+          ];
+    
+          const sharedSettingsActions: Action['type'][] = [
+            'SAVE_VIEW_AS', 'UPDATE_CURRENT_VIEW', 'SET_GROUPING', 'SET_FILTERS',
+            'SET_COLUMNS', 'ADD_COLUMN', 'UPDATE_COLUMN', 'REMOVE_COLUMN',
+            'RESIZE_COLUMN', 'REORDER_COLUMNS', 'DELETE_VIEW',
+            'SET_STYLE_PRESETS',
+          ];
+          return dataWriteActions.includes(act.type) || sharedSettingsActions.includes(act.type);
+    }
 
-    const dataWriteActions: Action['type'][] = [
-      'UPDATE_TASK', 'ADD_NOTE_TO_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
-      'UPDATE_LINK', 'ADD_TASK', 'REMOVE_TASK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK',
-      'UPDATE_RELATIONSHIPS', 'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
-      'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
-      'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE',
-    ];
 
-    const sharedSettingsActions: Action['type'][] = [
-      'SAVE_VIEW_AS', 'UPDATE_CURRENT_VIEW', 'SET_GROUPING', 'SET_FILTERS',
-      'SET_COLUMNS', 'ADD_COLUMN', 'UPDATE_COLUMN', 'REMOVE_COLUMN',
-      'RESIZE_COLUMN', 'REORDER_COLUMNS', 'DELETE_VIEW',
-      'SET_STYLE_PRESETS',
+    if (isEditAction(action)) {
+        // We now get the role directly from the 'member' state variable which is kept up-to-date by the useDoc hook.
+        const currentRole = member?.role;
+        if (currentRole !== 'editor' && currentRole !== 'owner') {
+             toast({
+                variant: 'destructive',
+                title: 'Permission Denied',
+                description: 'You do not have permission to perform this action.',
+            });
+            return;
+        }
+    }
+
+    const optimisticActions: Action['type'][] = [
+      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
     ];
     
     const userSettingsActions: Action['type'][] = [
@@ -1534,23 +1558,8 @@ export function useProject(user: User, projectId: string | null) {
         'SET_ACTIVE_STYLE_PRESET'
     ];
 
-    if ((dataWriteActions.includes(action.type) || sharedSettingsActions.includes(action.type)) && !isEditorOrOwner) {
-        toast({
-            variant: 'destructive',
-            title: 'Permission Denied',
-            description: 'You do not have permission to perform this action.',
-        });
-        return;
-    }
-
-    // --- All checks passed, proceed with action handling ---
-
-    const optimisticActions: Action['type'][] = [
-      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
-    ];
-    
     if (userSettingsActions.includes(action.type)) {
-        internalDispatch(action); // Optimistically update UI
+        internalDispatch(action);
         const newState = projectReducer(historyState.present, action);
         const userPrefsDocRef = doc(firestore, 'user_preferences', `${user.uid}_${projectId}`);
 
@@ -1573,9 +1582,8 @@ export function useProject(user: User, projectId: string | null) {
         setDocumentNonBlocking(userPrefsDocRef, prefsToUpdate, { merge: true });
 
     } else if (optimisticActions.includes(action.type)) {
-        internalDispatch(action); // Optimistically update UI
+        internalDispatch(action); 
 
-        // Perform Firestore write in the background
         switch(action.type) {
             case 'ADD_NOTE_TO_TASK':
             case 'UPDATE_TASK': {
@@ -1599,12 +1607,11 @@ export function useProject(user: User, projectId: string | null) {
                 break;
             }
         }
-    } else { // Handle non-optimistic and shared settings actions via batch
+    } else { 
         const currentState = historyState.present;
         const newState = projectReducer(currentState, action);
         const batch = writeBatch(firestore);
 
-        // --- Data changes ---
         newState.tasks.forEach(newTask => {
             const oldTask = currentState.tasks.find(t => t.id === newTask.id);
             if (!oldTask) {
@@ -1622,8 +1629,7 @@ export function useProject(user: User, projectId: string | null) {
             }
         });
         
-        // --- Shared Settings Changes ---
-        if (sharedSettingsActions.includes(action.type)) {
+        if (isEditAction(action)) {
             const sharedSettingsDocRef = doc(firestore, 'projects', projectId, 'settings', 'app_settings');
              const settingsToUpdate: Partial<typeof defaultAppSettings> = {
                 columns: newState.columns,
@@ -1659,7 +1665,26 @@ export function useProject(user: User, projectId: string | null) {
             });
         });
     }
-  }, [user, projectId, isEditorOrOwner, firestore, toast, historyState.present]);
+  }, [user, projectId, firestore, toast, historyState.present, member]);
+  
+  useEffect(() => {
+    if (!isMemberLoading && member) {
+        setIsEditorOrOwner(member.role === 'editor' || member.role === 'owner');
+    } else if (!isMemberLoading && !member) {
+        setIsEditorOrOwner(false);
+    }
+  }, [isMemberLoading, member]);
+
+  const collections = {
+    tasks: useCollection<Task>(useMemoFirebase(() => projectId ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId])),
+    links: useCollection<Link>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId])),
+    resources: useCollection<Resource>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId])),
+    assignments: useCollection<Assignment>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId])),
+    calendars: useCollection<Calendar>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId])),
+    views: useCollection<View>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId])),
+    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId])),
+    userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
+  };
   
   // Effect 1: Data Synchronization from Firestore
   useEffect(() => {

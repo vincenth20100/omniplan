@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -24,7 +25,6 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { useId } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
-import { isEqual } from 'lodash';
 
 const ColorPicker = ({ label, value, onChange, disabled }: { label: string, value: string, onChange: (value: string) => void, disabled?: boolean }) => {
   const id = useId();
@@ -60,6 +60,7 @@ export function GanttSettingsPanel({
   activeStylePresetId,
   dispatch,
   onManageThemes,
+  isEditor,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -68,6 +69,7 @@ export function GanttSettingsPanel({
   activeStylePresetId: string | null;
   dispatch: any;
   onManageThemes: () => void;
+  isEditor: boolean;
 }) {
   const handleSettingChange = (key: keyof GanttSettings, value: any) => {
     dispatch({
@@ -90,6 +92,7 @@ export function GanttSettingsPanel({
           <SheetTitle>Display Options</SheetTitle>
           <SheetDescription>
             Customize the appearance of the Gantt chart and grid.
+             {!isEditor && <div className="mt-2 text-destructive font-semibold">You have view-only permissions. Your changes will not be saved.</div>}
           </SheetDescription>
         </SheetHeader>
         <ScrollArea className="flex-grow pr-4 -mr-6">
@@ -113,7 +116,7 @@ export function GanttSettingsPanel({
                         <SelectValue placeholder="Select theme" />
                         </SelectTrigger>
                         <SelectContent>
-                          {stylePresets.map(preset => (
+                          {(stylePresets || []).map(preset => (
                             <SelectItem key={preset.id} value={preset.id}>
                               {preset.name}
                             </SelectItem>
@@ -301,7 +304,7 @@ export function GanttSettingsPanel({
                       onChange={(value) => handleCustomStyleChange('taskRowLevel2PlusBg', value)}
                     />
                     <Separator className="my-4" />
-                    <Button variant="outline" className="w-full" onClick={onManageThemes}>Manage Custom Themes...</Button>
+                    <Button variant="outline" className="w-full" onClick={onManageThemes} disabled={!isEditor}>Manage Custom Themes...</Button>
                   </div>
                 </AccordionContent>
               </AccordionItem>
