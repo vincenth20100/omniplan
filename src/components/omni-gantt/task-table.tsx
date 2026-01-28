@@ -141,10 +141,6 @@ const TaskCellRenderer = React.memo(({
                 return `${sourceWbs}${l.type}${lagString}`;
             }).join(', ');
             
-            if (task.isSummary) {
-                return <div className="truncate">{predecessorString}</div>;
-            }
-
             return (
                 <EditableCell
                     value={predecessorString}
@@ -167,10 +163,6 @@ const TaskCellRenderer = React.memo(({
                 if (l.lag < 0) lagString = `${l.lag}d`;
                 return `${targetWbs}${l.type}${lagString}`;
             }).join(', ');
-
-            if (task.isSummary) {
-                return <div className="truncate">{successorString}</div>;
-            }
             
             return (
                 <EditableCell

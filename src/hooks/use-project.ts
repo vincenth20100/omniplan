@@ -244,31 +244,107 @@ function getVisibleTasks(tasks: Task[]): Task[] {
     });
 };
 
-function isCycle(sourceId: string, targetId: string, links: Link[]): boolean {
+function expandSummaryLinks(links: Link[], tasks: Task[]): Link[] {
+    const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
+
+    const childrenMap = new Map<string, string[]>();
+    tasks.forEach(t => {
+        if (t.parentId) {
+            if (!childrenMap.has(t.parentId)) childrenMap.set(t.parentId, []);
+            childrenMap.get(t.parentId)!.push(t.id);
+        }
+    });
+
+    const expandedLinks: Link[] = [];
+    links.forEach(link => {
+        const sourceTask = taskMap.get(link.source);
+        const targetTask = taskMap.get(link.target);
+
+        if (!sourceTask || !targetTask) return;
+
+        let effectiveSources = [link.source];
+        if (sourceTask.isSummary) {
+            const childrenIds = childrenMap.get(sourceTask.id) || [];
+            const exitTasks = childrenIds.filter(childId => 
+                !links.some(l => l.source === childId && childrenIds.includes(l.target))
+            );
+            effectiveSources = exitTasks.length > 0 ? exitTasks : childrenIds;
+        }
+
+        let effectiveTargets = [link.target];
+        if (targetTask.isSummary) {
+            const childrenIds = childrenMap.get(targetTask.id) || [];
+            const entryTasks = childrenIds.filter(childId => 
+                !links.some(l => l.target === childId && childrenIds.includes(l.source))
+            );
+            effectiveTargets = entryTasks.length > 0 ? entryTasks : childrenIds;
+        }
+        
+        effectiveSources.forEach(sId => {
+            effectiveTargets.forEach(tId => {
+                const sTask = taskMap.get(sId);
+                const tTask = taskMap.get(tId);
+                if (sTask && !sTask.isSummary && tTask && !tTask.isSummary) {
+                    expandedLinks.push({ ...link, source: sId, target: tId });
+                }
+            });
+        });
+    });
+    return expandedLinks;
+}
+
+function isCycle(sourceId: string, targetId: string, links: Link[], tasks: Task[]): boolean {
     if (sourceId === targetId) return true;
 
+    // 1. Get the expanded graph of EXISTING links
+    const expandedLinks = expandSummaryLinks(links, tasks);
     const successorsMap = new Map<string, string[]>();
-    links.forEach(link => {
-        if (!successorsMap.has(link.source)) {
-            successorsMap.set(link.source, []);
-        }
+    expandedLinks.forEach(link => {
+        if (!successorsMap.has(link.source)) successorsMap.set(link.source, []);
         successorsMap.get(link.source)!.push(link.target);
     });
 
-    const queue: string[] = [targetId];
-    const visited = new Set<string>([targetId]);
-
-    while (queue.length > 0) {
-        const currentId = queue.shift()!;
-        
-        const successors = successorsMap.get(currentId) || [];
-        for (const successorId of successors) {
-            if (successorId === sourceId) {
-                return true; // Cycle detected
+    // Helper to check for a path from startNode to endNode
+    const pathExists = (startNode: string, endNode: string) => {
+        const queue: string[] = [startNode];
+        const visited = new Set<string>([startNode]);
+        while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            const successors = successorsMap.get(currentId) || [];
+            for (const successorId of successors) {
+                if (successorId === endNode) return true;
+                if (!visited.has(successorId)) {
+                    visited.add(successorId);
+                    queue.push(successorId);
+                }
             }
-            if (!visited.has(successorId)) {
-                visited.add(successorId);
-                queue.push(successorId);
+        }
+        return false;
+    };
+    
+    // 2. Get the effective sources and targets of the PROPOSED link
+    const taskMap = new Map(tasks.map(t => [t.id, t]));
+    const childrenMap = new Map<string, string[]>();
+    tasks.forEach(t => {
+        if (t.parentId) {
+            if (!childrenMap.has(t.parentId)) childrenMap.set(t.parentId, []);
+            childrenMap.get(t.parentId)!.push(t.id);
+        }
+    });
+
+    const sourceTask = taskMap.get(sourceId);
+    const targetTask = taskMap.get(targetId);
+    if (!sourceTask || !targetTask) return false;
+
+    let effectiveSources = sourceTask.isSummary ? (childrenMap.get(sourceId) || []) : [sourceId];
+    let effectiveTargets = targetTask.isSummary ? (childrenMap.get(targetId) || []) : [targetId];
+
+    // 3. Check for a cycle for each potential new effective link
+    for (const effS of effectiveSources) {
+        for (const effT of effectiveTargets) {
+            if (effT === effS) return true;
+            if (pathExists(effT, effS)) {
+                return true;
             }
         }
     }
@@ -822,7 +898,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     case 'ADD_LINK': {
         const { source, target } = action.payload;
 
-        if (isCycle(source, target, state.links)) {
+        if (isCycle(source, target, state.links, state.tasks)) {
             return {
                 ...state,
                 notifications: [
@@ -886,7 +962,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             if (relatedTaskId && relatedTaskId !== taskId) {
                 const source = field === 'predecessors' ? relatedTaskId : taskId;
                 const target = field === 'predecessors' ? taskId : relatedTaskId;
-                if (isCycle(source, target, links)) {
+                if (isCycle(source, target, links, tasks)) {
                      return {
                         ...state,
                         notifications: [
@@ -959,10 +1035,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         let newParentId: string | null | undefined;
         
         if (taskAbove) {
-            // If the task above is at the same or deeper level, become its sibling by taking its parent
             if ((taskAbove.level || 0) >= (taskMap.get(firstSelectedId)!.level || 0)) {
                  newParentId = taskAbove.parentId;
-            } else { // Otherwise, become its child
+            } else {
                  newParentId = taskAbove.id;
             }
         } else {
@@ -975,7 +1050,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             let p: Task | undefined | null = newParent;
             while (p) {
                 if (p.id === taskId) {
-                    return state; // Prevent indenting under a child
+                    return state; 
                 }
                 p = p.parentId ? taskMap.get(p.parentId) : null;
             }
