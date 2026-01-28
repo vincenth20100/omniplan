@@ -158,8 +158,8 @@ export function ProjectSettingsDialog({
                                      <Accordion type="multiple" className="w-full">
                                         {members.map(member => (
                                             <AccordionItem value={member.userId} key={member.userId}>
-                                                <AccordionTrigger>
-                                                    <div className="flex items-center justify-between w-full pr-4">
+                                                <div className="flex items-center justify-between w-full">
+                                                    <AccordionTrigger>
                                                         <div className="flex items-center gap-3">
                                                             <Avatar className="h-8 w-8">
                                                                 <AvatarImage src={member.photoURL} alt={member.displayName} />
@@ -167,23 +167,23 @@ export function ProjectSettingsDialog({
                                                             </Avatar>
                                                             <span>{member.displayName}</span>
                                                         </div>
-                                                        <div className="flex items-center gap-4">
-                                                             <Select 
-                                                                value={member.role} 
-                                                                onValueChange={(newRole: 'editor' | 'viewer') => handleMemberChange(member.userId, { role: newRole })}
-                                                                disabled={member.role === 'owner' || project.ownerId !== currentUser?.uid}
-                                                                >
-                                                                <SelectTrigger className="w-[120px] h-8" onClick={e => e.stopPropagation()}>
-                                                                    <SelectValue />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="editor">Editor</SelectItem>
-                                                                    <SelectItem value="viewer">Viewer</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
+                                                    </AccordionTrigger>
+                                                    <div className="flex items-center gap-4 pr-4" onClick={(e) => e.stopPropagation()}>
+                                                            <Select
+                                                            value={member.role}
+                                                            onValueChange={(newRole: 'editor' | 'viewer') => handleMemberChange(member.userId, { role: newRole })}
+                                                            disabled={member.role === 'owner' || project.ownerId !== currentUser?.uid}
+                                                            >
+                                                            <SelectTrigger className="w-[120px] h-8">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="editor">Editor</SelectItem>
+                                                                <SelectItem value="viewer">Viewer</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
                                                     </div>
-                                                </AccordionTrigger>
+                                                </div>
                                                 <AccordionContent>
                                                     <div className="p-4 bg-muted/50 rounded-md">
                                                         <h4 className="font-semibold text-sm mb-2">Column Permissions</h4>
