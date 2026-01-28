@@ -89,8 +89,8 @@ class CalendarService {
   public calculateFinishDate(startDate: Date, duration: number, unit: DurationUnit, calendar: Calendar): Date {
       if (duration === 0) {
           // A zero-duration task (milestone) finishes on its start date.
-          // Ensure it's a working day.
-          return this.isWorkingDay(startDate, calendar) ? startDate : this.findNextWorkingDay(startDate, calendar);
+          // The scheduler should ensure the start date is already a working day.
+          return startDate;
       }
 
       const durationValue = duration > 0 ? duration - 1 : duration;
