@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useEffect, useState, useMemo, isEqual } from 'react';
+import { useReducer, useEffect, useState, useMemo } from 'react';
 import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit, HistoryEntry } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
@@ -1067,7 +1067,7 @@ export function useProject(user: User) {
         // Diff tasks and add to batch
         newState.tasks.forEach(newTask => {
             const oldTask = currentState.tasks.find(t => t.id === newTask.id);
-            if (!oldTask || !isEqual(toFirestoreTask(oldTask), toFirestoreTask(newTask))) {
+            if (!oldTask || JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
                 batch.set(doc(firestore, 'users', user.uid, 'tasks', newTask.id), toFirestoreTask(newTask));
             }
         });
@@ -1080,8 +1080,15 @@ export function useProject(user: User) {
         // Diff links and add to batch
         newState.links.forEach(newLink => {
             const oldLink = currentState.links.find(l => l.id === newLink.id);
-            const { isDriving, ...linkToSave } = newLink; // Don't save calculated fields
-            if (!oldLink || !isEqual(oldLink, linkToSave)) {
+            const { isDriving, ...linkToSave } = newLink; // This is the object shape we want to save and compare
+
+            if (oldLink) {
+                const { isDriving: oldIsDriving, ...oldLinkToCompare } = oldLink;
+                if (JSON.stringify(oldLinkToCompare) !== JSON.stringify(linkToSave)) {
+                    batch.set(doc(firestore, 'users', user.uid, 'links', newLink.id), linkToSave);
+                }
+            } else {
+                // New link
                 batch.set(doc(firestore, 'users', user.uid, 'links', newLink.id), linkToSave);
             }
         });
