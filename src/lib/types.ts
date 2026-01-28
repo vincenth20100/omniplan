@@ -147,6 +147,7 @@ export interface GanttSettings {
   showTodayLine: boolean;
   showTaskLabels: boolean;
   highlightCriticalPath: boolean;
+  renderSplitTasks?: boolean;
 }
 
 export interface HistoryEntry {

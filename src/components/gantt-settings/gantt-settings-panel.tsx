@@ -116,11 +116,14 @@ export function GanttSettingsPanel({
                   onCheckedChange={(checked) => handleSettingChange('showTaskLabels', checked)}
                 />
               </div>
-               <div className="flex items-center justify-between opacity-50">
+               <div className="flex items-center justify-between">
                 <Label htmlFor="split-tasks">Render Split Tasks</Label>
-                 <Switch id="split-tasks" disabled />
+                 <Switch
+                    id="split-tasks"
+                    checked={settings.renderSplitTasks}
+                    onCheckedChange={(checked) => handleSettingChange('renderSplitTasks', checked)}
+                 />
               </div>
-               <p className="text-xs text-muted-foreground -mt-2">Split task rendering is not yet supported.</p>
             </div>
           </div>
 

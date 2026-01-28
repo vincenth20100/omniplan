@@ -293,6 +293,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={50}>
                     <Timeline 
+                        allTasks={tasks}
                         renderableRows={renderableRows}
                         links={timelineLinks}
                         dispatch={dispatch}

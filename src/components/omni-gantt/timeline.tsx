@@ -13,10 +13,12 @@ import { ZoomIn, ZoomOut } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
 import { type RenderableRow, type TaskRow } from './gantt-chart';
 import { calendarService } from '@/lib/calendar';
+import { cn } from '@/lib/utils';
 
 const VIEW_PADDING_DAYS = 30;
 
 export function Timeline({ 
+    allTasks,
     renderableRows, 
     links, 
     dispatch, 
@@ -27,6 +29,7 @@ export function Timeline({
     defaultCalendar,
     ganttSettings
 }: { 
+    allTasks: Task[],
     renderableRows: RenderableRow[], 
     links: Link[], 
     dispatch: any, 
@@ -151,6 +154,89 @@ export function Timeline({
               {renderableRows.map((row, index) => {
                 if (row.itemType === 'task') {
                     const task = row.data;
+                    const isSplit = task.isSummary && ganttSettings.renderSplitTasks;
+
+                    if (isSplit) {
+                        const children = allTasks.filter(t => t.parentId === task.id);
+                        if (children.length === 0) {
+                             // Render as normal task bar if no children, it will become a milestone
+                            return <TaskBar key={task.id} task={task} ganttStartDate={viewStartDate} scale={scale} dispatch={dispatch} row={index} isSelected={selectedTaskIds.includes(task.id)} onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })} registerBarElement={registerBarElement} uiDensity={uiDensity} showProgress={ganttSettings.showProgress} showTaskLabels={ganttSettings.showTaskLabels} highlightCriticalPath={ganttSettings.highlightCriticalPath} defaultCalendar={defaultCalendar} />;
+                        }
+
+                        children.sort((a, b) => a.start.getTime() - b.start.getTime());
+                        
+                        const segments: {start: Date, finish: Date}[] = [];
+                        let currentSegment = { start: new Date(children[0].start), finish: new Date(children[0].finish) };
+
+                        for (let i = 1; i < children.length; i++) {
+                            const child = children[i];
+                            if (child.start <= addDays(currentSegment.finish, 1)) {
+                                currentSegment.finish = new Date(Math.max(currentSegment.finish.getTime(), child.finish.getTime()));
+                            } else {
+                                segments.push(currentSegment);
+                                currentSegment = { start: new Date(child.start), finish: new Date(child.finish) };
+                            }
+                        }
+                        segments.push(currentSegment);
+
+                        const { summaryBarHeight, rowHeight } = DENSITY_SETTINGS[uiDensity];
+                        const offsetDays = differenceInCalendarDays(task.start, viewStartDate);
+                        const left = offsetDays * scale;
+                        const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
+                        const top = index * rowHeight + (rowHeight - summaryBarHeight) / 2;
+                        
+                        return (
+                             <div 
+                                key={task.id}
+                                ref={(el) => registerBarElement(task.id, el)}
+                                className="absolute"
+                                style={{
+                                    top: `${top}px`,
+                                    left: `${left}px`,
+                                    width: `${width}px`,
+                                    height: `${summaryBarHeight}px`
+                                }}
+                                onClick={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
+                            >
+                                {segments.map((segment, segIndex) => {
+                                    const segmentOffsetDays = differenceInCalendarDays(segment.start, task.start);
+                                    const segmentLeft = segmentOffsetDays * scale;
+                                    const segmentWidth = (differenceInCalendarDays(segment.finish, segment.start) + 1) * scale;
+                                    
+                                    return (
+                                        <div
+                                            key={segIndex}
+                                            className={cn(
+                                                "absolute flex items-center group",
+                                                task.isCritical && ganttSettings.highlightCriticalPath ? "bg-destructive/15 border-2 border-destructive/90 rounded-sm" : "bg-card border-2 border-primary/90 rounded-sm",
+                                                 selectedTaskIds.includes(task.id) ? "ring-2 ring-offset-2 ring-accent ring-offset-card" : "hover:ring-1 hover:ring-accent",
+                                            )}
+                                            style={{
+                                                top: 0,
+                                                left: `${segmentLeft}px`,
+                                                width: `${segmentWidth}px`,
+                                                height: '100%'
+                                            }}
+                                        >
+                                            {segIndex === 0 && (
+                                                <div className={cn(
+                                                    "absolute -left-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
+                                                    task.isCritical && ganttSettings.highlightCriticalPath ? "border-t-[7px] border-t-destructive/90" : "border-t-[7px] border-t-primary/90"
+                                                )}></div>
+                                            )}
+                                            {segIndex === segments.length - 1 && (
+                                                <div className={cn(
+                                                    "absolute -right-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
+                                                    task.isCritical && ganttSettings.highlightCriticalPath ? "border-t-[7px] border-t-destructive/90" : "border-t-[7px] border-t-primary/90"
+                                                )}></div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        );
+                    }
+                    
                     return (
                         <TaskBar
                         key={task.id}

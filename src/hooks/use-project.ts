@@ -64,6 +64,7 @@ const initialGanttSettings: GanttSettings = {
   showTodayLine: true,
   showTaskLabels: true,
   highlightCriticalPath: true,
+  renderSplitTasks: false,
 };
 
 const defaultAppSettings = {
