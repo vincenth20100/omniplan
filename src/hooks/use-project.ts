@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useEffect, useState, useMemo } from 'react';
+import { useReducer, useEffect, useState, useMemo, useCallback } from 'react';
 import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember } from '@/lib/types';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
@@ -1388,11 +1388,18 @@ export function useProject(user: User, projectId: string | null) {
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const { data: member } = useDoc<ProjectMember>(
+  const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
       useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
   );
 
-  const isEditorOrOwner = useMemo(() => member?.role === 'editor' || member?.role === 'owner', [member]);
+  const isEditorOrOwner = useMemo(() => {
+      if (isMemberLoading) {
+          return false;
+      }
+      return !!(member && (member.role === 'editor' || member.role === 'owner'));
+  }, [isMemberLoading, member]);
+  
+  const { data: project, isLoading: isProjectLoading } = useDoc<Project>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]));
 
   const collections = {
     tasks: useCollection<Task>(useMemoFirebase(() => projectId ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId])),
@@ -1404,9 +1411,7 @@ export function useProject(user: User, projectId: string | null) {
     settings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId])),
   };
   
-  const { data: project, isLoading: isProjectLoading } = useDoc<Project>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]));
-
-  const handleFirestoreAction = (action: Action) => {
+  const handleFirestoreAction = useCallback((action: Action) => {
     if (!user || !projectId) {
         internalDispatch(action);
         return;
@@ -1443,7 +1448,7 @@ export function useProject(user: User, projectId: string | null) {
         switch(action.type) {
             case 'ADD_NOTE_TO_TASK':
             case 'UPDATE_TASK': {
-                 const taskId = action.payload.id;
+                 const taskId = (action.payload as { id: string }).id;
                  const updatedState = projectReducer(historyState.present, action);
                  const updatedTask = updatedState.tasks.find(t => t.id === taskId);
                  if (updatedTask) {
@@ -1453,12 +1458,12 @@ export function useProject(user: User, projectId: string | null) {
                  break;
             }
              case 'UPDATE_RESOURCE': {
-                const { id, ...updateData } = action.payload;
+                const { id, ...updateData } = action.payload as { id: string };
                 updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'resources', id), updateData);
                 break;
             }
             case 'UPDATE_CALENDAR': {
-                 const { id, ...updateData } = action.payload;
+                 const { id, ...updateData } = action.payload as { id: string };
                 updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'calendars', id), updateData);
                 break;
             }
@@ -1631,12 +1636,19 @@ export function useProject(user: User, projectId: string | null) {
             }
         }
     }
-  }
-
+  }, [user, projectId, isEditorOrOwner, firestore, toast, historyState.present]);
+  
   // Effect 1: Data Synchronization from Firestore
   useEffect(() => {
-    if (!projectId || collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading) {
-        setIsLoaded(false);
+    // On project change, reset loaded state until all collections are confirmed loaded
+    if(isLoaded) {
+      setIsLoaded(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    const allLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading;
+    if (!projectId || allLoading) {
         return;
     };
 
@@ -1732,7 +1744,7 @@ export function useProject(user: User, projectId: string | null) {
   const getPayloadDescription = (action: Action): string | undefined => {
     if ('payload' in action && action.payload && typeof action.payload === 'object') {
         if ('name' in action.payload) return String(action.payload.name);
-        const task = historyState.present.tasks.find(t => 'id' in action.payload && t.id === (action.payload as any).id);
+        const task = historyState.present.tasks.find(t => 'id' in (action.payload as any) && t.id === (action.payload as any).id);
         if (task) return task.name;
     }
     return undefined;
