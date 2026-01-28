@@ -71,7 +71,7 @@ const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], 
 
 
 export function ProjectPage({ user, projectId }: { user: User, projectId: string }) {
-  const { state, dispatch, isLoaded, canUndo, canRedo, history } = useProject(user, projectId);
+  const { state, dispatch, isLoaded, isEditorOrOwner, canUndo, canRedo, history } = useProject(user, projectId);
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
@@ -85,12 +85,6 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const firestore = useFirestore();
-  
-  const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
-      useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
-  );
-  
-  const isEditorOrOwner = useMemo(() => !isMemberLoading && (member?.role === 'editor' || member?.role === 'owner'), [member, isMemberLoading]);
 
   useEffect(() => {
     if (state.notifications && state.notifications.length > 0) {
@@ -275,7 +269,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Button variant="outline" size="icon" onClick={() => setIsCalendarDialogOpen(true)} title="Manage Calendars" disabled={!isEditorOrOwner}>
             <CalendarDays />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsGanttSettingsOpen(true)} title="Gantt Display Options" disabled={!isEditorOrOwner}>
+        <Button variant="outline" size="icon" onClick={() => setIsGanttSettingsOpen(true)} title="Gantt Display Options">
             <Settings />
         </Button>
         <Button variant="outline" size="icon" onClick={() => setIsHistoryOpen(true)} title="Show History">

@@ -64,7 +64,6 @@ export function GanttSettingsPanel({
   isEditor?: boolean;
 }) {
   const handleSettingChange = (key: keyof GanttSettings, value: any) => {
-    if (!isEditor) return;
     dispatch({
       type: 'UPDATE_GANTT_SETTINGS',
       payload: { ...settings, [key]: value },
@@ -72,7 +71,6 @@ export function GanttSettingsPanel({
   };
 
   const handleCustomStyleChange = (key: keyof NonNullable<GanttSettings['customStyles']>, value: string) => {
-    if (!isEditor) return;
     handleSettingChange('customStyles', {
       ...(settings.customStyles || {}),
       [key]: value

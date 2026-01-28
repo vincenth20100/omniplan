@@ -71,7 +71,7 @@ const initialState: ProjectState = {
 
 type Action =
   | { type: 'SET_PROJECT_DATA', payload: { tasks: Task[], links: Link[], resources: Resource[], assignments: Assignment[], calendars: Calendar[] } }
-  | { type: 'SET_PERSISTED_STATE', payload: { views: View[], settings: typeof defaultAppSettings | null } }
+  | { type: 'SET_PERSISTED_STATE', payload: { views: View[], settings: typeof defaultAppSettings | null, member: ProjectMember | null } }
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
@@ -124,6 +124,7 @@ type Action =
   | { type: 'REDO' }
   | { type: 'JUMP_TO_HISTORY', payload: { index: number } }
   | { type: 'CLEAR_NOTIFICATIONS' }
+  | { type: 'FIND_AND_REPLACE', payload: { find: string; replace: string } }
   | { type: 'SET_REPRESENTATION', payload: Representation };
 
 /**
@@ -370,19 +371,24 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       };
     }
     case 'SET_PERSISTED_STATE': {
-        const { views, settings } = action.payload;
+        const { views, settings, member } = action.payload;
         const newViews = views.length > 0 ? views : defaultViews;
         const newSettings = settings ? { ...defaultAppSettings, ...settings } : defaultAppSettings;
         const currentView = newViews.find(v => v.id === newSettings.currentViewId) || newViews[0];
 
-        // This ensures that when persisted state is loaded, it is applied correctly,
-        // and doesn't immediately register as "dirty" if it matches the current view.
+        let finalVisibleColumns = newSettings.visibleColumns || initialVisibleColumns;
+
+        if (member?.permissions?.hiddenColumns) {
+            const hidden = member.permissions.hiddenColumns;
+            finalVisibleColumns = finalVisibleColumns.filter(colId => !hidden.includes(colId));
+        }
+
         const tempStateForDirtyCheck: ProjectState = {
             ...state,
             views: newViews,
             currentViewId: currentView.id,
             grouping: newSettings.grouping || [],
-            visibleColumns: newSettings.visibleColumns || [],
+            visibleColumns: finalVisibleColumns,
             filters: newSettings.filters || [],
         };
         
@@ -394,7 +400,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             ganttSettings: newSettings.ganttSettings || initialGanttSettings,
             currentViewId: currentView.id,
             grouping: newSettings.grouping || [],
-            visibleColumns: newSettings.visibleColumns || initialVisibleColumns,
+            visibleColumns: finalVisibleColumns,
             filters: newSettings.filters || [],
             isDirty: checkDirty(tempStateForDirtyCheck),
         };
@@ -823,6 +829,41 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             return projectReducer(state, { type: 'UPDATE_TASK', payload });
         }
         return state;
+    }
+    case 'FIND_AND_REPLACE': {
+        const { find, replace } = action.payload;
+        if (!find) return state;
+
+        const findLower = find.toLowerCase();
+        let changesMade = false;
+
+        const newTasks = state.tasks.map(task => {
+            if (task.name.toLowerCase().includes(findLower)) {
+                changesMade = true;
+                const regex = new RegExp(find, 'gi');
+                return { ...task, name: task.name.replace(regex, replace) };
+            }
+            return task;
+        });
+
+        if (!changesMade) {
+            return {
+                ...state,
+                notifications: [
+                    ...state.notifications,
+                    { id: `toast-${Date.now()}`, type: 'toast', title: 'Find and Replace', description: `Text "${find}" not found in any task names.` }
+                ]
+            };
+        }
+
+        return {
+            ...state,
+            tasks: newTasks,
+            notifications: [
+                ...state.notifications,
+                { id: `toast-${Date.now()}`, type: 'toast', title: 'Find and Replace', description: 'Task names updated.' }
+            ]
+        };
     }
     case 'SET_ACTIVE_CELL': {
       if (state.editingCell && (action.payload?.taskId !== state.editingCell.taskId || action.payload?.columnId !== state.editingCell.columnId)) {
@@ -1347,6 +1388,12 @@ export function useProject(user: User, projectId: string | null) {
   const firestore = useFirestore();
   const { toast } = useToast();
 
+  const { data: member } = useDoc<ProjectMember>(
+      useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
+  );
+
+  const isEditorOrOwner = useMemo(() => member?.role === 'editor' || member?.role === 'owner', [member]);
+
   const collections = {
     tasks: useCollection<Task>(useMemoFirebase(() => projectId ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId])),
     links: useCollection<Link>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId])),
@@ -1358,9 +1405,6 @@ export function useProject(user: User, projectId: string | null) {
   };
   
   const { data: project, isLoading: isProjectLoading } = useDoc<Project>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]));
-  const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
-      useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
-  );
 
   const handleFirestoreAction = (action: Action) => {
     if (!user || !projectId) {
@@ -1368,6 +1412,24 @@ export function useProject(user: User, projectId: string | null) {
         return;
     }
     
+    const settingsActions = [
+      'SAVE_VIEW_AS', 'UPDATE_CURRENT_VIEW', 'SET_GROUPING', 'SET_FILTERS',
+      'SET_COLUMNS', 'ADD_COLUMN', 'UPDATE_COLUMN', 'REMOVE_COLUMN',
+      'RESIZE_COLUMN', 'REORDER_COLUMNS', 'SET_UI_DENSITY',
+      'UPDATE_GANTT_SETTINGS', 'DELETE_VIEW', 'SET_VIEW'
+    ];
+    
+    if (settingsActions.includes(action.type)) {
+      if (!isEditorOrOwner) {
+        toast({
+          variant: 'destructive',
+          title: 'Permission Denied',
+          description: 'You do not have permission to change project settings.',
+        });
+        return;
+      }
+    }
+
     const optimisticActions: Action['type'][] = [
         'ADD_NOTE_TO_TASK',
         'UPDATE_TASK',
@@ -1412,6 +1474,7 @@ export function useProject(user: User, projectId: string | null) {
         'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
         'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
         'ADD_TASKS_FROM_PASTE',
+        'FIND_AND_REPLACE',
     ];
 
     if (nonOptimisticActions.includes(action.type)) {
@@ -1624,8 +1687,8 @@ export function useProject(user: User, projectId: string | null) {
 
   // Effect 2: Sync Settings Data
   useEffect(() => {
-    if (!isLoaded || collections.views.isLoading || collections.settings.isLoading || isProjectLoading || isMemberLoading) return;
-
+    if (!isLoaded || collections.views.isLoading || collections.settings.isLoading || isProjectLoading) return;
+    
     let settingsToApply = collections.settings.data ? { ...defaultAppSettings, ...collections.settings.data } : defaultAppSettings;
 
     if (settingsToApply?.ganttSettings?.dateFormat) {
@@ -1637,22 +1700,15 @@ export function useProject(user: User, projectId: string | null) {
         }
     }
     
-    let finalVisibleColumns = settingsToApply.visibleColumns || initialVisibleColumns;
-
-    if (member?.permissions?.hiddenColumns) {
-        const hidden = member.permissions.hiddenColumns;
-        finalVisibleColumns = finalVisibleColumns.filter(colId => !hidden.includes(colId));
-    }
-
-
     internalDispatch({
       type: 'SET_PERSISTED_STATE',
       payload: {
         views: collections.views.data || [],
-        settings: { ...settingsToApply, visibleColumns: finalVisibleColumns }
+        settings: settingsToApply,
+        member: member,
       }
     });
-  }, [isLoaded, collections.views.data, collections.views.isLoading, collections.settings.data, collections.settings.isLoading, isProjectLoading, isMemberLoading, project, member]);
+  }, [isLoaded, collections.views.data, collections.views.isLoading, collections.settings.data, collections.settings.isLoading, isProjectLoading, project, member]);
 
 
   useEffect(() => {
@@ -1686,6 +1742,7 @@ export function useProject(user: User, projectId: string | null) {
     state: historyState.present, 
     dispatch: handleFirestoreAction,
     isLoaded: isLoaded && projectId,
+    isEditorOrOwner,
     canUndo: historyState.past.length > 0,
     canRedo: historyState.future.length > 0,
     history: {
