@@ -13,6 +13,10 @@
           "type": "string",
           "description": "Name of the project."
         },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the project."
+        },
         "ownerId": {
           "type": "string",
           "description": "The UID of the user who owns the project."
@@ -28,6 +32,24 @@
             "type": "string"
           },
           "description": "A list of user UIDs who are members of this project."
+        },
+        "rolePermissions": {
+          "type": "object",
+          "description": "Defines role-based permissions for the project.",
+          "properties": {
+            "viewer": {
+              "type": "object",
+              "properties": {
+                "hiddenColumns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "An array of column IDs that should be hidden for users with the 'viewer' role."
+                }
+              }
+            }
+          }
         }
       },
       "required": ["id", "name", "ownerId", "createdAt"]
@@ -657,3 +679,5 @@
     ]
   }
 }
+
+    

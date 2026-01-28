@@ -188,9 +188,15 @@ export interface ProjectState {
 export interface Project {
   id: string;
   name: string;
+  description?: string;
   ownerId: string;
-  createdAt: Date;
+  createdAt: any;
   memberIds: string[];
+  rolePermissions?: {
+      viewer?: {
+          hiddenColumns?: string[];
+      }
+  };
 }
 
 export interface ProjectMember {
@@ -204,3 +210,5 @@ export interface AppUser {
     id: string;
     projectIds: string[];
 }
+
+    

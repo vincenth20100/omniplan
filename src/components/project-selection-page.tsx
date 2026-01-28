@@ -7,6 +7,7 @@ import { useFirestore } from '@/firebase';
 import { collection, doc, getDoc, getDocs, writeBatch, deleteDoc, updateDoc, arrayRemove, query, arrayUnion } from 'firebase/firestore';
 import type { Project } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
+import { ALL_COLUMNS } from '@/lib/columns';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,8 +23,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Copy, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Copy, Trash2, Loader2, Settings } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { ProjectSettingsDialog } from './project-settings-dialog';
 
 type ProjectWithMetadata = Project & {
     createdAt: Date; 
@@ -42,6 +44,14 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     const [projectToDelete, setProjectToDelete] = useState<ProjectWithMetadata | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
+
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [selectedProject, setSelectedProject] = useState<ProjectWithMetadata | null>(null);
+
+    const handleOpenSettings = (project: ProjectWithMetadata) => {
+        setSelectedProject(project);
+        setIsSettingsOpen(true);
+    };
 
     useEffect(() => {
         if (user) {
@@ -321,18 +331,23 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                             </CardHeader>
                             <CardContent>
                                 <p className="text-sm text-muted-foreground">
-                                    Owner ID: {project.ownerId}
+                                    {project.description || 'No description.'}
                                 </p>
                             </CardContent>
                             <CardFooter className="flex justify-between">
                                 <Button onClick={() => router.push(`/${project.id}`)}>Open</Button>
                                 <div className="flex gap-2">
-                                     <Button variant="outline" size="icon" onClick={() => handleCloneProject(project.id)} disabled={!!isCloning}>
+                                     <Button variant="outline" size="icon" onClick={() => handleCloneProject(project.id)} disabled={!!isCloning} title="Clone project">
                                         {isCloning === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
                                     </Button>
+                                    {(isAdmin || project.ownerId === user.uid) && (
+                                        <Button variant="outline" size="icon" onClick={() => handleOpenSettings(project)} title="Project settings">
+                                            <Settings className="h-4 w-4" />
+                                        </Button>
+                                    )}
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                            <Button variant="destructive" size="icon" disabled={!isAdmin && project.ownerId !== user.uid || !!isDeleting} onClick={() => setProjectToDelete(project)}>
+                                            <Button variant="destructive" size="icon" disabled={!isAdmin && project.ownerId !== user.uid || !!isDeleting} onClick={() => setProjectToDelete(project)} title="Delete project">
                                                 {isDeleting === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                             </Button>
                                         </AlertDialogTrigger>
@@ -360,6 +375,19 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                     <p className="text-muted-foreground mt-2">Get started by creating your first project.</p>
                 </div>
             )}
+            {selectedProject && (
+                <ProjectSettingsDialog
+                    open={isSettingsOpen}
+                    onOpenChange={setIsSettingsOpen}
+                    project={selectedProject}
+                    allColumns={ALL_COLUMNS}
+                    onProjectUpdate={(updatedProject) => {
+                        setProjects(projects.map(p => p.id === updatedProject.id ? { ...p, ...updatedProject } : p));
+                    }}
+                />
+            )}
         </div>
     );
 }
+
+    

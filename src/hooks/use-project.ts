@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState, useMemo } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit, HistoryEntry, Representation } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit, HistoryEntry, Representation, Project, ProjectMember } from '@/lib/types';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
@@ -11,45 +11,8 @@ import { collection, doc, writeBatch, query, orderBy } from 'firebase/firestore'
 import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { User } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
+import { ALL_COLUMNS, initialColumns, initialVisibleColumns } from '@/lib/columns';
 
-const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
-    { id: 'wbs', name: 'WBS', defaultWidth: 50, type: 'text' },
-    { id: 'schedulingMode', name: 'I', defaultWidth: 30, type: 'text' },
-    { id: 'name', name: 'Task Name', defaultWidth: 250, type: 'text' },
-    { id: 'status', name: 'Status', defaultWidth: 120, type: 'selection', options: ['To Do', 'In Progress', 'Done'] },
-    { id: 'resourceNames', name: 'Resource Names', defaultWidth: 150, type: 'text' },
-    { id: 'duration', name: 'Duration', defaultWidth: 80, type: 'number' },
-    { id: 'start', name: 'Start', defaultWidth: 110, type: 'date' },
-    { id: 'finish', name: 'Finish', defaultWidth: 110, type: 'date' },
-    { id: 'cost', name: 'Cost', defaultWidth: 100, type: 'number' },
-    { id: 'predecessors', name: 'Predecessors', defaultWidth: 120, type: 'text' },
-    { id: 'successors', name: 'Successors', defaultWidth: 120, type: 'text' },
-    { id: 'percentComplete', name: '% Complete', defaultWidth: 80, type: 'number' },
-    { id: 'constraintType', name: 'Constraint Type', defaultWidth: 110, type: 'selection', options: [
-        'Finish No Earlier Than',
-        'Finish No Later Than',
-        'Must Finish On',
-        'Must Start On',
-        'Start No Earlier Than',
-        'Start No Later Than',
-    ] },
-    { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110, type: 'date' },
-];
-
-const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => {
-    const column: ColumnSpec = {
-        id: c.id,
-        name: c.name,
-        width: c.defaultWidth,
-        type: c.type,
-    };
-    if (c.options) {
-        column.options = c.options;
-    }
-    return column;
-});
-
-const initialVisibleColumns = ['wbs', 'schedulingMode', 'name', 'duration', 'start', 'finish'];
 
 const defaultViews: View[] = [
     { id: 'default', name: 'Default View', grouping: [], visibleColumns: initialVisibleColumns, filters: [] }
@@ -1380,6 +1343,11 @@ export function useProject(user: User, projectId: string | null) {
     settings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId])),
   };
   
+  const { data: project, isLoading: isProjectLoading } = useDoc<Project>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]));
+  const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
+      useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
+  );
+
   const handleFirestoreAction = (action: Action) => {
     if (!user || !projectId) {
         internalDispatch(action);
@@ -1642,26 +1610,35 @@ export function useProject(user: User, projectId: string | null) {
 
   // Effect 2: Sync Settings Data
   useEffect(() => {
-    if (!isLoaded || collections.views.isLoading || collections.settings.isLoading) return;
+    if (!isLoaded || collections.views.isLoading || collections.settings.isLoading || isProjectLoading || isMemberLoading) return;
 
-    const loadedSettings = collections.settings.data ? { ...collections.settings.data } : null;
-    if (loadedSettings?.ganttSettings?.dateFormat) {
+    let settingsToApply = collections.settings.data ? { ...defaultAppSettings, ...collections.settings.data } : defaultAppSettings;
+
+    if (settingsToApply?.ganttSettings?.dateFormat) {
         try {
-            format(new Date(), loadedSettings.ganttSettings.dateFormat);
+            format(new Date(), settingsToApply.ganttSettings.dateFormat);
         } catch (e) {
-            console.warn(`Invalid date format string "${loadedSettings.ganttSettings.dateFormat}" found in settings. Resetting to default.`);
-            loadedSettings.ganttSettings.dateFormat = defaultAppSettings.ganttSettings.dateFormat;
+            console.warn(`Invalid date format string "${settingsToApply.ganttSettings.dateFormat}" found in settings. Resetting to default.`);
+            settingsToApply.ganttSettings.dateFormat = defaultAppSettings.ganttSettings.dateFormat;
         }
     }
+    
+    let finalVisibleColumns = settingsToApply.visibleColumns || initialVisibleColumns;
+
+    if (member?.role === 'viewer' && project?.rolePermissions?.viewer?.hiddenColumns) {
+        const hidden = project.rolePermissions.viewer.hiddenColumns;
+        finalVisibleColumns = finalVisibleColumns.filter(colId => !hidden.includes(colId));
+    }
+
 
     internalDispatch({
       type: 'SET_PERSISTED_STATE',
       payload: {
         views: collections.views.data || [],
-        settings: loadedSettings ? { ...defaultAppSettings, ...loadedSettings } : null
+        settings: { ...settingsToApply, visibleColumns: finalVisibleColumns }
       }
     });
-  }, [isLoaded, collections.views.data, collections.views.isLoading, collections.settings.data, collections.settings.isLoading]);
+  }, [isLoaded, collections.views.data, collections.views.isLoading, collections.settings.data, collections.settings.isLoading, isProjectLoading, isMemberLoading, project, member]);
 
 
   useEffect(() => {
@@ -1707,3 +1684,5 @@ export function useProject(user: User, projectId: string | null) {
     }
   };
 }
+
+    
