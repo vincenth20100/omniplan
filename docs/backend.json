@@ -37,6 +37,11 @@
           "type": "number",
           "description": "Percentage of the task that is complete (0-100)."
         },
+        "status": {
+          "type": "string",
+          "enum": ["To Do", "In Progress", "Done"],
+          "description": "The current status of the task, used for Kanban view."
+        },
         "constraintType": {
           "type": ["string", "null"],
           "description": "Type of constraint applied to the task (e.g., 'Start No Earlier Than', 'Must Start On'). Nullable."

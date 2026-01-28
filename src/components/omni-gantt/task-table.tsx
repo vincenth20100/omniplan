@@ -124,6 +124,25 @@ const TaskCellRenderer = React.memo(({
                 </div>
             )
         }
+        case 'status': {
+            if (task.isSummary) return null;
+            return (
+                <EditableSelectCell
+                    value={task.status || 'To Do'}
+                    onSave={(newValue) => {
+                        if (newValue) {
+                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, status: newValue } });
+                        }
+                    }}
+                    options={[
+                        { value: 'To Do', label: 'To Do' },
+                        { value: 'In Progress', label: 'In Progress' },
+                        { value: 'Done', label: 'Done' },
+                    ]}
+                    placeholder="Select Status"
+                />
+            );
+        }
         case 'resourceNames': {
             if (task.isSummary && grouping.length === 0) return null;
             const taskAssignments = assignments.filter(a => a.taskId === task.id);

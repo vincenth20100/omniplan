@@ -55,6 +55,7 @@ export interface Task {
   percentComplete: number;
   order?: number;
   cost?: number;
+  status: string;
   
   // New properties for hierarchy
   wbs?: string; // Work Breakdown Structure ID
@@ -154,6 +155,8 @@ export interface HistoryEntry {
     payloadDescription?: string;
 }
 
+export type Representation = 'gantt' | 'kanban';
+
 export interface ProjectState {
     tasks: Task[];
     links: Link[];
@@ -177,4 +180,5 @@ export interface ProjectState {
     editingCell?: { taskId: string, columnId: string, initialValue?: string } | null;
     ganttSettings: GanttSettings;
     notifications: { id: string; type: 'toast'; title: string; description: string }[];
+    currentRepresentation: Representation;
 }

@@ -2,6 +2,7 @@
 
 import { MainLayout } from '@/components/layout/main-layout';
 import { GanttChart } from '@/components/omni-gantt/gantt-chart';
+import { KanbanView } from '@/components/kanban/kanban-view';
 import { TaskDetailsPanel } from '@/components/details/task-details-panel';
 import { useProject } from '@/hooks/use-project';
 import { FileExplorer } from '@/components/file-management/file-explorer';
@@ -9,7 +10,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect } from 'react';
@@ -26,6 +27,9 @@ import type { User } from 'firebase/auth';
 import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
 import { FindReplaceDialog } from './find-replace-dialog';
 import { useToast } from "@/hooks/use-toast";
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import type { Representation } from '@/lib/types';
+
 
 export function ProjectPage({ user }: { user: User }) {
   const { state, dispatch, isLoaded, canUndo, canRedo, history } = useProject(user);
@@ -111,6 +115,24 @@ export function ProjectPage({ user }: { user: User }) {
 
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
+        {/* View Type */}
+        <ToggleGroup
+            type="single"
+            value={state.currentRepresentation}
+            onValueChange={(value: Representation) => {
+                if (value) dispatch({ type: 'SET_REPRESENTATION', payload: value })
+            }}
+            aria-label="View mode"
+        >
+            <ToggleGroupItem value="gantt" aria-label="Gantt view">
+                <GanttChartSquare />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="kanban" aria-label="Kanban view">
+                <LayoutGrid />
+            </ToggleGroupItem>
+        </ToggleGroup>
+        <Separator orientation="vertical" className="h-6 mx-1" />
+
         {/* History */}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo} title="Undo (Ctrl+Z)">
             <Undo2 />
@@ -191,6 +213,49 @@ export function ProjectPage({ user }: { user: User }) {
 
   const headerRightActions = null;
 
+  const renderContent = () => {
+    if (!isLoaded) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <p>Loading Project...</p>
+        </div>
+      );
+    }
+
+    if (state.currentRepresentation === 'kanban') {
+      return <KanbanView projectState={state} dispatch={dispatch} />;
+    }
+
+    if (isMobile) {
+      return <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />;
+    }
+
+    return (
+      <ResizablePanelGroup direction="vertical">
+        <ResizablePanel>
+          <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />
+        </ResizablePanel>
+        {selectedTask && (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={35} minSize={20}>
+              <TaskDetailsPanel 
+                task={selectedTask} 
+                links={state.links} 
+                tasks={state.tasks}
+                dispatch={dispatch}
+                onClose={() => dispatch({ type: 'SET_SELECTION', payload: { activeCell: null, selectionAnchorCell: null, selectedTaskIds: [], selectedCells: [] } })}
+                uiDensity={state.uiDensity}
+                defaultCalendar={defaultCalendar}
+              />
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
+    );
+  };
+
+
   return (
     <MainLayout 
       sidebarContent={sidebarContent} 
@@ -199,37 +264,7 @@ export function ProjectPage({ user }: { user: User }) {
       user={user}
     >
       <main className="flex-1 flex flex-col h-full">
-        {isLoaded ? (
-          isMobile ? (
-            <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />
-          ) : (
-            <ResizablePanelGroup direction="vertical">
-              <ResizablePanel>
-                <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />
-              </ResizablePanel>
-              {selectedTask && (
-                <>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel defaultSize={35} minSize={20}>
-                    <TaskDetailsPanel 
-                      task={selectedTask} 
-                      links={state.links} 
-                      tasks={state.tasks}
-                      dispatch={dispatch}
-                      onClose={() => dispatch({ type: 'SET_SELECTION', payload: { activeCell: null, selectionAnchorCell: null, selectedTaskIds: [], selectedCells: [] } })}
-                      uiDensity={state.uiDensity}
-                      defaultCalendar={defaultCalendar}
-                    />
-                  </ResizablePanel>
-                </>
-              )}
-            </ResizablePanelGroup>
-          )
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p>Loading Project...</p>
-          </div>
-        )}
+        {renderContent()}
       </main>
       {isLoaded && (
         <>

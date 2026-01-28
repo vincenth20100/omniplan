@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState, useMemo } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit, HistoryEntry } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit, HistoryEntry, Representation } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
@@ -17,6 +17,7 @@ const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
     { id: 'wbs', name: 'WBS', defaultWidth: 50, type: 'text' },
     { id: 'schedulingMode', name: 'I', defaultWidth: 30, type: 'text' },
     { id: 'name', name: 'Task Name', defaultWidth: 250, type: 'text' },
+    { id: 'status', name: 'Status', defaultWidth: 120, type: 'selection', options: ['To Do', 'In Progress', 'Done'] },
     { id: 'resourceNames', name: 'Resource Names', defaultWidth: 150, type: 'text' },
     { id: 'duration', name: 'Duration', defaultWidth: 80, type: 'number' },
     { id: 'start', name: 'Start', defaultWidth: 110, type: 'date' },
@@ -99,6 +100,7 @@ const initialState: ProjectState = {
   editingCell: null,
   ganttSettings: initialGanttSettings,
   notifications: [],
+  currentRepresentation: 'gantt',
 };
 
 type Action =
@@ -155,7 +157,8 @@ type Action =
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'JUMP_TO_HISTORY', payload: { index: number } }
-  | { type: 'CLEAR_NOTIFICATIONS' };
+  | { type: 'CLEAR_NOTIFICATIONS' }
+  | { type: 'SET_REPRESENTATION', payload: Representation };
 
 /**
  * Creates a "clean" task object suitable for Firestore,
@@ -826,6 +829,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 percentComplete: 0,
                 level: 0,
                 order: orderBefore + (index + 1) * orderStep,
+                status: 'To Do',
             }));
 
             const allTasks = [...state.tasks];
@@ -904,6 +908,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             percentComplete: 0,
             level: 0,
             order: newOrder,
+            status: 'To Do',
         };
         
         let newTasks = [...state.tasks];
@@ -1117,7 +1122,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         let newParentId: string | null | undefined;
         
         if (taskAbove) {
-            // If the task above is at a greater level, we become a sibling to it.
+            // If the task above is at a strictly greater level, we become a sibling to it.
             // Otherwise, we become a child of it.
             if ((taskAbove.level || 0) > (taskMap.get(firstSelectedId)!.level || 0)) {
                  newParentId = taskAbove.parentId;
@@ -1254,6 +1259,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'CLEAR_NOTIFICATIONS': {
         return { ...state, notifications: [] };
+    }
+    case 'SET_REPRESENTATION': {
+        return { ...state, currentRepresentation: action.payload };
     }
     default:
       return state;
@@ -1440,7 +1448,7 @@ export function useProject(user: User) {
                 batch.set(doc(firestore, 'users', user.uid, 'tasks', newTask.id), toFirestoreTask(newTask));
             } else {
                  if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
-                     const updateData = toFirestoreTask(newTask);
+                     const { id, ...updateData } = toFirestoreTask(newTask);
                      batch.update(doc(firestore, 'users', user.uid, 'tasks', newTask.id), updateData);
                  }
             }
