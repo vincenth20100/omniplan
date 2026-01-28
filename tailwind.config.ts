@@ -65,6 +65,19 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        'gantt-bar': {
+          default: 'var(--gantt-bar-default)',
+          critical: 'var(--gantt-bar-critical)',
+        },
+        'milestone': {
+          default: 'var(--milestone-default)',
+          critical: 'var(--milestone-critical)',
+        },
+        'task-row': {
+          'level-0': 'var(--task-row-level-0-bg)',
+          'level-1': 'var(--task-row-level-1-bg)',
+          'level-2-plus': 'var(--task-row-level-2-plus-bg)',
+        }
       },
       borderRadius: {
         lg: 'var(--radius)',

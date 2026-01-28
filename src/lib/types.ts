@@ -149,6 +149,16 @@ export interface GanttSettings {
   highlightCriticalPath: boolean;
   renderSplitTasks?: boolean;
   dateFormat?: string;
+  theme?: 'light' | 'dark' | 'sepia';
+  customStyles?: {
+    ganttBarDefault?: string;
+    ganttBarCritical?: string;
+    milestoneDefault?: string;
+    milestoneCritical?: string;
+    taskRowLevel0Bg?: string;
+    taskRowLevel1Bg?: string;
+    taskRowLevel2PlusBg?: string;
+  };
 }
 
 export interface HistoryEntry {

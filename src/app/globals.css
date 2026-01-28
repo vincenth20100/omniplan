@@ -4,24 +4,24 @@
 
 @layer base {
   :root {
-    --background: 180 65% 93%;
+    --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-    --card: 180 65% 93%;
+    --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-    --popover: 180 65% 93%;
+    --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
     --primary: 180 100% 25%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 180 20% 90%;
-    --secondary-foreground: 180 100% 15%;
-    --muted: 180 15% 85%;
-    --muted-foreground: 222.2 47.4% 11.2%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
     --accent: 45 65% 52%;
     --accent-foreground: 45 100% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 180 20% 80%;
-    --input: 180 20% 90%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
     --ring: 180 100% 25%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -37,7 +37,17 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* Custom Themeable Variables */
+    --gantt-bar-default: hsl(var(--primary));
+    --gantt-bar-critical: hsl(var(--destructive));
+    --milestone-default: hsl(var(--primary));
+    --milestone-critical: hsl(var(--destructive));
+    --task-row-level-0-bg: transparent;
+    --task-row-level-1-bg: hsl(var(--muted) / 0.4);
+    --task-row-level-2-plus-bg: hsl(var(--muted) / 0.8);
   }
+  
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -71,6 +81,48 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* Custom Themeable Variables */
+    --gantt-bar-default: hsl(var(--primary));
+    --gantt-bar-critical: hsl(var(--destructive));
+    --milestone-default: hsl(var(--primary));
+    --milestone-critical: hsl(var(--destructive));
+    --task-row-level-0-bg: transparent;
+    --task-row-level-1-bg: hsl(var(--muted) / 0.4);
+    --task-row-level-2-plus-bg: hsl(var(--muted) / 0.8);
+  }
+
+  .sepia {
+    --background: 39 31% 96%; /* off-white */
+    --foreground: 39 21% 25%; /* dark brown */
+    --card: 39 31% 96%;
+    --card-foreground: 39 21% 25%;
+    --popover: 39 31% 96%;
+    --popover-foreground: 39 21% 25%;
+    --primary: 35 78% 45%; /* dark orange */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 39 15% 92%;
+    --secondary-foreground: 39 21% 35%;
+    --muted: 39 15% 92%;
+    --muted-foreground: 39 21% 45%;
+    --accent: 35 78% 55%; /* lighter orange */
+    --accent-foreground: 39 21% 15%;
+    --destructive: 0 72% 51%; /* red */
+    --destructive-foreground: 0 0% 98%;
+    --border: 39 21% 85%;
+    --input: 39 21% 85%;
+    --ring: 35 78% 45%;
+    --sidebar-background: 39 21% 98%;
+    --sidebar-foreground: 39 21% 26.1%;
+    
+    /* Custom Themeable Variables */
+    --gantt-bar-default: hsl(var(--primary));
+    --gantt-bar-critical: hsl(var(--destructive));
+    --milestone-default: hsl(var(--primary));
+    --milestone-critical: hsl(var(--destructive));
+    --task-row-level-0-bg: transparent;
+    --task-row-level-1-bg: hsl(var(--muted) / 0.4);
+    --task-row-level-2-plus-bg: hsl(var(--muted) / 0.8);
   }
 }
 

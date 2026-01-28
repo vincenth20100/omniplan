@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState, useMemo } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, DurationUnit, HistoryEntry, Representation, Project, ProjectMember } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember } from '@/lib/types';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
@@ -28,6 +28,8 @@ const initialGanttSettings: GanttSettings = {
   highlightCriticalPath: true,
   renderSplitTasks: false,
   dateFormat: 'MMM d, yyyy',
+  theme: 'dark',
+  customStyles: {}
 };
 
 const defaultAppSettings = {
@@ -837,7 +839,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, editingCell: null };
     }
     case 'UPDATE_GANTT_SETTINGS': {
-      return { ...state, ganttSettings: action.payload };
+      const newState = { ...state, ganttSettings: action.payload };
+      return { ...newState, isDirty: checkDirty(newState) };
     }
     case 'ADD_TASK': {
         const newId = `task-${Date.now()}`;

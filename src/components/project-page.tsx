@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ResourceManagementDialog } from '@/components/resources/resource-management-dialog';
 import { CalendarManagementDialog } from '@/components/calendars/calendar-management-dialog';
 import { GroupingDialog } from '@/components/view-options/grouping-dialog';
@@ -32,6 +32,41 @@ import type { Representation, GanttSettings } from '@/lib/types';
 import { PrintPreviewDialog } from './print-preview';
 import { ProjectMembers } from './project-members';
 import { useFirestore } from '@/firebase';
+
+const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], customStyles: GanttSettings['customStyles'] }) => {
+  useEffect(() => {
+    document.documentElement.className = theme || 'dark';
+  }, [theme]);
+
+  const css = useMemo(() => {
+    if (!customStyles) return '';
+    
+    const varMap: { [key: string]: string } = {
+        ganttBarDefault: '--gantt-bar-default',
+        ganttBarCritical: '--gantt-bar-critical',
+        milestoneDefault: '--milestone-default',
+        milestoneCritical: '--milestone-critical',
+        taskRowLevel0Bg: '--task-row-level-0-bg',
+        taskRowLevel1Bg: '--task-row-level-1-bg',
+        taskRowLevel2PlusBg: '--task-row-level-2-plus-bg',
+    };
+    
+    const styleEntries = Object.entries(customStyles)
+      .map(([key, value]) => {
+        const cssVarName = varMap[key];
+        return cssVarName && value ? `${cssVarName}: ${value};` : null;
+      })
+      .filter(Boolean);
+
+    if (styleEntries.length === 0) return '';
+    
+    return `:root { ${styleEntries.join(' ')} }`;
+  }, [customStyles]);
+
+  if (!css) return null;
+
+  return <style>{css}</style>;
+};
 
 
 export function ProjectPage({ user, projectId }: { user: User, projectId: string }) {
@@ -295,6 +330,8 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
 
 
   return (
+    <>
+    <ThemeManager theme={state.ganttSettings.theme} customStyles={state.ganttSettings.customStyles} />
     <MainLayout 
       sidebarContent={sidebarContent} 
       headerLeftActions={headerLeftActions}
@@ -389,5 +426,6 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         </>
       )}
     </MainLayout>
+    </>
   );
 }

@@ -20,6 +20,32 @@ import {
 import type { GanttSettings } from "@/lib/types";
 import { Input } from "../ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useId } from "react";
+
+const ColorPicker = ({ label, value, onChange }: { label: string, value: string, onChange: (value: string) => void }) => {
+  const id = useId();
+  return (
+    <div className="flex items-center justify-between">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-center gap-2">
+        <Input 
+          id={id}
+          type="text" 
+          value={value} 
+          onChange={(e) => onChange(e.target.value)} 
+          className="w-24 h-8"
+        />
+        <Input 
+          type="color" 
+          value={value} 
+          onChange={(e) => onChange(e.target.value)} 
+          className="w-8 h-8 p-1"
+        />
+      </div>
+    </div>
+  );
+}
 
 export function GanttSettingsPanel({
   open,
@@ -39,23 +65,67 @@ export function GanttSettingsPanel({
     });
   };
 
+  const handleCustomStyleChange = (key: keyof NonNullable<GanttSettings['customStyles']>, value: string) => {
+    handleSettingChange('customStyles', {
+      ...(settings.customStyles || {}),
+      [key]: value
+    });
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col">
         <SheetHeader>
-          <SheetTitle>Gantt Display Options</SheetTitle>
+          <SheetTitle>Display Options</SheetTitle>
           <SheetDescription>
-            Customize the appearance of the Gantt chart.
+            Customize the appearance of the Gantt chart and grid.
           </SheetDescription>
         </SheetHeader>
         <ScrollArea className="flex-grow pr-4 -mr-6">
           <div className="grid gap-6 py-4">
+             {/* General Appearance Section */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Appearance</h4>
+              <div className="space-y-4">
+                 <div className="flex items-center justify-between">
+                  <Label htmlFor="theme-select">Theme</Label>
+                  <Select
+                    value={settings.theme || 'dark'}
+                    onValueChange={(value: 'light' | 'dark' | 'sepia') => handleSettingChange('theme', value)}
+                  >
+                    <SelectTrigger id="theme-select" className="w-[180px]">
+                      <SelectValue placeholder="Select theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="sepia">Sepia</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                 <div className="flex items-center justify-between">
+                  <Label htmlFor="date-format">Date Format</Label>
+                    <Input
+                      id="date-format"
+                      value={settings.dateFormat || 'MMM d, yyyy'}
+                      onChange={(e) => handleSettingChange('dateFormat', e.target.value)}
+                      className="w-[180px] h-9"
+                      />
+                </div>
+                 <p className="text-xs text-muted-foreground -mt-2">
+                      Uses <a href="https://date-fns.org/v3.6.0/docs/format" target="_blank" rel="noopener noreferrer" className="underline">date-fns</a> format tokens.
+                  </p>
+              </div>
+            </div>
+            
+            <Separator />
+            
             {/* Timescale & Grid Section */}
             <div>
               <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Timescale & Grid</h4>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="view-mode">View Mode</Label>
+                  <Label htmlFor="view-mode">Default Zoom</Label>
                   <Select
                     value={settings.viewMode}
                     onValueChange={(value: 'day' | 'week' | 'month') => handleSettingChange('viewMode', value)}
@@ -144,35 +214,57 @@ export function GanttSettingsPanel({
                           onCheckedChange={(checked) => handleSettingChange('highlightCriticalPath', checked)}
                       />
                   </div>
-                  <p className="text-xs text-muted-foreground -mt-2">Custom color coding rules are coming soon.</p>
               </div>
             </div>
-
+            
             <Separator />
 
-              <div>
-                  <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Date Formatting</h4>
-                  <div className="space-y-2">
-                      <Label htmlFor="date-format">Date Format</Label>
-                      <Input
-                      id="date-format"
-                      value={settings.dateFormat || 'MMM d, yyyy'}
-                      onChange={(e) => handleSettingChange('dateFormat', e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                      Uses <a href="https://date-fns.org/v3.6.0/docs/format" target="_blank" rel="noopener noreferrer" className="underline font-mono">date-fns</a> format tokens.
-                      <br />
-                      <strong>Examples:</strong>
-                      <br />
-                      <code className="bg-muted px-1 rounded-sm">MMM d, yyyy</code> → Aug 14, 2025
-                      <br />
-                      <code className="bg-muted px-1 rounded-sm">MM/dd/yyyy</code> → 08/14/2025
-                      <br />
-                      <code className="bg-muted px-1 rounded-sm">dd-MM-yy</code> → 14-08-25
-                      </p>
+            {/* Advanced Customization */}
+            <Accordion type="single" collapsible>
+              <AccordionItem value="item-1">
+                <AccordionTrigger>Customize Theme</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-4 pt-2">
+                    <ColorPicker
+                      label="Gantt Bar (Default)"
+                      value={settings.customStyles?.ganttBarDefault || ''}
+                      onChange={(value) => handleCustomStyleChange('ganttBarDefault', value)}
+                    />
+                     <ColorPicker
+                      label="Gantt Bar (Critical)"
+                      value={settings.customStyles?.ganttBarCritical || ''}
+                      onChange={(value) => handleCustomStyleChange('ganttBarCritical', value)}
+                    />
+                     <ColorPicker
+                      label="Milestone (Default)"
+                      value={settings.customStyles?.milestoneDefault || ''}
+                      onChange={(value) => handleCustomStyleChange('milestoneDefault', value)}
+                    />
+                     <ColorPicker
+                      label="Milestone (Critical)"
+                      value={settings.customStyles?.milestoneCritical || ''}
+                      onChange={(value) => handleCustomStyleChange('milestoneCritical', value)}
+                    />
+                    <Separator className="my-4" />
+                     <ColorPicker
+                      label="Task Row (Level 0)"
+                      value={settings.customStyles?.taskRowLevel0Bg || ''}
+                      onChange={(value) => handleCustomStyleChange('taskRowLevel0Bg', value)}
+                    />
+                     <ColorPicker
+                      label="Task Row (Level 1)"
+                      value={settings.customStyles?.taskRowLevel1Bg || ''}
+                      onChange={(value) => handleCustomStyleChange('taskRowLevel1Bg', value)}
+                    />
+                     <ColorPicker
+                      label="Task Row (Level 2+)"
+                      value={settings.customStyles?.taskRowLevel2PlusBg || ''}
+                      onChange={(value) => handleCustomStyleChange('taskRowLevel2PlusBg', value)}
+                    />
                   </div>
-              </div>
-
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
         </ScrollArea>
       </SheetContent>

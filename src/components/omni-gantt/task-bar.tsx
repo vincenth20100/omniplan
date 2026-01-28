@@ -139,7 +139,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
             >
                 <svg width={milestoneSize} height={milestoneSize} viewBox="0 0 24 24" className={cn(
                     "drop-shadow-md",
-                    task.isCritical && highlightCriticalPath ? "fill-destructive" : "fill-primary",
+                     task.isCritical && highlightCriticalPath ? 'fill-milestone-critical' : 'fill-milestone-default',
                 )}>
                     <path d="M12 2L2 12L12 22L22 12L12 2Z"
                         stroke={isSelected ? 'hsl(var(--accent))' : 'hsl(var(--card))'}
@@ -169,8 +169,8 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 !isSummary && "cursor-pointer",
                 isSelected ? "ring-2 ring-offset-2 ring-accent ring-offset-card" : "hover:ring-1 hover:ring-accent",
                 isSummary ? 
-                    (task.isCritical && highlightCriticalPath ? "bg-destructive/15 border-2 border-destructive/90 rounded-sm" : "bg-card border-2 border-primary/90 rounded-sm")
-                    : (task.isCritical && highlightCriticalPath ? "bg-destructive/90 rounded-md" : (task.schedulingConflict ? "bg-destructive/70 rounded-md" : "bg-primary/80 rounded-md"))
+                    (task.isCritical && highlightCriticalPath ? "bg-destructive/15 border-2 border-gantt-bar-critical rounded-sm" : "bg-card border-2 border-gantt-bar-default rounded-sm")
+                    : (task.isCritical && highlightCriticalPath ? "bg-gantt-bar-critical/90 rounded-md" : (task.schedulingConflict ? "bg-destructive/70 rounded-md" : "bg-gantt-bar-default/80 rounded-md"))
             )}
             style={{
                 top: `${top}px`,
@@ -186,14 +186,14 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 <div 
                     className={cn(
                         "absolute top-0 left-0 h-full rounded-l-md",
-                        task.isCritical && highlightCriticalPath ? "bg-destructive" : "bg-primary"
+                        task.isCritical && highlightCriticalPath ? "bg-gantt-bar-critical" : "bg-gantt-bar-default"
                     )}
                     style={{ width: `${task.percentComplete}%`}}
                 />
             )}
              <div className={cn(
                 "relative px-2 text-sm truncate w-full flex justify-between items-center",
-                isSummary ? (task.isCritical && highlightCriticalPath ? "text-destructive font-medium" : "text-primary font-medium") : "text-primary-foreground",
+                isSummary ? (task.isCritical && highlightCriticalPath ? "text-gantt-bar-critical font-medium" : "text-gantt-bar-default font-medium") : "text-primary-foreground",
                 !showTaskLabels && "text-transparent"
             )}>
                 <span>{task.name}</span>
@@ -210,11 +210,11 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
             <>
                 <div className={cn(
                     "absolute -left-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
-                    task.isCritical && highlightCriticalPath ? "border-t-[7px] border-t-destructive/90" : "border-t-[7px] border-t-primary/90"
+                    task.isCritical && highlightCriticalPath ? "border-t-[7px] border-t-gantt-bar-critical" : "border-t-[7px] border-t-gantt-bar-default"
                 )}></div>
                 <div className={cn(
                     "absolute -right-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
-                    task.isCritical && highlightCriticalPath ? "border-t-[7px] border-t-destructive/90" : "border-t-[7px] border-t-primary/90"
+                    task.isCritical && highlightCriticalPath ? "border-t-[7px] border-t-gantt-bar-critical" : "border-t-[7px] border-t-gantt-bar-default"
                 )}></div>
             </>
         )}

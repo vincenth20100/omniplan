@@ -998,6 +998,9 @@ export function TaskTable({
 
                             // It's a task row
                             const task = item.data;
+                            const level = task.level || 0;
+                            const levelClass = level === 0 ? 'bg-task-row-level-0' : level === 1 ? 'bg-task-row-level-1' : 'bg-task-row-level-2-plus';
+
                             return (
                                 <TableRow
                                     key={task.id}
@@ -1005,7 +1008,9 @@ export function TaskTable({
                                     onDragStart={(e) => handleDragStart(e, task.id)}
                                     onDragOver={(e) => handleDragOver(e, task.id)}
                                     data-density={uiDensity}
+                                    data-level={level}
                                     className={cn(
+                                        levelClass,
                                         "cursor-pointer", 
                                         "transition-all duration-150",
                                         "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
