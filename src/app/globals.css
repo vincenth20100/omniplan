@@ -86,17 +86,18 @@
     print-color-adjust: exact !important;
   }
   
-  /* Hide all interactive UI elements not part of the main content */
-  header, 
-  .group.peer,
-  button,
-  [role="dialog"],
-  [data-resize-handle-id] {
+  /* --- Direct Print Styles (No Preview) --- */
+  body:not(.printing-preview) header, 
+  body:not(.printing-preview) .group.peer,
+  body:not(.printing-preview) button,
+  body:not(.printing-preview) [role="dialog"],
+  body:not(.printing-preview) [data-resize-handle-id] {
     display: none !important;
   }
 
-  /* Reset layout of main content area */
-  main, .flex-1.p-4.md\:p-6, .h-full {
+  body:not(.printing-preview) main, 
+  body:not(.printing-preview) .flex-1.p-4.md\:p-6, 
+  body:not(.printing-preview) .h-full {
     display: block !important;
     height: auto !important;
     width: 100% !important;
@@ -104,22 +105,58 @@
     margin: 0 !important;
     overflow: visible !important;
   }
+  
+  /* --- Print Preview Styles --- */
+  body.printing-preview > *:not(div[data-radix-dialog-portal]) {
+    display: none !important;
+  }
 
-  /* Ensure the gantt container doesn't get hidden */
+  body.printing-preview [data-radix-dialog-portal] > div[data-radix-overlay] {
+    display: none !important;
+  }
+
+  body.printing-preview [data-radix-dialog-content] {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    transform: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    border-radius: 0 !important;
+  }
+  
+  body.printing-preview #print-preview-dialog-header,
+  body.printing-preview #print-preview-dialog-footer,
+  body.printing-preview #print-preview-dialog-controls {
+    display: none !important;
+  }
+  
+  body.printing-preview #printable-area {
+      height: auto !important;
+      overflow: visible !important;
+      border: none !important;
+  }
+
+  /* --- Common Print Styles --- */
   .border.rounded-lg.overflow-hidden {
       overflow: visible !important;
   }
   
-  /* Make scroll areas show their full content */
   [data-radix-scroll-area-viewport] {
       overflow: visible !important;
       height: auto !important;
   }
+
   .pb-40 {
       padding-bottom: 0 !important;
   }
 
-  /* Remove stickiness from table/timeline headers */
   .sticky.top-0 {
     position: static !important;
   }

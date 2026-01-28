@@ -29,6 +29,7 @@ import { FindReplaceDialog } from './find-replace-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { Representation } from '@/lib/types';
+import { PrintPreviewDialog } from './print-preview';
 
 
 export function ProjectPage({ user }: { user: User }) {
@@ -42,6 +43,7 @@ export function ProjectPage({ user }: { user: User }) {
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
   const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
 
@@ -85,7 +87,11 @@ export function ProjectPage({ user }: { user: User }) {
 
   const sidebarContent = (
     <>
-      <FileExplorer projectState={state} dispatch={dispatch} />
+      <FileExplorer 
+        projectState={state} 
+        dispatch={dispatch}
+        onPrintPreview={() => setIsPrintPreviewOpen(true)}
+      />
       <Separator className="my-2" />
       {isLoaded && (
         <ViewOptions 
@@ -341,6 +347,11 @@ export function ProjectPage({ user }: { user: User }) {
             open={isFindReplaceOpen}
             onOpenChange={setIsFindReplaceOpen}
             onFindReplace={handleFindReplace}
+          />
+          <PrintPreviewDialog
+            open={isPrintPreviewOpen}
+            onOpenChange={setIsPrintPreviewOpen}
+            projectState={state}
           />
         </>
       )}

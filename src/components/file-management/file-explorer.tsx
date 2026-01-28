@@ -7,7 +7,15 @@ import type { ProjectState } from "@/lib/types";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 
-export function FileExplorer({ projectState, dispatch }: { projectState: ProjectState, dispatch: any }) {
+export function FileExplorer({ 
+    projectState, 
+    dispatch,
+    onPrintPreview,
+}: { 
+    projectState: ProjectState, 
+    dispatch: any,
+    onPrintPreview: () => void,
+}) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isMobile = useIsMobile();
     const { toast } = useToast();
@@ -68,7 +76,7 @@ export function FileExplorer({ projectState, dispatch }: { projectState: Project
                 duration: 10000,
             });
         } else {
-            window.print();
+            onPrintPreview();
         }
     };
 
