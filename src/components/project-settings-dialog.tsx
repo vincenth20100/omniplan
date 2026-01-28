@@ -57,7 +57,7 @@ export function ProjectSettingsDialog({
     
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('viewer');
-    const [isInviting, setIsInviting] = useState(false);
+    const [isAddingUser, setIsAddingUser] = useState(false);
 
 
     const originalMembers = useMemo(() => {
@@ -133,12 +133,12 @@ export function ProjectSettingsDialog({
         }
     };
     
-    const handleInvite = async () => {
+    const handleAddUser = async () => {
         if (!inviteEmail.trim() || !currentUser) {
             toast({ variant: 'destructive', title: "Error", description: "Please enter a valid email address." });
             return;
         }
-        setIsInviting(true);
+        setIsAddingUser(true);
         try {
             const invitationsRef = collection(firestore, 'invitations');
             await addDoc(invitationsRef, {
@@ -147,14 +147,14 @@ export function ProjectSettingsDialog({
                 role: inviteRole,
                 invitedBy: currentUser.uid,
             });
-            toast({ title: "Invitation Sent", description: `${inviteEmail} has been invited to the project.` });
+            toast({ title: "Access Granted", description: `${inviteEmail} can now access the project upon signing in.` });
             setInviteEmail('');
             setInviteRole('viewer');
         } catch (e) {
-            console.error("Error sending invitation:", e);
-            toast({ variant: 'destructive', title: "Error", description: "Could not send invitation. Please try again." });
+            console.error("Error adding user:", e);
+            toast({ variant: 'destructive', title: "Error", description: "Could not add user. Please try again." });
         } finally {
-            setIsInviting(false);
+            setIsAddingUser(false);
         }
     };
 
@@ -247,7 +247,7 @@ export function ProjectSettingsDialog({
                     </div>
                     <Separator />
                     <div className="space-y-2">
-                        <h3 className="font-semibold">Invite New Member</h3>
+                        <h3 className="font-semibold">Add New Member</h3>
                         <div className="flex items-center gap-2">
                             <Input placeholder="user@example.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
                             <Select value={inviteRole} onValueChange={(value: 'editor' | 'viewer') => setInviteRole(value)}>
@@ -259,8 +259,8 @@ export function ProjectSettingsDialog({
                                     <SelectItem value="viewer">Viewer</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <Button onClick={handleInvite} disabled={isInviting || !inviteEmail.trim()}>
-                                {isInviting ? <Loader2 className="animate-spin" /> : 'Send Invite'}
+                            <Button onClick={handleAddUser} disabled={isAddingUser || !inviteEmail.trim()}>
+                                {isAddingUser ? <Loader2 className="animate-spin" /> : 'Add User'}
                             </Button>
                         </div>
                     </div>
