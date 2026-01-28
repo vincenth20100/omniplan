@@ -20,7 +20,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import type { Project, ProjectMember, ColumnSpec } from "@/lib/types";
 import { useState, useEffect, useMemo } from 'react';
-import { collection, doc, writeBatch, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, doc, writeBatch, updateDoc, arrayUnion, arrayRemove, addDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/firebase";
@@ -44,7 +44,7 @@ export function ProjectSettingsDialog({
     onProjectUpdate: (updatedProject: Partial<Project>) => void
 }) {
     const firestore = useFirestore();
-    const currentUser = useAuth().currentUser;
+    const { currentUser } = useAuth();
     const { toast } = useToast();
 
     const membersQuery = useMemoFirebase(() => project ? collection(firestore, 'projects', project.id, 'members') : null, [firestore, project.id]);
@@ -54,6 +54,11 @@ export function ProjectSettingsDialog({
     const [description, setDescription] = useState(project.description || '');
     const [members, setMembers] = useState<EditableMember[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('viewer');
+    const [isInviting, setIsInviting] = useState(false);
+
 
     const originalMembers = useMemo(() => {
         return fetchedMembers?.map(m => ({
@@ -86,7 +91,7 @@ export function ProjectSettingsDialog({
             ? [...currentHidden, columnId]
             : currentHidden.filter(id => id !== columnId);
         
-        handleMemberChange(userId, { permissions: { ...member.permissions, hiddenColumns: newHidden } });
+        handleMemberChange(userId, { permissions: { ...(member.permissions || {}), hiddenColumns: newHidden } });
     };
 
     const handleSave = async () => {
@@ -128,6 +133,31 @@ export function ProjectSettingsDialog({
         }
     };
     
+    const handleInvite = async () => {
+        if (!inviteEmail.trim() || !currentUser) {
+            toast({ variant: 'destructive', title: "Error", description: "Please enter a valid email address." });
+            return;
+        }
+        setIsInviting(true);
+        try {
+            const invitationsRef = collection(firestore, 'invitations');
+            await addDoc(invitationsRef, {
+                email: inviteEmail,
+                projectId: project.id,
+                role: inviteRole,
+                invitedBy: currentUser.uid,
+            });
+            toast({ title: "Invitation Sent", description: `${inviteEmail} has been invited to the project.` });
+            setInviteEmail('');
+            setInviteRole('viewer');
+        } catch (e) {
+            console.error("Error sending invitation:", e);
+            toast({ variant: 'destructive', title: "Error", description: "Could not send invitation. Please try again." });
+        } finally {
+            setIsInviting(false);
+        }
+    };
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
@@ -158,8 +188,8 @@ export function ProjectSettingsDialog({
                                      <Accordion type="multiple" className="w-full">
                                         {members.map(member => (
                                             <AccordionItem value={member.userId} key={member.userId}>
-                                                <div className="flex items-center justify-between w-full">
-                                                    <AccordionTrigger>
+                                                <div className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md px-2">
+                                                    <AccordionTrigger className="py-2">
                                                         <div className="flex items-center gap-3">
                                                             <Avatar className="h-8 w-8">
                                                                 <AvatarImage src={member.photoURL} alt={member.displayName} />
@@ -178,6 +208,7 @@ export function ProjectSettingsDialog({
                                                                 <SelectValue />
                                                             </SelectTrigger>
                                                             <SelectContent>
+                                                                <SelectItem value="owner" disabled>Owner</SelectItem>
                                                                 <SelectItem value="editor">Editor</SelectItem>
                                                                 <SelectItem value="viewer">Viewer</SelectItem>
                                                             </SelectContent>
@@ -212,6 +243,25 @@ export function ProjectSettingsDialog({
                                      </Accordion>
                                 </div>
                              </ScrollArea>
+                        </div>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                        <h3 className="font-semibold">Invite New Member</h3>
+                        <div className="flex items-center gap-2">
+                            <Input placeholder="user@example.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
+                            <Select value={inviteRole} onValueChange={(value: 'editor' | 'viewer') => setInviteRole(value)}>
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue/>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="editor">Editor</SelectItem>
+                                    <SelectItem value="viewer">Viewer</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Button onClick={handleInvite} disabled={isInviting || !inviteEmail.trim()}>
+                                {isInviting ? <Loader2 className="animate-spin" /> : 'Send Invite'}
+                            </Button>
                         </div>
                     </div>
                 </div>

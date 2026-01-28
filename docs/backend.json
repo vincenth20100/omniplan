@@ -90,6 +90,40 @@
         }
       }
     },
+    "Invitation": {
+      "title": "Invitation",
+      "description": "An invitation for a user to join a project.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email of the user being invited."
+        },
+        "projectId": {
+          "type": "string",
+          "description": "ID of the project they are invited to."
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "viewer"
+          ],
+          "description": "Role assigned to the user."
+        },
+        "invitedBy": {
+          "type": "string",
+          "description": "UID of the user who sent the invitation."
+        }
+      },
+      "required": [
+        "email",
+        "projectId",
+        "role",
+        "invitedBy"
+      ]
+    },
     "Task": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Task",
@@ -110,7 +144,12 @@
         },
         "durationUnit": {
           "type": "string",
-          "enum": ["d", "m", "ed", "em"],
+          "enum": [
+            "d",
+            "m",
+            "ed",
+            "em"
+          ],
           "description": "The unit for the task's duration."
         },
         "start": {
@@ -129,24 +168,40 @@
         },
         "status": {
           "type": "string",
-          "enum": ["To Do", "In Progress", "Done"],
+          "enum": [
+            "To Do",
+            "In Progress",
+            "Done"
+          ],
           "description": "The current status of the task, used for Kanban view."
         },
         "constraintType": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Type of constraint applied to the task (e.g., 'Start No Earlier Than', 'Must Start On'). Nullable."
         },
         "constraintDate": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Date associated with the constraint. Nullable.",
           "format": "date-time"
         },
         "zoneId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Reference to the Zone entity where the task is spatially located. Nullable. (Relationship: Zone 1:N Task)"
         },
         "customAttributes": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "JSON string containing custom attributes for the task. Nullable."
         },
         "schedulingConflict": {
@@ -158,7 +213,10 @@
           "description": "Sort order of the task."
         },
         "parentId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Reference to the parent task for hierarchical structure."
         },
         "isCollapsed": {
@@ -170,7 +228,10 @@
           "description": "The cost of the task."
         },
         "deadline": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time",
           "description": "An optional deadline for the task."
         },
@@ -182,7 +243,10 @@
           "description": "A list of notes or activity logs for the task."
         },
         "additionalNotes": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Persistent, high-level notes about the task."
         }
       },
@@ -214,7 +278,12 @@
           "format": "date-time"
         }
       },
-      "required": ["id", "author", "content", "timestamp"]
+      "required": [
+        "id",
+        "author",
+        "content",
+        "timestamp"
+      ]
     },
     "Link": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -243,7 +312,13 @@
           "description": "Lag time (buffer) in working days."
         }
       },
-      "required": ["id", "source", "target", "type", "lag"]
+      "required": [
+        "id",
+        "source",
+        "target",
+        "type",
+        "lag"
+      ]
     },
     "Zone": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -264,7 +339,11 @@
           "description": "JSON string containing the coordinates of the polygon defining the zone."
         }
       },
-      "required": ["id", "name", "coordinates"]
+      "required": [
+        "id",
+        "name",
+        "coordinates"
+      ]
     },
     "HistoryLog": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -332,7 +411,11 @@
         },
         "type": {
           "type": "string",
-          "enum": ["Work", "Material", "Cost"],
+          "enum": [
+            "Work",
+            "Material",
+            "Cost"
+          ],
           "description": "Type of the resource."
         },
         "costPerHour": {
@@ -348,7 +431,11 @@
           "description": "Reference to the calendar for this resource."
         }
       },
-      "required": ["id", "name", "type"]
+      "required": [
+        "id",
+        "name",
+        "type"
+      ]
     },
     "Assignment": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -369,7 +456,11 @@
           "description": "ID of the assigned resource."
         }
       },
-      "required": ["id", "taskId", "resourceId"]
+      "required": [
+        "id",
+        "taskId",
+        "resourceId"
+      ]
     },
     "Exception": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -395,7 +486,12 @@
           "type": "boolean"
         }
       },
-      "required": ["id", "name", "start", "finish"]
+      "required": [
+        "id",
+        "name",
+        "start",
+        "finish"
+      ]
     },
     "Calendar": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -434,7 +530,11 @@
           }
         }
       },
-      "required": ["id", "name", "workingDays"]
+      "required": [
+        "id",
+        "name",
+        "workingDays"
+      ]
     },
     "View": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -475,11 +575,18 @@
                 "type": "string"
               }
             },
-            "required": ["id", "columnId", "operator"]
+            "required": [
+              "id",
+              "columnId",
+              "operator"
+            ]
           }
         }
       },
-      "required": ["id", "name"]
+      "required": [
+        "id",
+        "name"
+      ]
     },
     "UserSettings": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -495,7 +602,11 @@
         },
         "uiDensity": {
           "type": "string",
-          "enum": ["compact", "medium", "large"]
+          "enum": [
+            "compact",
+            "medium",
+            "large"
+          ]
         },
         "columns": {
           "type": "array",
@@ -521,7 +632,11 @@
                 }
               }
             },
-            "required": ["id", "name", "width"]
+            "required": [
+              "id",
+              "name",
+              "width"
+            ]
           }
         },
         "ganttSettings": {
@@ -551,11 +666,16 @@
           }
         }
       },
-      "required": ["id"]
+      "required": [
+        "id"
+      ]
     }
   },
   "auth": {
-    "providers": ["google.com"]
+    "providers": [
+      "google.com",
+      "password"
+    ]
   },
   "firestore": {
     "structure": [
@@ -587,6 +707,16 @@
             "$ref": "#/entities/ProjectMember"
           },
           "description": "Stores members and their roles for a specific project."
+        }
+      },
+      {
+        "path": "/invitations/{invitationId}",
+        "definition": {
+          "entityName": "Invitation",
+          "schema": {
+            "$ref": "#/entities/Invitation"
+          },
+          "description": "Stores pending invitations for users to join projects."
         }
       },
       {

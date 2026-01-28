@@ -113,7 +113,7 @@ export interface Assignment {
   id: string;
   taskId: string;
   resourceId: string;
-  units?: number; // e.g. 1 = 100% of resource time
+  units?: number; // e.g. 100% of resource time
 }
 
 export interface ColumnSpec {
@@ -207,4 +207,12 @@ export interface ProjectMember {
 export interface AppUser {
     id: string;
     projectIds: string[];
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  projectId: string;
+  role: 'editor' | 'viewer';
+  invitedBy: string;
 }
