@@ -22,6 +22,7 @@ import { Button } from '../ui/button';
 import { ColumnConfigDialog, type ColumnConfig } from '../view-options/column-config-dialog';
 import { type RenderableRow, type TaskRow } from './gantt-chart';
 import { parseDuration, formatDuration } from '@/lib/duration';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const TaskCellRenderer = React.memo(({
     task,
@@ -378,6 +379,7 @@ export function TaskTable({
 }) {
     const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell, calendars, defaultCalendarId, editingCell } = projectState;
     const stateRef = useRef(projectState);
+    const isMobile = useIsMobile();
 
     useEffect(() => {
         stateRef.current = projectState;
@@ -466,6 +468,10 @@ export function TaskTable({
 
             // F2 key to start editing without clearing content
             if (event.key === 'F2') {
+              const target = event.target as HTMLElement;
+              if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                  return;
+              }
               event.preventDefault();
               if (!isEditing && activeCell) {
                 const value = getCellValueForEditing(activeCell.taskId, activeCell.columnId);
@@ -919,15 +925,30 @@ export function TaskTable({
                                                     activeCell?.taskId === task.id && activeCell?.columnId === column.id && !isEditing && "ring-2 ring-inset ring-primary"
                                                 )}
                                                 onClick={(e) => {
+                                                    const isAlreadyActive = activeCell?.taskId === task.id && activeCell?.columnId === column.id;
+                                                    // On mobile, a second tap on an active cell starts editing.
+                                                    if (isMobile && isAlreadyActive && !editingCell) {
+                                                        const value = getCellValueForEditing(task.id, column.id);
+                                                        dispatch({
+                                                            type: 'START_EDITING_CELL',
+                                                            payload: { taskId: task.id, columnId: column.id, initialValue: value }
+                                                        });
+                                                        // Prevent re-selecting, just start editing.
+                                                        return;
+                                                    }
+                                                    // Default behavior for desktop or first tap on mobile: select the cell.
                                                     dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: task.id, columnId: column.id } });
                                                     handleSelectTask(e, task.id);
                                                 }}
                                                 onDoubleClick={() => {
-                                                    const value = getCellValueForEditing(task.id, column.id);
-                                                    dispatch({
-                                                        type: 'START_EDITING_CELL',
-                                                        payload: { taskId: task.id, columnId: column.id, initialValue: value }
-                                                    });
+                                                    // Double click only for desktop to prevent conflicts with mobile tap/zoom.
+                                                    if (!isMobile) {
+                                                        const value = getCellValueForEditing(task.id, column.id);
+                                                        dispatch({
+                                                            type: 'START_EDITING_CELL',
+                                                            payload: { taskId: task.id, columnId: column.id, initialValue: value }
+                                                        });
+                                                    }
                                                 }}
                                             >
                                                 <div 

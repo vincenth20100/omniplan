@@ -735,14 +735,27 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         if (state.selectedTaskIds.length < 2) return state;
         
         const newLinks: Link[] = [];
+        const existingLinkPairs = new Set(state.links.map(l => `${l.source}-${l.target}`));
+
         for (let i = 0; i < state.selectedTaskIds.length - 1; i++) {
-            newLinks.push({
-                id: crypto.randomUUID(),
-                source: state.selectedTaskIds[i],
-                target: state.selectedTaskIds[i + 1],
-                type: 'FS',
-                lag: 0,
-            });
+            const source = state.selectedTaskIds[i];
+            const target = state.selectedTaskIds[i + 1];
+            const linkKey = `${source}-${target}`;
+
+            if (!existingLinkPairs.has(linkKey)) {
+                newLinks.push({
+                    id: crypto.randomUUID(),
+                    source: source,
+                    target: target,
+                    type: 'FS',
+                    lag: 0,
+                });
+                existingLinkPairs.add(linkKey);
+            }
+        }
+
+        if (newLinks.length === 0) {
+            return state;
         }
 
         const allLinks = [...state.links, ...newLinks];
