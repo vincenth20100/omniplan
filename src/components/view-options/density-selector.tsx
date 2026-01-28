@@ -5,9 +5,11 @@ import type { UiDensity } from '@/lib/types';
 export function DensitySelector({
     density,
     dispatch,
+    disabled,
 }: {
     density: UiDensity;
     dispatch: any;
+    disabled?: boolean;
 }) {
     const densities: { id: UiDensity, label: string }[] = [
         { id: 'compact', label: 'Compact' },
@@ -26,6 +28,7 @@ export function DensitySelector({
                         size="sm"
                         onClick={() => dispatch({ type: 'SET_UI_DENSITY', payload: d.id })}
                         className="flex-1 text-xs h-7"
+                        disabled={disabled}
                     >
                         {d.label}
                     </Button>

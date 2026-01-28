@@ -33,7 +33,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 
-export function ViewManager({ views, currentViewId, isDirty, dispatch, showTitle = true }: { views: View[], currentViewId: string | null, isDirty?: boolean, dispatch: any, showTitle?: boolean }) {
+export function ViewManager({ views, currentViewId, isDirty, dispatch, showTitle = true, isEditor }: { views: View[], currentViewId: string | null, isDirty?: boolean, dispatch: any, showTitle?: boolean, isEditor?: boolean }) {
     const [isSaveAsOpen, setIsSaveAsOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [newViewName, setNewViewName] = useState("");
@@ -83,7 +83,7 @@ export function ViewManager({ views, currentViewId, isDirty, dispatch, showTitle
         }
     }
 
-    const canDelete = !!currentViewId && currentViewId !== 'default';
+    const canDelete = !!currentViewId && currentViewId !== 'default' && !!isEditor;
 
     return (
         <div>
@@ -102,10 +102,10 @@ export function ViewManager({ views, currentViewId, isDirty, dispatch, showTitle
                     </SelectContent>
                 </Select>
                 <div className="flex gap-1 justify-end">
-                    <Button variant="ghost" size="sm" onClick={handleUpdateView}>
+                    <Button variant="ghost" size="sm" onClick={handleUpdateView} disabled={!isEditor}>
                         <Save className="h-4 w-4 mr-2" /> Save
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setNewViewName(currentView ? `${currentView.name} - Copy` : 'Custom View'); setIsSaveAsOpen(true); }}>
+                    <Button variant="ghost" size="sm" onClick={() => { setNewViewName(currentView ? `${currentView.name} - Copy` : 'Custom View'); setIsSaveAsOpen(true); }} disabled={!isEditor}>
                         <CopyPlus className="h-4 w-4 mr-2" /> Save As
                     </Button>
                      <Button variant="ghost" size="sm" onClick={() => setIsDeleteConfirmOpen(true)} disabled={!canDelete}>

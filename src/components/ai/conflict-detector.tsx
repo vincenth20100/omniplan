@@ -32,7 +32,7 @@ const toSerializable = (tasks: Task[]): SerializableTask[] => {
     }))
 }
 
-export function ConflictDetector({ projectState, dispatch }: { projectState: ProjectState, dispatch: any }) {
+export function ConflictDetector({ projectState, dispatch, disabled }: { projectState: ProjectState, dispatch: any, disabled?: boolean }) {
   const [isPending, startTransition] = useTransition();
   const [conflicts, setConflicts] = useState<{ taskId: string; conflictDescription: string; }[]>([]);
   const { toast } = useToast();
@@ -75,7 +75,7 @@ export function ConflictDetector({ projectState, dispatch }: { projectState: Pro
   return (
     <div className="p-2">
       <h3 className="text-sm font-semibold mb-2 px-2 text-muted-foreground">AI TOOLS</h3>
-      <Button onClick={handleDetectConflicts} disabled={isPending} className="w-full justify-start gap-2">
+      <Button onClick={handleDetectConflicts} disabled={isPending || disabled} className="w-full justify-start gap-2">
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
         Detect Conflicts
       </Button>

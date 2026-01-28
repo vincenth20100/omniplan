@@ -11,19 +11,21 @@ export function ViewOptions({
     views,
     currentViewId,
     isDirty,
+    isEditor,
 }: {
     dispatch: any;
     uiDensity: UiDensity;
     views: View[];
     currentViewId: string | null;
     isDirty?: boolean;
+    isEditor?: boolean;
 }) {
     return (
         <div className="p-2">
-            <ViewManager views={views} currentViewId={currentViewId} isDirty={isDirty} dispatch={dispatch} />
+            <ViewManager views={views} currentViewId={currentViewId} isDirty={isDirty} dispatch={dispatch} isEditor={isEditor} />
             <Separator className="my-2" />
             <h3 className="text-sm font-semibold mb-2 px-2 text-muted-foreground">DISPLAY OPTIONS</h3>
-            <DensitySelector density={uiDensity} dispatch={dispatch} />
+            <DensitySelector density={uiDensity} dispatch={dispatch} disabled={!isEditor} />
         </div>
     );
 }

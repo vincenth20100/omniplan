@@ -28,10 +28,10 @@ import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
 import { FindReplaceDialog } from './find-replace-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import type { Representation, GanttSettings } from '@/lib/types';
+import type { Representation, GanttSettings, ProjectMember } from '@/lib/types';
 import { PrintPreviewDialog } from './print-preview';
 import { ProjectMembers } from './project-members';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 
 const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], customStyles: GanttSettings['customStyles'] }) => {
   useEffect(() => {
@@ -84,6 +84,12 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const firestore = useFirestore();
+  
+  const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
+      useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
+  );
+  
+  const isEditorOrOwner = useMemo(() => !isMemberLoading && (member?.role === 'editor' || member?.role === 'owner'), [member, isMemberLoading]);
 
   useEffect(() => {
     if (state.notifications && state.notifications.length > 0) {
@@ -156,10 +162,11 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             views={state.views}
             currentViewId={state.currentViewId}
             isDirty={state.isDirty}
+            isEditor={isEditorOrOwner}
         />
       )}
        <Separator className="my-2" />
-      <ConflictDetector projectState={state} dispatch={dispatch} />
+      <ConflictDetector projectState={state} dispatch={dispatch} disabled={!isEditorOrOwner}/>
        <Separator className="my-2" />
       <SpatialView projectState={state} />
     </>
@@ -196,28 +203,28 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Separator orientation="vertical" className="h-6 mx-1" />
 
         {/* History */}
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo} title="Undo (Ctrl+Z)">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo || !isEditorOrOwner} title="Undo (Ctrl+Z)">
             <Undo2 />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REDO' })} disabled={!canRedo} title="Redo (Ctrl+Y)">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REDO' })} disabled={!canRedo || !isEditorOrOwner} title="Redo (Ctrl+Y)">
             <Redo2 />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
 
         {/* Task Editing */}
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK' })} title="Add Task">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK' })} title="Add Task" disabled={!isEditorOrOwner}>
             <Plus />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REMOVE_TASK' })} disabled={!canRemove} title="Remove Selected Tasks">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REMOVE_TASK' })} disabled={!canRemove || !isEditorOrOwner} title="Remove Selected Tasks">
             <Trash2 />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink} title="Link Selected Tasks">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink || !isEditorOrOwner} title="Link Selected Tasks">
             <LinkIcon />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'INDENT_TASK' })} disabled={!canIndent} title="Indent Task">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'INDENT_TASK' })} disabled={!canIndent || !isEditorOrOwner} title="Indent Task">
             <Indent />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'OUTDENT_TASK' })} disabled={!canOutdent} title="Outdent Task">
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'OUTDENT_TASK' })} disabled={!canOutdent || !isEditorOrOwner} title="Outdent Task">
             <Outdent />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
@@ -237,11 +244,11 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         </Button>
         {isLoaded && (
           <>
-            <ColumnSelector visibleColumns={state.visibleColumns} columns={state.columns} dispatch={dispatch} />
-            <Button variant={state.filters.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsFilterDialogOpen(true)} title="Filter Tasks">
+            <ColumnSelector visibleColumns={state.visibleColumns} columns={state.columns} dispatch={dispatch} disabled={!isEditorOrOwner} />
+            <Button variant={state.filters.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsFilterDialogOpen(true)} title="Filter Tasks" disabled={!isEditorOrOwner}>
                 <Filter className="h-4 w-4" />
             </Button>
-            <Button variant={state.grouping.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsGroupingDialogOpen(true)} title="Group Tasks">
+            <Button variant={state.grouping.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsGroupingDialogOpen(true)} title="Group Tasks" disabled={!isEditorOrOwner}>
                 <Layers className="h-4 w-4" />
             </Button>
           </>
@@ -257,17 +264,17 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                 <Info />
             </Button>
         )}
-         <Button variant="outline" size="icon" onClick={() => setIsFindReplaceOpen(true)} title="Find and Replace (Ctrl+H)">
+         <Button variant="outline" size="icon" onClick={() => setIsFindReplaceOpen(true)} title="Find and Replace (Ctrl+H)" disabled={!isEditorOrOwner}>
             <Search />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
-        <Button variant="outline" size="icon" onClick={() => setIsResourceDialogOpen(true)} title="Manage Resources">
+        <Button variant="outline" size="icon" onClick={() => setIsResourceDialogOpen(true)} title="Manage Resources" disabled={!isEditorOrOwner}>
             <Users />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsCalendarDialogOpen(true)} title="Manage Calendars">
+        <Button variant="outline" size="icon" onClick={() => setIsCalendarDialogOpen(true)} title="Manage Calendars" disabled={!isEditorOrOwner}>
             <CalendarDays />
         </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsGanttSettingsOpen(true)} title="Gantt Display Options">
+        <Button variant="outline" size="icon" onClick={() => setIsGanttSettingsOpen(true)} title="Gantt Display Options" disabled={!isEditorOrOwner}>
             <Settings />
         </Button>
         <Button variant="outline" size="icon" onClick={() => setIsHistoryOpen(true)} title="Show History">

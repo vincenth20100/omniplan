@@ -19,10 +19,12 @@ export function ColumnSelector({
     visibleColumns,
     columns,
     dispatch,
+    disabled,
 }: {
     visibleColumns: string[];
     columns: ColumnSpec[];
     dispatch: any;
+    disabled?: boolean;
 }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -86,7 +88,7 @@ export function ColumnSelector({
         <>
             <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" title="Select Visible Columns">
+                    <Button variant="outline" size="icon" title="Select Visible Columns" disabled={disabled}>
                         <Columns3 className="h-4 w-4" />
                     </Button>
                 </DropdownMenuTrigger>
