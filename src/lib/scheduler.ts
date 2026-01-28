@@ -128,7 +128,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     }
     
     if (sortedTasks.length !== schedulableTasks.length) {
-        console.error("Scheduling conflict detected: A circular dependency exists in your project links.");
+        console.warn("Scheduling conflict detected: A circular dependency exists in your project links. The schedule may be incorrect until the cycle is removed.");
         return tasks;
     }
 
