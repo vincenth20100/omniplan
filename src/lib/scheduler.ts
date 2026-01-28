@@ -45,7 +45,7 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec
                 }, 0) / childrenTotalWork);
             } else {
                 // If no children have work duration, average their percent complete.
-                summaryTask.percentComplete = children.reduce((acc, c) => acc + (c.percentComplete || 0), 0) / children.length;
+                summaryTask.percentComplete = children.length > 0 ? children.reduce((acc, c) => acc + (c.percentComplete || 0), 0) / children.length : 0;
             }
 
             // A summary task is critical if any of its children are critical.
@@ -94,16 +94,64 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         task.totalFloat = undefined;
     }
 
-    for (const link of links) {
-        // Ensure links are only between schedulable (non-summary) tasks
-        if (taskMap.has(link.source) && !taskMap.get(link.source)!.isSummary && 
-            taskMap.has(link.target) && !taskMap.get(link.target)!.isSummary) {
+    // A map from parentId to list of its children task IDs
+    const childrenMap = new Map<string, string[]>();
+    tasks.forEach(t => {
+        if (t.parentId) {
+            if (!childrenMap.has(t.parentId)) childrenMap.set(t.parentId, []);
+            childrenMap.get(t.parentId)!.push(t.id);
+        }
+    });
+
+    const expandedLinks: Link[] = [];
+    links.forEach(link => {
+        const sourceTask = taskMap.get(link.source);
+        const targetTask = taskMap.get(link.target);
+
+        if (!sourceTask || !targetTask) return;
+
+        let effectiveSources = [link.source];
+        if (sourceTask.isSummary) {
+            const childrenIds = childrenMap.get(sourceTask.id) || [];
+            // "Exit" tasks are those children that are not a source of any link within the group
+            const exitTasks = childrenIds.filter(childId => 
+                !links.some(l => l.source === childId && childrenIds.includes(l.target))
+            );
+            effectiveSources = exitTasks.length > 0 ? exitTasks : childrenIds; // Fallback to all children if cycle or all linked
+        }
+
+        let effectiveTargets = [link.target];
+        if (targetTask.isSummary) {
+            const childrenIds = childrenMap.get(targetTask.id) || [];
+            // "Entry" tasks are those children that are not a target of any link within the group
+            const entryTasks = childrenIds.filter(childId => 
+                !links.some(l => l.target === childId && childrenIds.includes(l.source))
+            );
+            effectiveTargets = entryTasks.length > 0 ? entryTasks : childrenIds; // Fallback to all children
+        }
+        
+        effectiveSources.forEach(sId => {
+            effectiveTargets.forEach(tId => {
+                const sTask = taskMap.get(sId);
+                const tTask = taskMap.get(tId);
+                // Only add links between actual schedulable tasks
+                if (sTask && !sTask.isSummary && tTask && !tTask.isSummary) {
+                    expandedLinks.push({ ...link, source: sId, target: tId });
+                }
+            });
+        });
+    });
+
+    for (const link of expandedLinks) {
+        if (successorsMap.has(link.source)) {
             successorsMap.get(link.source)!.push(link);
+        }
+        if (predecessorsMap.has(link.target)) {
             predecessorsMap.get(link.target)!.push(link);
             inDegree.set(link.target, (inDegree.get(link.target) || 0) + 1);
         }
     }
-
+    
     const queue: string[] = [];
     for (const [taskId, degree] of inDegree.entries()) {
         if (degree === 0) {
@@ -129,7 +177,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     
     if (sortedTasks.length !== schedulableTasks.length) {
         console.warn("Scheduling conflict detected: A circular dependency exists in your project links. The schedule may be incorrect until the cycle is removed.");
-        return tasks;
+        // We don't return here, we try to schedule what we can.
     }
 
     // Forward pass: Calculate Early Start (ES) and Early Finish (EF)
@@ -170,11 +218,13 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                         break;
                     case 'FF':
                         const tempFinishFF = calendarService.addWorkingDays(sourceTask.finish, link.lag, calendar);
-                        potentialStart = calendarService.calculateFinishDate(tempFinishFF, -task.duration, task.durationUnit || 'd', calendar);
+                        const durationValue = task.duration > 0 ? task.duration - 1 : 0;
+                        potentialStart = calendarService.addWorkingDays(tempFinishFF, -durationValue, calendar);
                         break;
                     case 'SF':
                          const tempFinishSF = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
-                         potentialStart = calendarService.calculateFinishDate(tempFinishSF, -task.duration, task.durationUnit || 'd', calendar);
+                         const sfDurationValue = task.duration > 0 ? task.duration - 1 : 0;
+                         potentialStart = calendarService.addWorkingDays(tempFinishSF, -sfDurationValue, calendar);
                         break;
                     default:
                         potentialStart = new Date(0);
@@ -191,6 +241,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
 
         // --- Apply Constraints ---
         const { constraintType, constraintDate, duration, durationUnit } = task;
+        const durationForCalc = duration > 0 ? duration - 1 : 0;
 
         if (constraintType && constraintDate) {
              switch (constraintType) {
@@ -198,13 +249,13 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                     earlyStart = startOfDay(constraintDate);
                     break;
                 case 'Must Finish On':
-                    earlyStart = calendarService.calculateFinishDate(startOfDay(constraintDate), -(duration), durationUnit || 'd', calendar);
+                    earlyStart = calendarService.addWorkingDays(startOfDay(constraintDate), -durationForCalc, calendar);
                     break;
                 case 'Start No Earlier Than':
                     earlyStart = max([earlyStart, startOfDay(constraintDate)]);
                     break;
                 case 'Finish No Earlier Than':
-                    const requiredStartForFNET = calendarService.calculateFinishDate(startOfDay(constraintDate), -(duration), durationUnit || 'd', calendar);
+                    const requiredStartForFNET = calendarService.addWorkingDays(startOfDay(constraintDate), -durationForCalc, calendar);
                     earlyStart = max([earlyStart, requiredStartForFNET]);
                     break;
              }
@@ -291,7 +342,8 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         }
 
         task.lateFinish = lateFinish;
-        task.lateStart = calendarService.calculateFinishDate(task.lateFinish!, -task.duration, task.durationUnit || 'd', calendar);
+        const durationForCalc = task.duration > 0 ? task.duration - 1 : 0;
+        task.lateStart = calendarService.addWorkingDays(task.lateFinish!, -durationForCalc, calendar);
          if (task.constraintType === 'Must Start On' && task.constraintDate) {
             task.lateStart = new Date(Math.min(task.lateStart.getTime(), startOfDay(task.constraintDate).getTime()));
         }
@@ -302,7 +354,8 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         const task = taskMap.get(taskId)!;
         if (task.isSummary) continue;
         if (task.lateStart && task.start) {
-            task.totalFloat = calendarService.getWorkingDaysDuration(task.start, task.lateStart, calendar) - 1;
+            task.totalFloat = calendarService.getWorkingDaysDuration(task.start, task.lateStart, calendar);
+             if (task.totalFloat > 0) task.totalFloat -= 1;
         } else {
             task.totalFloat = 0;
         }
@@ -310,8 +363,11 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     }
 
     // Update driving status on links
-    for(const link of links) {
-        link.isDriving = false;
+    for(const link of expandedLinks) {
+        const originalLink = links.find(l => link.id.startsWith(l.id));
+        if (!originalLink) continue;
+        
+        originalLink.isDriving = false;
         const targetTask = taskMap.get(link.target);
         const sourceTask = taskMap.get(link.source);
         if (!targetTask || !sourceTask) continue;
@@ -326,19 +382,22 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                 break;
             case 'FF':
                  const tempFinishFF = calendarService.addWorkingDays(sourceTask.finish, link.lag, calendar);
-                 potentialStart = calendarService.calculateFinishDate(tempFinishFF, -targetTask.duration, targetTask.durationUnit || 'd', calendar);
+                 const durationValue = targetTask.duration > 0 ? targetTask.duration - 1 : 0;
+                 potentialStart = calendarService.addWorkingDays(tempFinishFF, -durationValue, calendar);
                 break;
             case 'SF':
                  const tempFinishSF = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
-                 potentialStart = calendarService.calculateFinishDate(tempFinishSF, -targetTask.duration, targetTask.durationUnit || 'd', calendar);
+                 const sfDurationValue = targetTask.duration > 0 ? targetTask.duration - 1 : 0;
+                 potentialStart = calendarService.addWorkingDays(tempFinishSF, -sfDurationValue, calendar);
                 break;
             default:
                 potentialStart = new Date(0);
         }
         potentialStart = calendarService.isWorkingDay(potentialStart, calendar) ? potentialStart : calendarService.findNextWorkingDay(potentialStart, calendar);
         
+        // This is a simplified check. A more robust check would consider all predecessors.
         if (potentialStart.getTime() >= targetTask.start.getTime()) {
-             link.isDriving = true;
+             originalLink.isDriving = true;
         }
     }
     
