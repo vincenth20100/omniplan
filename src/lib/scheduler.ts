@@ -81,8 +81,11 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     const predecessorsMap = new Map<string, Link[]>();
     const successorsMap = new Map<string, Link[]>();
     const inDegree = new Map<string, number>();
+    
+    // Only perform topological sort on non-summary tasks
+    const schedulableTasks = tasks.filter(t => !t.isSummary);
 
-    for (const task of tasks) {
+    for (const task of schedulableTasks) {
         predecessorsMap.set(task.id, []);
         successorsMap.set(task.id, []);
         inDegree.set(task.id, 0);
@@ -92,7 +95,9 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     }
 
     for (const link of links) {
-        if (taskMap.has(link.source) && taskMap.has(link.target)) {
+        // Ensure links are only between schedulable (non-summary) tasks
+        if (taskMap.has(link.source) && !taskMap.get(link.source)!.isSummary && 
+            taskMap.has(link.target) && !taskMap.get(link.target)!.isSummary) {
             successorsMap.get(link.source)!.push(link);
             predecessorsMap.get(link.target)!.push(link);
             inDegree.set(link.target, (inDegree.get(link.target) || 0) + 1);
@@ -122,7 +127,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         }
     }
     
-    if (sortedTasks.length !== tasks.length) {
+    if (sortedTasks.length !== schedulableTasks.length) {
         console.error("Scheduling conflict detected: A circular dependency exists in your project links.");
         return tasks;
     }
@@ -135,6 +140,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         task.schedulingConflict = false;
         task.deadlineMissed = false;
         
+        // This is already filtered by sortedTasks, but as a safeguard.
         if (task.isSummary) continue;
 
         // If a task has progress, its start date is fixed.
