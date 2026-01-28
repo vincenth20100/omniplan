@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect } from 'react';
@@ -111,6 +111,7 @@ export function ProjectPage({ user }: { user: User }) {
 
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
+        {/* History */}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo} title="Undo (Ctrl+Z)">
             <Undo2 />
         </Button>
@@ -118,9 +119,8 @@ export function ProjectPage({ user }: { user: User }) {
             <Redo2 />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
-        <Button variant={state.multiSelectMode ? "secondary" : "outline"} size="icon" onClick={handleToggleMultiSelect} title="Toggle Multi-Select Mode">
-          <ListChecks />
-        </Button>
+
+        {/* Task Editing */}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK' })} title="Add Task">
             <Plus />
         </Button>
@@ -138,14 +138,13 @@ export function ProjectPage({ user }: { user: User }) {
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
         
+        {/* View Manipulation */}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'COLLAPSE_ALL' })} title="Collapse Selection/All">
             <ChevronsUp />
         </Button>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'EXPAND_ALL' })} title="Expand Selection/All">
             <ChevronsDown />
         </Button>
-        <Separator orientation="vertical" className="h-6 mx-1" />
-        
         {isLoaded && (
           <>
             <ColumnSelector visibleColumns={state.visibleColumns} columns={state.columns} dispatch={dispatch} />
@@ -157,9 +156,21 @@ export function ProjectPage({ user }: { user: User }) {
             </Button>
           </>
         )}
-        
         <Separator orientation="vertical" className="h-6 mx-1" />
         
+        {/* Tools */}
+        <Button variant={state.multiSelectMode ? "secondary" : "outline"} size="icon" onClick={handleToggleMultiSelect} title="Toggle Multi-Select Mode">
+          <ListChecks />
+        </Button>
+        {isMobile && (
+            <Button variant="outline" size="icon" onClick={() => setIsMobileSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
+                <Info />
+            </Button>
+        )}
+         <Button variant="outline" size="icon" onClick={() => setIsFindReplaceOpen(true)} title="Find and Replace (Ctrl+H)">
+            <Search />
+        </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
         <Button variant="outline" size="icon" onClick={() => setIsResourceDialogOpen(true)} title="Manage Resources">
             <Users />
         </Button>
@@ -175,14 +186,6 @@ export function ProjectPage({ user }: { user: User }) {
         <Button variant="outline" size="icon" onClick={() => setIsShortcutsDialogOpen(true)} title="Keyboard Shortcuts">
             <Keyboard />
         </Button>
-        {isMobile && (
-            <>
-                <Separator orientation="vertical" className="h-6 mx-1" />
-                <Button variant="outline" size="icon" onClick={() => setIsMobileSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
-                    <Info />
-                </Button>
-            </>
-        )}
     </div>
   );
 
