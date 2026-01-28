@@ -163,7 +163,7 @@ export interface ProjectState {
     calendars: Calendar[];
     defaultCalendarId: string | null;
     selectedTaskIds: string[];
-    selectionAnchor?: string | null;
+    selectedCells: { taskId: string, columnId: string }[];
     visibleColumns: string[];
     columns: ColumnSpec[];
     uiDensity: UiDensity;
@@ -172,8 +172,8 @@ export interface ProjectState {
     views: View[];
     currentViewId: string | null;
     isDirty?: boolean;
-    multiSelectMode?: boolean;
-    activeCell?: { taskId: string, columnId: string } | null;
+    activeCell: { taskId: string, columnId: string } | null;
+    selectionAnchorCell: { taskId: string, columnId: string } | null;
     editingCell?: { taskId: string, columnId: string, initialValue?: string } | null;
     ganttSettings: GanttSettings;
     notifications: { id: string; type: 'toast'; title: string; description: string }[];

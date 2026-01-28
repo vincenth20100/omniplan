@@ -24,6 +24,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { HistoryPanel } from '@/components/history/history-panel';
 import type { User } from 'firebase/auth';
 import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
+import { FindReplaceDialog } from './find-replace-dialog';
 import { useToast } from "@/hooks/use-toast";
 
 export function ProjectPage({ user }: { user: User }) {
@@ -35,6 +36,7 @@ export function ProjectPage({ user }: { user: User }) {
   const [isGanttSettingsOpen, setIsGanttSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
+  const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
 
@@ -48,6 +50,25 @@ export function ProjectPage({ user }: { user: User }) {
       dispatch({ type: 'CLEAR_NOTIFICATIONS' });
     }
   }, [state.notifications, dispatch, toast]);
+  
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'h') {
+            event.preventDefault();
+            setIsFindReplaceOpen(true);
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const handleFindReplace = (find: string, replace: string) => {
+      dispatch({ type: 'FIND_AND_REPLACE', payload: { find, replace } });
+      setIsFindReplaceOpen(false);
+  };
+
 
   const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
   const selectedTask = state.tasks.find(t => t.id === lastSelectedId);
@@ -96,17 +117,6 @@ export function ProjectPage({ user }: { user: User }) {
             <Redo2 />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
-        {isMobile && (
-            <Button
-                variant={state.multiSelectMode ? "secondary" : "outline"}
-                size="sm"
-                onClick={handleToggleMultiSelect}
-                className="w-9 px-0"
-                title="Toggle Multi-Select"
-            >
-                <ListChecks />
-            </Button>
-        )}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK' })} title="Add Task">
             <Plus />
         </Button>
@@ -191,7 +201,7 @@ export function ProjectPage({ user }: { user: User }) {
                       links={state.links} 
                       tasks={state.tasks}
                       dispatch={dispatch}
-                      onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
+                      onClose={() => dispatch({ type: 'SET_SELECTION', payload: { activeCell: null, selectionAnchorCell: null, selectedTaskIds: [], selectedCells: [] } })}
                       uiDensity={state.uiDensity}
                       defaultCalendar={defaultCalendar}
                     />
@@ -209,7 +219,7 @@ export function ProjectPage({ user }: { user: User }) {
       {isLoaded && (
         <>
           {isMobile && (
-            <Sheet open={!!selectedTask} onOpenChange={(open) => !open && dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}>
+            <Sheet open={!!selectedTask} onOpenChange={(open) => !open && dispatch({ type: 'SET_SELECTION', payload: { activeCell: null, selectionAnchorCell: null, selectedTaskIds: [], selectedCells: [] } })}>
                 <SheetContent side="bottom" className="h-[80vh] p-0">
                   {selectedTask && (
                     <>
@@ -219,7 +229,7 @@ export function ProjectPage({ user }: { user: User }) {
                           links={state.links} 
                           tasks={state.tasks}
                           dispatch={dispatch}
-                          onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
+                          onClose={() => dispatch({ type: 'SET_SELECTION', payload: { activeCell: null, selectionAnchorCell: null, selectedTaskIds: [], selectedCells: [] } })}
                           uiDensity={state.uiDensity}
                           defaultCalendar={defaultCalendar}
                       />
@@ -276,6 +286,11 @@ export function ProjectPage({ user }: { user: User }) {
           <KeyboardShortcutsDialog
             open={isShortcutsDialogOpen}
             onOpenChange={setIsShortcutsDialogOpen}
+          />
+          <FindReplaceDialog
+            open={isFindReplaceOpen}
+            onOpenChange={setIsFindReplaceOpen}
+            onFindReplace={handleFindReplace}
           />
         </>
       )}
