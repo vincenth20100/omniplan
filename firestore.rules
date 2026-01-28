@@ -1,219 +1,98 @@
-/**
- * This ruleset enforces a strict user-ownership security model for the OmniPlan AI application.
- * All data is considered private and is partitioned by user ID.
- *
- * Core Philosophy:
- * The security model is built on the principle that users can only access data within their own
- * designated data tree. There is no concept of public or shared data in this ruleset.
- *
- * Data Structure:
- * All application data, including tasks, links, zones, and history logs, is nested under the
- * `/users/{userId}` path. This hierarchical structure makes ownership explicit and simplifies
- * authorization checks by leveraging the document path.
- *
- * Key Security Decisions:
- * - User Isolation: A user can only read or write documents within their own `/users/{userId}` path.
- * - No User Enumeration: Listing documents in the top-level `/users` collection is disallowed to
- *   prevent discovery of other users on the platform.
- * - Self-Service User Document: A user is permitted to create their own user document upon first sign-in,
- *   but they cannot create documents for other users or delete their own.
- * - Path-Based Authorization: All authorization decisions for subcollections are based on the `{userId}`
- *   wildcard in the path, ensuring fast and secure access without needing to read other documents.
- *
- * Denormalization for Authorization:
- * This ruleset relies on path-based ownership, which is a form of structural denormalization.
- * The `userId` is part of the path for every user-owned document, so no extra `get()` calls are
- * needed to verify ownership, leading to highly performant and cost-effective security rules.
- *
- * Structural Segregation:
- * The data model perfectly segregates private data. By placing all of a user's content within
- * a dedicated subcollection tree, we ensure that queries (`list` operations) can be securely
- * executed without risk of leaking data from other users.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for improved readability and reusability.
-
-    /**
-     * Checks if a user is authenticated.
-     */
+    // --- Helper Functions ---
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the authenticated user's UID matches the provided userId.
-     * This is the primary function for verifying document ownership.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * Checks for ownership on an existing document. Used for update and delete
-     * operations to prevent acting on non-existent data.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * Validates that the internal `id` field of a new document matches the
-     * document's ID in the path. Enforces relational integrity on create.
-     */
-    function hasMatchingId(docId) {
-      return request.resource.data.id == docId;
+    function isProjectMember(projectId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
     }
     
-    /**
-     * @description Ensures the 'id' field of a document cannot be changed during an update.
-     */
-    function isIdImmutable() {
-      // Allow the update if the 'id' field is not being modified.
-      // If the 'id' field is present in the request, it must match the existing resource's id.
-      return !('id' in request.resource.data) || request.resource.data.id == resource.data.id;
+    function isProjectEditor(projectId) {
+      let userRole = get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role;
+      return isProjectMember(projectId) && userRole in ['owner', 'editor'];
     }
 
-    /**
-     * @description Rules for the user's root document.
-     * @path /users/{userId}
-     * @allow (create) An authenticated user can create their own user document.
-     * @deny (list) A user cannot list all other users in the `/users` collection.
-     * @principle Restricts access to a user's own data tree and prevents user enumeration.
-     */
+    function isProjectOwner(projectId) {
+      let userRole = get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role;
+      return isProjectMember(projectId) && userRole == 'owner';
+    }
+
+    // --- User Profile ---
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if false; // Deleting user root documents is disallowed for safety.
+      allow read, create, update: if request.auth.uid == userId;
+      allow delete: if false;
     }
 
-    /**
-     * @description Rules for user-owned tasks.
-     * @path /users/{userId}/tasks/{taskId}
-     * @allow (create) User 'abc' can create a task in `/users/abc/tasks/new-task-123`.
-     * @deny (update) User 'xyz' cannot update a task in `/users/abc/tasks/some-task-456`.
-     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
-     */
-    match /users/{userId}/tasks/{taskId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasMatchingId(taskId);
-      allow update: if isExistingOwner(userId) && isIdImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
+    // --- Projects and Subcollections ---
+    match /projects/{projectId} {
+      // Project Document
+      allow read: if isProjectMember(projectId);
+      allow list: if false; // Users should query based on their own user doc
+      allow create: if isSignedIn(); // App logic must enforce owner role on creation
+      allow update: if isProjectEditor(projectId); // e.g., renaming the project
+      allow delete: if isProjectOwner(projectId);
 
-    /**
-     * @description Rules for user-owned links (task dependencies).
-     * @path /users/{userId}/links/{linkId}
-     * @allow (list) User 'abc' can list all links in their `/users/abc/links` subcollection.
-     * @deny (get) An unauthenticated user cannot get any link document.
-     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
-     */
-    match /users/{userId}/links/{linkId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasMatchingId(linkId);
-      allow update: if isExistingOwner(userId) && isIdImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
+      // Project Members
+      match /members/{userId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectOwner(projectId);
+      }
 
-    /**
-     * @description Rules for user-owned zones (spatial areas).
-     * @path /users/{userId}/zones/{zoneId}
-     * @allow (delete) User 'abc' can delete a zone at `/users/abc/zones/zone-789`.
-     * @deny (create) User 'abc' cannot create a zone with an `id` field that does not match the document ID.
-     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
-     */
-    match /users/{userId}/zones/{zoneId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasMatchingId(zoneId);
-      allow update: if isExistingOwner(userId) && isIdImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
+      // Tasks
+      match /tasks/{taskId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectEditor(projectId);
+      }
 
-    /**
-     * @description Rules for user-owned history logs.
-     * @path /users/{userId}/history_logs/{historyLogId}
-     * @allow (create) User 'abc' can create a history log in their own `/users/abc/history_logs/` path.
-     * @deny (update) User 'xyz' cannot update a history log belonging to user 'abc'.
-     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
-     */
-    match /users/{userId}/history_logs/{historyLogId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasMatchingId(historyLogId);
-      allow update: if isExistingOwner(userId) && isIdImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
+      // Links
+      match /links/{linkId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectEditor(projectId);
+      }
 
-    /**
-     * @description Rules for user-owned resources.
-     * @path /users/{userId}/resources/{resourceId}
-     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
-     */
-    match /users/{userId}/resources/{resourceId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasMatchingId(resourceId);
-      allow update: if isExistingOwner(userId) && isIdImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
+      // Resources
+      match /resources/{resourceId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectEditor(projectId);
+      }
+      
+      // Assignments
+      match /assignments/{assignmentId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectEditor(projectId);
+      }
+      
+      // Calendars
+      match /calendars/{calendarId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectEditor(projectId);
+      }
+      
+      // Views
+      match /views/{viewId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectEditor(projectId);
+      }
 
-    /**
-     * @description Rules for user-owned assignments.
-     * @path /users/{userId}/assignments/{assignmentId}
-     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
-     */
-    match /users/{userId}/assignments/{assignmentId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasMatchingId(assignmentId);
-      allow update: if isExistingOwner(userId) && isIdImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
+      // Settings
+      match /settings/{settingId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectEditor(projectId);
+      }
 
-    /**
-     * @description Rules for user-owned calendars.
-     * @path /users/{userId}/calendars/{calendarId}
-     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
-     */
-    match /users/{userId}/calendars/{calendarId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasMatchingId(calendarId);
-      allow update: if isExistingOwner(userId) && isIdImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Rules for user-owned views.
-     * @path /users/{userId}/views/{viewId}
-     * @principle Enforces strict document ownership and validates relational integrity via the internal 'id' field.
-     */
-    match /users/{userId}/views/{viewId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasMatchingId(viewId);
-      allow update: if isExistingOwner(userId) && isIdImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
-    
-    /**
-     * @description Rules for user-owned settings document.
-     * @path /users/{userId}/settings/{settingId}
-     * @principle Enforces strict document ownership.
-     */
-    match /users/{userId}/settings/{settingId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId); // list is ok, as we expect only one doc
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if false; // Settings should not be deleted.
+      // Other collections with same simple logic
+      match /zones/{zoneId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectEditor(projectId);
+      }
+      match /history_logs/{historyLogId} {
+        allow read, list: if isProjectMember(projectId);
+        allow create, update, delete: if isProjectEditor(projectId);
+      }
     }
   }
 }

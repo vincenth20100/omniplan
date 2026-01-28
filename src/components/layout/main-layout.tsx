@@ -87,7 +87,7 @@ export function MainLayout({ children, sidebarContent, headerLeftActions, header
           <SidebarTrigger />
           {headerLeftActions}
           <h1 className="text-xl font-semibold font-headline">Project Plan</h1>
-           <div className="ml-auto flex items-center gap-2">
+           <div className="ml-auto flex items-center gap-4">
               {headerRightActions}
               {user && <UserMenu user={user} />}
           </div>

@@ -1,5 +1,78 @@
 {
   "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "Represents a single project, containing tasks, links, etc.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the project."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the project."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "The UID of the user who owns the project."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the project was created."
+        },
+        "memberIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of user UIDs who are members of this project."
+        }
+      },
+      "required": ["id", "name", "ownerId", "createdAt"]
+    },
+    "ProjectMember": {
+      "title": "Project Member",
+      "description": "Represents a user's membership and role within a project.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["owner", "editor", "viewer"],
+          "description": "The user's role in the project."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "The user's photo URL."
+        }
+      },
+      "required": ["userId", "role"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Represents a user's app-specific data, like their list of projects.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "projectIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "Task": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Task",
@@ -86,7 +159,9 @@
         },
         "notes": {
           "type": "array",
-          "items": { "$ref": "#/entities/Note" },
+          "items": {
+            "$ref": "#/entities/Note"
+          },
           "description": "A list of notes or activity logs for the task."
         },
         "additionalNotes": {
@@ -108,10 +183,19 @@
       "description": "Represents a note or log entry on a task.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "author": { "type": "string" },
-        "content": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
       "required": ["id", "author", "content", "timestamp"]
     },
@@ -142,13 +226,7 @@
           "description": "Lag time (buffer) in working days."
         }
       },
-      "required": [
-        "id",
-        "source",
-        "target",
-        "type",
-        "lag"
-      ]
+      "required": ["id", "source", "target", "type", "lag"]
     },
     "Zone": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -169,11 +247,7 @@
           "description": "JSON string containing the coordinates of the polygon defining the zone."
         }
       },
-      "required": [
-        "id",
-        "name",
-        "coordinates"
-      ]
+      "required": ["id", "name", "coordinates"]
     },
     "HistoryLog": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -241,11 +315,7 @@
         },
         "type": {
           "type": "string",
-          "enum": [
-            "Work",
-            "Material",
-            "Cost"
-          ],
+          "enum": ["Work", "Material", "Cost"],
           "description": "Type of the resource."
         },
         "costPerHour": {
@@ -261,11 +331,7 @@
           "description": "Reference to the calendar for this resource."
         }
       },
-      "required": [
-        "id",
-        "name",
-        "type"
-      ]
+      "required": ["id", "name", "type"]
     },
     "Assignment": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -286,11 +352,7 @@
           "description": "ID of the assigned resource."
         }
       },
-      "required": [
-        "id",
-        "taskId",
-        "resourceId"
-      ]
+      "required": ["id", "taskId", "resourceId"]
     },
     "Exception": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -316,12 +378,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "id",
-        "name",
-        "start",
-        "finish"
-      ]
+      "required": ["id", "name", "start", "finish"]
     },
     "Calendar": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -360,11 +417,7 @@
           }
         }
       },
-      "required": [
-        "id",
-        "name",
-        "workingDays"
-      ]
+      "required": ["id", "name", "workingDays"]
     },
     "View": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -405,18 +458,11 @@
                 "type": "string"
               }
             },
-            "required": [
-              "id",
-              "columnId",
-              "operator"
-            ]
+            "required": ["id", "columnId", "operator"]
           }
         }
       },
-      "required": [
-        "id",
-        "name"
-      ]
+      "required": ["id", "name"]
     },
     "UserSettings": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -432,11 +478,7 @@
         },
         "uiDensity": {
           "type": "string",
-          "enum": [
-            "compact",
-            "medium",
-            "large"
-          ]
+          "enum": ["compact", "medium", "large"]
         },
         "columns": {
           "type": "array",
@@ -462,11 +504,7 @@
                 }
               }
             },
-            "required": [
-              "id",
-              "name",
-              "width"
-            ]
+            "required": ["id", "name", "width"]
           }
         },
         "ganttSettings": {
@@ -496,216 +534,126 @@
           }
         }
       },
-      "required": [
-        "id"
-      ]
+      "required": ["id"]
     }
   },
   "auth": {
-    "providers": [
-      "anonymous",
-      "google.com"
-    ]
+    "providers": ["google.com"]
   },
   "firestore": {
     "structure": [
       {
         "path": "/users/{userId}",
         "definition": {
-          "entityName": "user",
+          "entityName": "User",
           "schema": {
             "$ref": "#/entities/User"
           },
-          "description": "Collection to store user-related data. Acts as the root for all user-owned subcollections.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            }
-          ]
+          "description": "Stores user-specific data, primarily their project memberships."
         }
       },
       {
-        "path": "/users/{userId}/tasks/{taskId}",
+        "path": "/projects/{projectId}",
+        "definition": {
+          "entityName": "Project",
+          "schema": {
+            "$ref": "#/entities/Project"
+          },
+          "description": "Root collection for all projects."
+        }
+      },
+      {
+        "path": "/projects/{projectId}/members/{userId}",
+        "definition": {
+          "entityName": "ProjectMember",
+          "schema": {
+            "$ref": "#/entities/ProjectMember"
+          },
+          "description": "Stores members and their roles for a specific project."
+        }
+      },
+      {
+        "path": "/projects/{projectId}/tasks/{taskId}",
         "definition": {
           "entityName": "Task",
           "schema": {
             "$ref": "#/entities/Task"
-          },
-          "description": "Collection to store tasks owned by a specific user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "taskId",
-              "description": "The unique identifier for the task."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/users/{userId}/links/{linkId}",
+        "path": "/projects/{projectId}/links/{linkId}",
         "definition": {
           "entityName": "Link",
           "schema": {
             "$ref": "#/entities/Link"
-          },
-          "description": "Collection to store links (task dependencies) owned by a specific user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "linkId",
-              "description": "The unique identifier for the link."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/users/{userId}/zones/{zoneId}",
+        "path": "/projects/{projectId}/zones/{zoneId}",
         "definition": {
           "entityName": "Zone",
           "schema": {
             "$ref": "#/entities/Zone"
-          },
-          "description": "Collection to store zones (spatial areas) owned by a specific user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "zoneId",
-              "description": "The unique identifier for the zone."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/users/{userId}/history_logs/{historyLogId}",
+        "path": "/projects/{projectId}/history_logs/{historyLogId}",
         "definition": {
           "entityName": "HistoryLog",
           "schema": {
             "$ref": "#/entities/HistoryLog"
-          },
-          "description": "Collection to store history logs for changes made by a specific user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "historyLogId",
-              "description": "The unique identifier for the history log entry."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/users/{userId}/resources/{resourceId}",
+        "path": "/projects/{projectId}/resources/{resourceId}",
         "definition": {
           "entityName": "Resource",
           "schema": {
             "$ref": "#/entities/Resource"
-          },
-          "description": "Collection to store resources owned by a specific user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "resourceId",
-              "description": "The unique identifier for the resource."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/users/{userId}/assignments/{assignmentId}",
+        "path": "/projects/{projectId}/assignments/{assignmentId}",
         "definition": {
           "entityName": "Assignment",
           "schema": {
             "$ref": "#/entities/Assignment"
-          },
-          "description": "Collection to store resource assignments for tasks owned by a specific user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "assignmentId",
-              "description": "The unique identifier for the assignment."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/users/{userId}/calendars/{calendarId}",
+        "path": "/projects/{projectId}/calendars/{calendarId}",
         "definition": {
           "entityName": "Calendar",
           "schema": {
             "$ref": "#/entities/Calendar"
-          },
-          "description": "Collection to store calendars owned by a specific user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "calendarId",
-              "description": "The unique identifier for the calendar."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/users/{userId}/views/{viewId}",
+        "path": "/projects/{projectId}/views/{viewId}",
         "definition": {
           "entityName": "View",
           "schema": {
             "$ref": "#/entities/View"
-          },
-          "description": "Collection to store user-defined views.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "viewId",
-              "description": "The unique identifier for the view."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/users/{userId}/settings/{settingId}",
+        "path": "/projects/{projectId}/settings/{settingId}",
         "definition": {
           "entityName": "UserSettings",
           "schema": {
             "$ref": "#/entities/UserSettings"
           },
-          "description": "Collection to store user-specific application settings. A single document with a known ID 'app_settings' is used.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "settingId",
-              "description": "The unique identifier for the settings document (e.g., 'app_settings')."
-            }
-          ]
+          "description": "This now stores project-specific settings, but shared among users of the project. A single doc 'app_settings' is used."
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to support the OmniPlan AI application, focusing on scalability, security, and maintainability. It leverages structural segregation and denormalization to ensure authorization independence and simplify security rules. The design acknowledges the need for a relational design for tasks, links and zones.\n\n1.  **Authorization Independence:** The structure avoids hierarchical `get()` calls in security rules by denormalizing authorization context where necessary. Since there are no collaborative entities, but rather path-based ownership via the user id, denormalization is simple.\n2.  **Structural Segregation:** Each collection houses documents with a homogeneous security posture. Private user data is stored under the `/users/{userId}` path, ensuring only the authenticated user can access their data. Shared project data would be stored at the project level, with its own security rules. Because there is no collaborative context, this is not needed here.\n3.  **Access Modeling:** The structure adheres to consistent access patterns. Tasks, Links, Zones, HistoryLogs, Resources, Assignments, and Calendars are nested under `/users/{userId}`, clearly indicating ownership. This path-based ownership simplifies the security rules.\n4.  **QAPs (Rules are not Filters):** The structure enables secure `list` operations by ensuring all documents within a collection share the same security requirements. The path-based ownership model allows listing only the documents owned by the authenticated user.\n5. **History Logs**: For the prompt's request to persist modifications to the application state, the data structure includes a `HistoryLog` entity. This entity captures changes made to tasks, links, and zones, including the previous and new states of the modified entities. Because this is considered private data, it is nested under the user.\n\nThis structure allows for future expansion, such as adding collaborative projects or more complex role-based access control, by introducing new top-level collections with appropriate membership maps and security rules."
+    ]
   }
 }

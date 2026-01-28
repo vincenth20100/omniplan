@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/firebase";
-import { signInAnonymously, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { GanttChartSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -19,25 +19,6 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 export function LoginPage() {
     const auth = useAuth();
     const { toast } = useToast();
-
-    const handleAnonymousSignIn = async () => {
-        try {
-            await signInAnonymously(auth);
-        } catch (error) {
-            console.error("Error signing in anonymously: ", error);
-            if (error instanceof FirebaseError) {
-                let description = error.message;
-                if (error.code === 'auth/operation-not-allowed') {
-                    description = "Anonymous sign-in is not enabled. Please enable it in your Firebase project's Authentication settings.";
-                }
-                 toast({
-                    variant: "destructive",
-                    title: "Guest Sign-In Failed",
-                    description: description,
-                });
-            }
-        }
-    };
 
     const handleGoogleSignIn = async () => {
         const provider = new GoogleAuthProvider();
@@ -81,25 +62,12 @@ export function LoginPage() {
                 <h2 className="text-xl font-semibold text-center text-card-foreground">
                     Sign In
                 </h2>
-                <Button onClick={handleGoogleSignIn} className="w-full" variant="outline">
+                <Button onClick={handleGoogleSignIn} className="w-full">
                     <GoogleIcon className="mr-2 h-4 w-4" />
                     Sign In with Google
                 </Button>
-                <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-card px-2 text-muted-foreground">
-                        Or
-                        </span>
-                    </div>
-                </div>
-                <Button onClick={handleAnonymousSignIn} className="w-full" variant="secondary">
-                    Continue as Guest
-                </Button>
                 <p className="text-xs text-center text-muted-foreground px-4">
-                   Guest data is temporary and stored only on this device. Sign in with Google to sync across devices.
+                   Sign in with Google to create and collaborate on projects.
                 </p>
             </div>
         </div>

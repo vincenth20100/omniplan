@@ -168,7 +168,7 @@ export interface ProjectState {
     calendars: Calendar[];
     defaultCalendarId: string | null;
     selectedTaskIds: string[];
-    selectedCells: { taskId: string, columnId: string }[];
+    selectionAnchor: string | null;
     visibleColumns: string[];
     columns: ColumnSpec[];
     uiDensity: UiDensity;
@@ -177,10 +177,30 @@ export interface ProjectState {
     views: View[];
     currentViewId: string | null;
     isDirty?: boolean;
+    multiSelectMode: boolean;
     activeCell: { taskId: string, columnId: string } | null;
-    selectionAnchorCell: { taskId: string, columnId: string } | null;
     editingCell?: { taskId: string, columnId: string, initialValue?: string } | null;
     ganttSettings: GanttSettings;
     notifications: { id: string; type: 'toast'; title: string; description: string }[];
     currentRepresentation: Representation;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  ownerId: string;
+  createdAt: Date;
+  memberIds: string[];
+}
+
+export interface ProjectMember {
+  userId: string;
+  role: 'owner' | 'editor' | 'viewer';
+  displayName: string;
+  photoURL: string;
+}
+
+export interface AppUser {
+    id: string;
+    projectIds: string[];
 }

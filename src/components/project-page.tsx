@@ -30,10 +30,12 @@ import { useToast } from "@/hooks/use-toast";
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { Representation, GanttSettings } from '@/lib/types';
 import { PrintPreviewDialog } from './print-preview';
+import { ProjectMembers } from './project-members';
+import { useFirestore } from '@/firebase';
 
 
-export function ProjectPage({ user }: { user: User }) {
-  const { state, dispatch, isLoaded, canUndo, canRedo, history } = useProject(user);
+export function ProjectPage({ user, projectId }: { user: User, projectId: string }) {
+  const { state, dispatch, isLoaded, canUndo, canRedo, history } = useProject(user, projectId);
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
@@ -46,6 +48,7 @@ export function ProjectPage({ user }: { user: User }) {
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
+  const firestore = useFirestore();
 
   useEffect(() => {
     if (state.notifications && state.notifications.length > 0) {
@@ -241,7 +244,11 @@ export function ProjectPage({ user }: { user: User }) {
     </div>
   );
 
-  const headerRightActions = null;
+  const headerRightActions = (
+    <>
+      <ProjectMembers projectId={projectId} firestore={firestore} />
+    </>
+  );
 
   const renderContent = () => {
     if (!isLoaded) {
