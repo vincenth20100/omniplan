@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useReducer, useEffect, useState, useMemo, useCallback } from 'react';
@@ -981,11 +980,14 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'LOAD_PROJECT': {
         const loaded = action.payload;
+        const ganttSettings = { ...initialState.ganttSettings, ...(loaded.ganttSettings || {}) };
+        const stylePresets = loaded.stylePresets?.length ? loaded.stylePresets : defaultStylePresets;
+        
         const loadedState = { 
             ...initialState, 
             ...loaded,
-            ganttSettings: { ...initialState.ganttSettings, ...(loaded.ganttSettings || {}) },
-            stylePresets: loaded.stylePresets || defaultStylePresets,
+            ganttSettings: ganttSettings,
+            stylePresets: stylePresets,
         };
         const scheduledTasks = runScheduler(loadedState.tasks, loadedState.links, loadedState.columns, loadedState.calendars, loadedState.defaultCalendarId);
         return {
@@ -1499,16 +1501,39 @@ export function useProject(user: User, projectId: string | null) {
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [isEditorOrOwner, setIsEditorOrOwner] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
   // This effect ensures we clear the permission state when the user or project changes.
   useEffect(() => {
-    setIsEditorOrOwner(false);
+    setIsAdmin(false);
+    setIsCheckingAdmin(true);
   }, [user, projectId]);
+
+  // Effect to get admin status
+  useEffect(() => {
+    if (user) {
+      setIsCheckingAdmin(true);
+      user.getIdTokenResult().then((idTokenResult) => {
+        setIsAdmin(!!idTokenResult.claims.admin);
+        setIsCheckingAdmin(false);
+      });
+    } else {
+        setIsAdmin(false);
+        setIsCheckingAdmin(false);
+    }
+  }, [user]);
 
   const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
       useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
   );
+  
+  const isEditorOrOwner = useMemo(() => {
+    if (isMemberLoading || isCheckingAdmin) {
+      return false; // Default to non-editor while loading to be safe
+    }
+    return isAdmin || member?.role === 'editor' || member?.role === 'owner';
+  }, [isMemberLoading, isCheckingAdmin, member, isAdmin]);
   
   const dispatch = useCallback((action: Action) => {
     if (!user || !projectId) {
@@ -1537,9 +1562,7 @@ export function useProject(user: User, projectId: string | null) {
 
 
     if (isEditAction(action)) {
-        // We now get the role directly from the 'member' state variable which is kept up-to-date by the useDoc hook.
-        const currentRole = member?.role;
-        if (currentRole !== 'editor' && currentRole !== 'owner') {
+        if (!isEditorOrOwner) {
              toast({
                 variant: 'destructive',
                 title: 'Permission Denied',
@@ -1665,16 +1688,8 @@ export function useProject(user: User, projectId: string | null) {
             });
         });
     }
-  }, [user, projectId, firestore, toast, historyState.present, member]);
+  }, [user, projectId, firestore, toast, historyState.present, isEditorOrOwner]);
   
-  useEffect(() => {
-    if (!isMemberLoading && member) {
-        setIsEditorOrOwner(member.role === 'editor' || member.role === 'owner');
-    } else if (!isMemberLoading && !member) {
-        setIsEditorOrOwner(false);
-    }
-  }, [isMemberLoading, member]);
-
   const collections = {
     tasks: useCollection<Task>(useMemoFirebase(() => projectId ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId])),
     links: useCollection<Link>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId])),
