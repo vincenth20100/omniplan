@@ -3,7 +3,9 @@
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/firebase";
 import { signInAnonymously, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { FirebaseError } from "firebase/app";
 import { GanttChartSquare } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg role="img" viewBox="0 0 24 24" {...props}>
@@ -16,12 +18,20 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export function LoginPage() {
     const auth = useAuth();
+    const { toast } = useToast();
 
     const handleAnonymousSignIn = async () => {
         try {
             await signInAnonymously(auth);
         } catch (error) {
             console.error("Error signing in anonymously: ", error);
+            if (error instanceof FirebaseError) {
+                 toast({
+                    variant: "destructive",
+                    title: "Guest Sign-In Failed",
+                    description: error.message,
+                });
+            }
         }
     };
 
@@ -31,6 +41,23 @@ export function LoginPage() {
             await signInWithPopup(auth, provider);
         } catch (error) {
             console.error("Error signing in with Google: ", error);
+            if (error instanceof FirebaseError) {
+                // Don't show toast for user-cancelled popups
+                if (error.code === 'auth/popup-closed-by-user') {
+                    return;
+                }
+                toast({
+                    variant: "destructive",
+                    title: "Google Sign-In Failed",
+                    description: error.message,
+                });
+            } else {
+                 toast({
+                    variant: "destructive",
+                    title: "An unexpected error occurred",
+                    description: "Please try again.",
+                });
+            }
         }
     };
 
