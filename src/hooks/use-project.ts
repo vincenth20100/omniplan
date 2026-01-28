@@ -162,7 +162,7 @@ type Action =
  * removing calculated fields and converting `undefined` to `null`.
  */
 const toFirestoreTask = (task: Task) => {
-  const { id, isCritical, totalFloat, lateStart, lateFinish, ...rest } = task;
+  const { isCritical, totalFloat, lateStart, lateFinish, ...rest } = task;
 
   const cleanTask: Record<string, any> = { ...rest };
 
@@ -243,6 +243,38 @@ function getVisibleTasks(tasks: Task[]): Task[] {
         return true;
     });
 };
+
+function isCycle(sourceId: string, targetId: string, links: Link[]): boolean {
+    if (sourceId === targetId) return true;
+
+    const successorsMap = new Map<string, string[]>();
+    links.forEach(link => {
+        if (!successorsMap.has(link.source)) {
+            successorsMap.set(link.source, []);
+        }
+        successorsMap.get(link.source)!.push(link.target);
+    });
+
+    const queue: string[] = [targetId];
+    const visited = new Set<string>([targetId]);
+
+    while (queue.length > 0) {
+        const currentId = queue.shift()!;
+        
+        const successors = successorsMap.get(currentId) || [];
+        for (const successorId of successors) {
+            if (successorId === sourceId) {
+                return true; // Cycle detected
+            }
+            if (!visited.has(successorId)) {
+                visited.add(successorId);
+                queue.push(successorId);
+            }
+        }
+    }
+
+    return false;
+}
 
 function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null): Task[] => {
@@ -788,6 +820,23 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, links: allLinks, tasks: scheduledTasks };
     }
     case 'ADD_LINK': {
+        const { source, target } = action.payload;
+
+        if (isCycle(source, target, state.links)) {
+            return {
+                ...state,
+                notifications: [
+                    ...state.notifications,
+                    {
+                        id: `toast-cycle-${Date.now()}`,
+                        type: 'toast',
+                        title: "Circular Reference Error",
+                        description: "This link cannot be created as it would cause a circular dependency."
+                    }
+                ]
+            };
+        }
+
         const newLink: Link = {
             id: crypto.randomUUID(),
             source: action.payload.source,
@@ -821,11 +870,39 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             return `${relatedTaskWbs}${l.type}${lagString}`;
         }));
         
-        const newRelations = new Set(value.split(',').map(s => s.trim()).filter(Boolean));
+        const newRelationsStrings = value.split(',').map(s => s.trim()).filter(Boolean);
+        const newRelationsSet = new Set(newRelationsStrings);
         
-        const relationsToRemove = [...existingRelations].filter(r => !newRelations.has(r));
-        const relationsToAdd = [...newRelations].filter(r => !existingRelations.has(r));
+        const relationsToRemove = [...existingRelations].filter(r => !newRelationsSet.has(r));
+        const relationsToAdd = [...newRelationsSet].filter(r => !existingRelations.has(r));
 
+        const linkParseRegex = /^([\d.]+)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
+
+        for (const rel of relationsToAdd) {
+            const match = rel.match(linkParseRegex);
+            if (!match) continue; 
+            const wbs = match[1];
+            const relatedTaskId = wbsToIdMap.get(wbs);
+            if (relatedTaskId && relatedTaskId !== taskId) {
+                const source = field === 'predecessors' ? relatedTaskId : taskId;
+                const target = field === 'predecessors' ? taskId : relatedTaskId;
+                if (isCycle(source, target, links)) {
+                     return {
+                        ...state,
+                        notifications: [
+                            ...state.notifications,
+                            {
+                                id: `toast-cycle-${Date.now()}`,
+                                type: 'toast',
+                                title: "Circular Reference Error",
+                                description: "One or more links could not be created as they would cause a circular dependency."
+                            }
+                        ]
+                    };
+                }
+            }
+        }
+        
         const linksToRemove = existingLinks.filter(l => {
              const relatedTaskWbs = idToWbsMap.get(field === 'predecessors' ? l.source : l.target) || '';
              let lagString = '';
@@ -835,8 +912,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
              return relationsToRemove.includes(relationString);
         });
 
-        const linkParseRegex = /^([\d.]+)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
-        const newLinkObjects: Link[] = relationsToAdd.map((rel, i) => {
+        const newLinkObjects: Link[] = relationsToAdd.map((rel) => {
             const match = rel.match(linkParseRegex);
             if (!match) return null;
             
@@ -878,11 +954,20 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         const firstSelectedIndex = tasks.findIndex(t => t.id === firstSelectedId);
         if (firstSelectedIndex === 0) return state;
-
-        const taskAbove = tasks[firstSelectedIndex - 1];
-        const newParentId = (taskAbove.level || 0) > 0 ? taskAbove.parentId : taskAbove.id;
         
-        if (newParentId === null) return state;
+        const taskAbove = tasks[firstSelectedIndex - 1];
+        let newParentId: string | null | undefined;
+        
+        if (taskAbove) {
+            // If the task above is at the same or deeper level, become its sibling by taking its parent
+            if ((taskAbove.level || 0) >= (taskMap.get(firstSelectedId)!.level || 0)) {
+                 newParentId = taskAbove.parentId;
+            } else { // Otherwise, become its child
+                 newParentId = taskAbove.id;
+            }
+        } else {
+            return state;
+        }
 
         const newParent = newParentId ? taskMap.get(newParentId) : null;
 
@@ -890,7 +975,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             let p: Task | undefined | null = newParent;
             while (p) {
                 if (p.id === taskId) {
-                    return state;
+                    return state; // Prevent indenting under a child
                 }
                 p = p.parentId ? taskMap.get(p.parentId) : null;
             }
@@ -916,19 +1001,19 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const notifications: ProjectState['notifications'] = [];
 
         if (newlySummaryTasks.size > 0) {
-            const parentTaskName = taskMap.get(Array.from(newlySummaryTasks)[0])?.name;
-
-            const linksToBeRemoved = state.links.filter(link => 
-                newlySummaryTasks.has(link.source) || newlySummaryTasks.has(link.target)
-            );
-            if (linksToBeRemoved.length > 0) {
-                 newLinks = state.links.filter(link => !linksToBeRemoved.some(l => l.id === link.id));
-                 notifications.push({
-                     id: `toast-${Date.now()}`,
-                     type: 'toast',
-                     title: "Dependencies Removed",
-                     description: `Existing links on "${parentTaskName}" were removed as it became a summary task. This prevents scheduling conflicts.`
-                 });
+            for (const parentId of newlySummaryTasks) {
+                const parentTaskName = taskMap.get(parentId)?.name;
+                const linksToBeRemoved = newLinks.filter(link => link.source === parentId || link.target === parentId);
+                
+                if (linksToBeRemoved.length > 0) {
+                     newLinks = newLinks.filter(link => !linksToBeRemoved.some(l => l.id === link.id));
+                     notifications.push({
+                         id: `toast-${Date.now()}`,
+                         type: 'toast',
+                         title: "Dependencies Removed",
+                         description: `Existing links on "${parentTaskName}" were removed as it became a summary task. This prevents scheduling conflicts.`
+                     });
+                }
             }
         }
 

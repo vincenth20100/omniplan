@@ -131,7 +131,6 @@ const TaskCellRenderer = React.memo(({
             return <div className="truncate">{resourceNames}</div>;
         }
         case 'predecessors': {
-            if (task.isSummary) return null;
             const predecessorLinks = links.filter(l => l.target === task.id);
             const predecessorString = predecessorLinks.map(l => {
                 const sourceWbs = idToWbsMap.get(l.source);
@@ -142,6 +141,10 @@ const TaskCellRenderer = React.memo(({
                 return `${sourceWbs}${l.type}${lagString}`;
             }).join(', ');
             
+            if (task.isSummary) {
+                return <div className="truncate">{predecessorString}</div>;
+            }
+
             return (
                 <EditableCell
                     value={predecessorString}
@@ -155,7 +158,6 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'successors': {
-            if (task.isSummary) return null;
             const successorLinks = links.filter(l => l.source === task.id);
             const successorString = successorLinks.map(l => {
                 const targetWbs = idToWbsMap.get(l.target);
@@ -165,6 +167,10 @@ const TaskCellRenderer = React.memo(({
                 if (l.lag < 0) lagString = `${l.lag}d`;
                 return `${targetWbs}${l.type}${lagString}`;
             }).join(', ');
+
+            if (task.isSummary) {
+                return <div className="truncate">{successorString}</div>;
+            }
             
             return (
                 <EditableCell
