@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import type { Task, Link, UiDensity, Calendar, GanttSettings } from '@/lib/types';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -42,6 +43,28 @@ export function Timeline({
 }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
+
+  const pendingElementsRef = useRef<Map<string, HTMLDivElement | null>>(new Map());
+
+  useEffect(() => {
+    if (pendingElementsRef.current.size === 0) {
+      return;
+    }
+    const newElements = new Map(pendingElementsRef.current);
+    pendingElementsRef.current.clear();
+    
+    setTaskBarElements(prev => {
+        let hasChanged = false;
+        const next = {...prev};
+        for(const [taskId, element] of newElements.entries()) {
+            if (prev[taskId] !== element) {
+                next[taskId] = element;
+                hasChanged = true;
+            }
+        }
+        return hasChanged ? next : prev;
+    });
+  });
 
   const { rowHeight } = DENSITY_SETTINGS[uiDensity];
 
@@ -96,10 +119,7 @@ export function Timeline({
   }, [viewStartDate, viewEndDate, scale]);
 
   const registerBarElement = useCallback((taskId: string, element: HTMLDivElement | null) => {
-    setTaskBarElements(prev => {
-        if (prev[taskId] === element) return prev;
-        return { ...prev, [taskId]: element };
-    });
+    pendingElementsRef.current.set(taskId, element);
   }, []);
   
   const taskIndexMap = useMemo(() => {
