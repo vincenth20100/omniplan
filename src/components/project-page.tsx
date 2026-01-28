@@ -33,6 +33,7 @@ import { PrintPreviewDialog } from './print-preview';
 import { ProjectMembers } from './project-members';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { ThemeManagementDialog } from './gantt-settings/theme-management-dialog';
 
 const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], customStyles: GanttSettings['customStyles'] }) => {
   useEffect(() => {
@@ -77,6 +78,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [isGanttSettingsOpen, setIsGanttSettingsOpen] = useState(false);
+  const [isThemeManagerOpen, setIsThemeManagerOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
   const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
@@ -402,9 +404,18 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             open={isGanttSettingsOpen}
             onOpenChange={setIsGanttSettingsOpen}
             settings={state.ganttSettings}
+            stylePresets={state.stylePresets}
+            activeStylePresetId={state.activeStylePresetId}
             dispatch={dispatch}
-            isEditor={isEditorOrOwner}
+            onManageThemes={() => setIsThemeManagerOpen(true)}
           />
+          <ThemeManagementDialog
+            open={isThemeManagerOpen}
+            onOpenChange={setIsThemeManagerOpen}
+            stylePresets={state.stylePresets}
+            currentSettings={state.ganttSettings}
+            dispatch={dispatch}
+           />
           <HistoryPanel
             open={isHistoryOpen}
             onOpenChange={setIsHistoryOpen}

@@ -161,6 +161,16 @@ export interface GanttSettings {
   };
 }
 
+export interface StylePreset {
+  id: string;
+  name: string;
+  isDefault?: boolean;
+  settings: {
+    theme: 'light' | 'dark' | 'sepia';
+    customStyles?: GanttSettings['customStyles'];
+  };
+}
+
 export interface HistoryEntry {
     actionType: string;
     timestamp: Date;
@@ -191,6 +201,8 @@ export interface ProjectState {
     activeCell: { taskId: string, columnId: string } | null;
     editingCell?: { taskId: string, columnId: string, initialValue?: string } | null;
     ganttSettings: GanttSettings;
+    stylePresets: StylePreset[];
+    activeStylePresetId: string | null;
     notifications: { id: string; type: 'toast'; title: string; description: string }[];
     currentRepresentation: Representation;
 }

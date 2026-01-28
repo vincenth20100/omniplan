@@ -17,12 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { GanttSettings } from "@/lib/types";
+import type { GanttSettings, StylePreset } from "@/lib/types";
 import { Input } from "../ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useId } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "../ui/button";
+import { isEqual } from 'lodash';
 
 const ColorPicker = ({ label, value, onChange, disabled }: { label: string, value: string, onChange: (value: string) => void, disabled?: boolean }) => {
   const id = useId();
@@ -40,7 +42,7 @@ const ColorPicker = ({ label, value, onChange, disabled }: { label: string, valu
         />
         <Input 
           type="color" 
-          value={value} 
+          value={value || '#000000'}
           onChange={(e) => onChange(e.target.value)} 
           className="w-8 h-8 p-1 disabled:opacity-50"
           disabled={disabled}
@@ -54,14 +56,18 @@ export function GanttSettingsPanel({
   open,
   onOpenChange,
   settings,
+  stylePresets,
+  activeStylePresetId,
   dispatch,
-  isEditor,
+  onManageThemes,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   settings: GanttSettings;
+  stylePresets: StylePreset[];
+  activeStylePresetId: string | null;
   dispatch: any;
-  isEditor?: boolean;
+  onManageThemes: () => void;
 }) {
   const handleSettingChange = (key: keyof GanttSettings, value: any) => {
     dispatch({
@@ -84,7 +90,6 @@ export function GanttSettingsPanel({
           <SheetTitle>Display Options</SheetTitle>
           <SheetDescription>
             Customize the appearance of the Gantt chart and grid.
-            {!isEditor && <p className="text-destructive mt-2">Some shared settings can only be changed by an editor.</p>}
           </SheetDescription>
         </SheetHeader>
         <ScrollArea className="flex-grow pr-4 -mr-6">
@@ -95,28 +100,38 @@ export function GanttSettingsPanel({
               <div className="space-y-4">
                  <div className="flex items-center justify-between">
                   <Label htmlFor="theme-select">Theme</Label>
-                  <Select
-                    value={settings.theme || 'dark'}
-                    onValueChange={(value: 'light' | 'dark' | 'sepia') => handleSettingChange('theme', value)}
-                  >
-                    <SelectTrigger id="theme-select" className="w-[180px]">
-                      <SelectValue placeholder="Select theme" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="sepia">Sepia</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select
+                        value={activeStylePresetId || 'custom'}
+                        onValueChange={(value) => {
+                            if (value !== 'custom') {
+                                dispatch({ type: 'SET_ACTIVE_STYLE_PRESET', payload: { id: value }});
+                            }
+                        }}
+                    >
+                        <SelectTrigger id="theme-select" className="w-[180px]">
+                        <SelectValue placeholder="Select theme" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {stylePresets.map(preset => (
+                            <SelectItem key={preset.id} value={preset.id}>
+                              {preset.name}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="custom" disabled={activeStylePresetId !== null}>
+                            Custom
+                          </SelectItem>
+                        </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                  <div className="flex items-center justify-between">
-                  <Label htmlFor="date-format" className={cn(!isEditor && 'opacity-50')}>Date Format</Label>
+                  <Label htmlFor="date-format">Date Format</Label>
                     <Input
                       id="date-format"
                       value={settings.dateFormat || 'MMM d, yyyy'}
                       onChange={(e) => handleSettingChange('dateFormat', e.target.value)}
                       className="w-[180px] h-9"
-                      disabled={!isEditor}
                       />
                 </div>
                  <p className="text-xs text-muted-foreground -mt-2">
@@ -231,7 +246,24 @@ export function GanttSettingsPanel({
               <AccordionItem value="item-1">
                 <AccordionTrigger>Customize Theme</AccordionTrigger>
                 <AccordionContent>
-                  <div className="space-y-4 pt-2">
+                  <div className="space-y-4 pt-4">
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="base-theme-select">Base Theme</Label>
+                        <Select
+                            value={settings.theme || 'dark'}
+                            onValueChange={(value: 'light' | 'dark' | 'sepia') => handleSettingChange('theme', value)}
+                        >
+                            <SelectTrigger id="base-theme-select" className="w-[180px]">
+                                <SelectValue placeholder="Select base theme" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            <SelectItem value="dark">Dark</SelectItem>
+                            <SelectItem value="light">Light</SelectItem>
+                            <SelectItem value="sepia">Sepia</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <Separator />
                     <ColorPicker
                       label="Gantt Bar (Default)"
                       value={settings.customStyles?.ganttBarDefault || ''}
@@ -268,6 +300,8 @@ export function GanttSettingsPanel({
                       value={settings.customStyles?.taskRowLevel2PlusBg || ''}
                       onChange={(value) => handleCustomStyleChange('taskRowLevel2PlusBg', value)}
                     />
+                    <Separator className="my-4" />
+                    <Button variant="outline" className="w-full" onClick={onManageThemes}>Manage Custom Themes...</Button>
                   </div>
                 </AccordionContent>
               </AccordionItem>
