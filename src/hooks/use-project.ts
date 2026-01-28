@@ -162,9 +162,9 @@ type Action =
  * removing calculated fields and converting `undefined` to `null`.
  */
 const toFirestoreTask = (task: Task) => {
-  const { isCritical, totalFloat, lateStart, lateFinish, wbs, level, isSummary, ...rest } = task;
+  const { isCritical, totalFloat, lateStart, lateFinish, ...rest } = task;
 
-  const cleanTask: Record<string, any> = { wbs, level, isSummary, ...rest };
+  const cleanTask: Record<string, any> = { ...rest };
 
   // Ensure no undefined values are sent
   for (const key in cleanTask) {
@@ -1117,7 +1117,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         let newParentId: string | null | undefined;
         
         if (taskAbove) {
-            if ((taskAbove.level || 0) >= (taskMap.get(firstSelectedId)!.level || 0)) {
+            // If the task above is at a greater level, we become a sibling to it.
+            // Otherwise, we become a child of it.
+            if ((taskAbove.level || 0) > (taskMap.get(firstSelectedId)!.level || 0)) {
                  newParentId = taskAbove.parentId;
             } else {
                  newParentId = taskAbove.id;
@@ -1439,7 +1441,6 @@ export function useProject(user: User) {
             } else {
                  if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
                      const updateData = toFirestoreTask(newTask);
-                     delete (updateData as Partial<Task>).id;
                      batch.update(doc(firestore, 'users', user.uid, 'tasks', newTask.id), updateData);
                  }
             }
