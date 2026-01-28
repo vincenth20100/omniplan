@@ -24,59 +24,6 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     highlightCriticalPath: boolean;
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
-    const isSummary = task.isSummary;
-
-    const { rowHeight, barHeight, summaryBarHeight } = DENSITY_SETTINGS[uiDensity];
-
-    useEffect(() => {
-        registerBarElement(task.id, barRef.current);
-        return () => registerBarElement(task.id, null);
-    }, [task.id, registerBarElement]);
-    
-    // Milestone rendering
-    if (task.duration === 0 && !isSummary) {
-        const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
-        const milestoneSize = 20;
-        const left = offsetDays * scale + scale / 2 - milestoneSize / 2;
-        const top = row * rowHeight + (rowHeight - milestoneSize) / 2;
-
-        return (
-            <div
-                ref={barRef}
-                className={cn("absolute flex items-center justify-center cursor-pointer", isSelected ? "z-10" : "")}
-                style={{
-                    top: `${top}px`,
-                    left: `${left}px`,
-                    width: `${milestoneSize}px`,
-                    height: `${milestoneSize}px`,
-                }}
-                onClick={onSelect}
-                title={`${task.name}\n${format(task.start, 'MMM d, yyyy')}`}
-            >
-                <svg width={milestoneSize} height={milestoneSize} viewBox="0 0 24 24" className={cn(
-                    "drop-shadow-md",
-                    task.isCritical && highlightCriticalPath ? "fill-destructive" : "fill-primary",
-                )}>
-                    <path d="M12 2L2 12L12 22L22 12L12 2Z"
-                        stroke={isSelected ? 'hsl(var(--accent))' : 'hsl(var(--card))'}
-                        strokeWidth="2"
-                    />
-                </svg>
-                 {showTaskLabels && (
-                    <span className="absolute text-xs whitespace-nowrap pl-2" style={{ left: `${milestoneSize}px`}}>
-                        {task.name}
-                    </span>
-                )}
-            </div>
-        );
-    }
-
-
-    const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
-    const left = offsetDays * scale;
-    const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
-    const top = row * rowHeight + (rowHeight - (isSummary ? summaryBarHeight : barHeight)) / 2;
-
     const dragStartInfo = useRef<{
         startX: number;
         originalStart: Date;
@@ -84,6 +31,14 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         mode: DragMode;
     } | null>(null);
 
+    const isSummary = task.isSummary;
+    const { rowHeight, barHeight, summaryBarHeight } = DENSITY_SETTINGS[uiDensity];
+
+    useEffect(() => {
+        registerBarElement(task.id, barRef.current);
+        return () => registerBarElement(task.id, null);
+    }, [task.id, registerBarElement]);
+    
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, mode: DragMode) => {
         if (isSummary || !mode) return;
         e.preventDefault();
@@ -155,6 +110,50 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         document.removeEventListener('touchmove', handleTouchMove);
         document.removeEventListener('touchend', handleTouchEnd);
     };
+
+    // Milestone rendering
+    if (task.duration === 0 && !isSummary) {
+        const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
+        const milestoneSize = 20;
+        const left = offsetDays * scale + scale / 2 - milestoneSize / 2;
+        const top = row * rowHeight + (rowHeight - milestoneSize) / 2;
+
+        return (
+            <div
+                ref={barRef}
+                className={cn("absolute flex items-center justify-center cursor-pointer", isSelected ? "z-10" : "")}
+                style={{
+                    top: `${top}px`,
+                    left: `${left}px`,
+                    width: `${milestoneSize}px`,
+                    height: `${milestoneSize}px`,
+                }}
+                onClick={onSelect}
+                title={`${task.name}\n${format(task.start, 'MMM d, yyyy')}`}
+            >
+                <svg width={milestoneSize} height={milestoneSize} viewBox="0 0 24 24" className={cn(
+                    "drop-shadow-md",
+                    task.isCritical && highlightCriticalPath ? "fill-destructive" : "fill-primary",
+                )}>
+                    <path d="M12 2L2 12L12 22L22 12L12 2Z"
+                        stroke={isSelected ? 'hsl(var(--accent))' : 'hsl(var(--card))'}
+                        strokeWidth="2"
+                    />
+                </svg>
+                 {showTaskLabels && (
+                    <span className="absolute text-xs whitespace-nowrap pl-2" style={{ left: `${milestoneSize}px`}}>
+                        {task.name}
+                    </span>
+                )}
+            </div>
+        );
+    }
+
+
+    const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
+    const left = offsetDays * scale;
+    const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
+    const top = row * rowHeight + (rowHeight - (isSummary ? summaryBarHeight : barHeight)) / 2;
 
     return (
         <div
