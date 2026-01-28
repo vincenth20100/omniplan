@@ -1629,6 +1629,10 @@ export function useProject(user: User, projectId: string | null) {
         const hidden = project.rolePermissions.viewer.hiddenColumns;
         finalVisibleColumns = finalVisibleColumns.filter(colId => !hidden.includes(colId));
     }
+    if (member?.role === 'editor' && project?.rolePermissions?.editor?.hiddenColumns) {
+        const hidden = project.rolePermissions.editor.hiddenColumns;
+        finalVisibleColumns = finalVisibleColumns.filter(colId => !hidden.includes(colId));
+    }
 
 
     internalDispatch({
@@ -1684,5 +1688,3 @@ export function useProject(user: User, projectId: string | null) {
     }
   };
 }
-
-    

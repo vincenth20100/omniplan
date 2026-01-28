@@ -48,6 +48,18 @@
                   "description": "An array of column IDs that should be hidden for users with the 'viewer' role."
                 }
               }
+            },
+            "editor": {
+              "type": "object",
+              "properties": {
+                "hiddenColumns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "An array of column IDs that should be hidden for users with the 'editor' role."
+                }
+              }
             }
           }
         }
@@ -679,5 +691,3 @@
     ]
   }
 }
-
-    

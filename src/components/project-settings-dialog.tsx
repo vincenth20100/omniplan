@@ -47,6 +47,7 @@ export function ProjectSettingsDialog({
     const [description, setDescription] = useState(project.description || '');
     const [members, setMembers] = useState<EditableMember[]>([]);
     const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+    const [editorHiddenColumns, setEditorHiddenColumns] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
@@ -54,6 +55,7 @@ export function ProjectSettingsDialog({
             setName(project.name);
             setDescription(project.description || '');
             setHiddenColumns(project.rolePermissions?.viewer?.hiddenColumns || []);
+            setEditorHiddenColumns(project.rolePermissions?.editor?.hiddenColumns || []);
         }
     }, [open, project]);
     
@@ -75,6 +77,14 @@ export function ProjectSettingsDialog({
         }
     };
 
+    const handleEditorColumnVisibilityChange = (columnId: string, checked: boolean) => {
+        if (checked) {
+            setEditorHiddenColumns([...editorHiddenColumns, columnId]);
+        } else {
+            setEditorHiddenColumns(editorHiddenColumns.filter(id => id !== columnId));
+        }
+    };
+
     const handleSave = async () => {
         if (!firestore) return;
         setIsSaving(true);
@@ -87,7 +97,10 @@ export function ProjectSettingsDialog({
             if (name !== project.name) projectUpdates.name = name;
             if (description !== (project.description || '')) projectUpdates.description = description;
 
-            const newRolePermissions = { viewer: { hiddenColumns } };
+            const newRolePermissions = {
+                viewer: { hiddenColumns },
+                editor: { hiddenColumns: editorHiddenColumns }
+            };
             if (JSON.stringify(newRolePermissions) !== JSON.stringify(project.rolePermissions || {})) {
                  projectUpdates.rolePermissions = newRolePermissions;
             }
@@ -192,6 +205,31 @@ export function ProjectSettingsDialog({
                             </div>
                         </ScrollArea>
                      </div>
+                     <Separator />
+                     {/* Editor Permissions */}
+                     <div className="space-y-2">
+                        <h3 className="font-semibold">Editor Permissions</h3>
+                        <p className="text-sm text-muted-foreground">Select columns to hide from users with the "Editor" role.</p>
+                        <ScrollArea className="h-48 border rounded-md p-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                {allColumns.filter(c => c.id !== 'wbs' && c.id !== 'name').map(col => (
+                                    <div key={col.id} className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`col-vis-editor-${col.id}`}
+                                            checked={editorHiddenColumns.includes(col.id)}
+                                            onCheckedChange={(checked) => handleEditorColumnVisibilityChange(col.id, !!checked)}
+                                        />
+                                        <label
+                                            htmlFor={`col-vis-editor-${col.id}`}
+                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                        >
+                                            {col.name}
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                     </div>
                 </div>
                 <DialogFooter>
                     <Button variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -204,5 +242,3 @@ export function ProjectSettingsDialog({
         </Dialog>
     );
 }
-
-    

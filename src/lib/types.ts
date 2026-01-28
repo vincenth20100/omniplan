@@ -195,6 +195,9 @@ export interface Project {
   rolePermissions?: {
       viewer?: {
           hiddenColumns?: string[];
+      },
+      editor?: {
+          hiddenColumns?: string[];
       }
   };
 }
@@ -210,5 +213,3 @@ export interface AppUser {
     id: string;
     projectIds: string[];
 }
-
-    
