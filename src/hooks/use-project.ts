@@ -1416,35 +1416,44 @@ export function useProject(user: User, projectId: string | null) {
         internalDispatch(action);
         return;
     }
-    
+
+    // Define action categories
     const settingsActions = [
       'SAVE_VIEW_AS', 'UPDATE_CURRENT_VIEW', 'SET_GROUPING', 'SET_FILTERS',
       'SET_COLUMNS', 'ADD_COLUMN', 'UPDATE_COLUMN', 'REMOVE_COLUMN',
       'RESIZE_COLUMN', 'REORDER_COLUMNS', 'SET_UI_DENSITY',
       'UPDATE_GANTT_SETTINGS', 'DELETE_VIEW', 'SET_VIEW'
     ];
+    const optimisticActions: Action['type'][] = [
+      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
+    ];
+    const nonOptimisticActions: Action['type'][] = [
+      'UPDATE_LINK', 'ADD_TASK', 'REMOVE_TASK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK',
+      'UPDATE_RELATIONSHIPS', 'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
+      'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
+      'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE',
+    ];
     
-    if (settingsActions.includes(action.type)) {
-      if (!isEditorOrOwner) {
+    // Determine if the action requires write permissions
+    const isWriteAction = optimisticActions.includes(action.type) || 
+                          nonOptimisticActions.includes(action.type) ||
+                          settingsActions.includes(action.type);
+
+    // Centralized permission check
+    if (isWriteAction && !isEditorOrOwner) {
         toast({
-          variant: 'destructive',
-          title: 'Permission Denied',
-          description: 'You do not have permission to change project settings.',
+            variant: 'destructive',
+            title: 'Permission Denied',
+            description: 'You do not have permission to perform this action.',
         });
         return;
-      }
     }
 
-    const optimisticActions: Action['type'][] = [
-        'ADD_NOTE_TO_TASK',
-        'UPDATE_TASK',
-        'UPDATE_RESOURCE',
-        'UPDATE_CALENDAR',
-    ];
-
+    // Now, handle the action based on its category
     if (optimisticActions.includes(action.type)) {
-        internalDispatch(action);
+        internalDispatch(action); // Optimistically update UI
 
+        // Perform Firestore write in the background
         switch(action.type) {
             case 'ADD_NOTE_TO_TASK':
             case 'UPDATE_TASK': {
@@ -1468,24 +1477,9 @@ export function useProject(user: User, projectId: string | null) {
                 break;
             }
         }
-        return;
-    }
-
-
-    const nonOptimisticActions: Action['type'][] = [
-        'UPDATE_LINK',
-        'ADD_TASK', 'REMOVE_TASK', 
-        'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
-        'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
-        'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
-        'ADD_TASKS_FROM_PASTE',
-        'FIND_AND_REPLACE',
-    ];
-
-    if (nonOptimisticActions.includes(action.type)) {
+    } else if (nonOptimisticActions.includes(action.type)) {
         const currentState = historyState.present;
         const newState = projectReducer(currentState, action);
-
         const batch = writeBatch(firestore);
 
         newState.tasks.forEach(newTask => {
@@ -1584,55 +1578,52 @@ export function useProject(user: User, projectId: string | null) {
               description: `Your action (${action.type}) could not be saved. Please try again.`,
             });
         });
-        return;
-
-    } else { // Settings & View actions can be dispatched and saved in background
+    } else {
+        // This block handles settings actions and read-only (UI-only) actions
         internalDispatch(action);
 
-        switch (action.type) {
-            case 'SAVE_VIEW_AS':
-            case 'UPDATE_CURRENT_VIEW':
-            case 'SET_GROUPING':
-            case 'SET_FILTERS':
-            case 'SET_COLUMNS':
-            case 'ADD_COLUMN':
-            case 'UPDATE_COLUMN':
-            case 'REMOVE_COLUMN':
-            case 'RESIZE_COLUMN':
-            case 'REORDER_COLUMNS':
-            case 'SET_UI_DENSITY':
-            case 'UPDATE_GANTT_SETTINGS': {
-                const newState = projectReducer(historyState.present, action);
-                const settingsToUpdate = {
-                    columns: newState.columns,
-                    uiDensity: newState.uiDensity,
-                    ganttSettings: newState.ganttSettings,
-                    visibleColumns: newState.visibleColumns,
-                    grouping: newState.grouping,
-                    filters: newState.filters,
-                };
-                updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), settingsToUpdate);
-
-                if (action.type === 'SAVE_VIEW_AS') {
+        if (settingsActions.includes(action.type)) {
+            // Firestore write is only performed for settings actions
+            const newState = projectReducer(historyState.present, action);
+             const settingsToUpdate = {
+                columns: newState.columns,
+                uiDensity: newState.uiDensity,
+                ganttSettings: newState.ganttSettings,
+                visibleColumns: newState.visibleColumns,
+                grouping: newState.grouping,
+                filters: newState.filters,
+            };
+            
+             switch(action.type) {
+                case 'SAVE_VIEW_AS': {
+                    updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), settingsToUpdate);
                     const newView = newState.views.find(v => v.id === newState.currentViewId);
                     if (newView) setDocumentNonBlocking(doc(firestore, 'projects', projectId, 'views', newView.id), newView, {});
+                    break;
                 }
-                if (action.type === 'UPDATE_CURRENT_VIEW' && newState.currentViewId) {
-                    const updatedView = newState.views.find(v => v.id === newState.currentViewId);
-                    if (updatedView) {
-                        const { id, ...viewData } = updatedView;
-                        updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'views', id), viewData);
+                case 'UPDATE_CURRENT_VIEW': {
+                    updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), settingsToUpdate);
+                     if (newState.currentViewId) {
+                        const updatedView = newState.views.find(v => v.id === newState.currentViewId);
+                        if (updatedView) {
+                            const { id, ...viewData } = updatedView;
+                            updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'views', id), viewData);
+                        }
                     }
+                    break;
                 }
-                break;
-            }
-            case 'DELETE_VIEW': {
-                deleteDocumentNonBlocking(doc(firestore, 'projects', projectId, 'views', action.payload.viewId));
-                break;
-            }
-             case 'SET_VIEW': {
-                updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), { currentViewId: action.payload.viewId });
-                break;
+                case 'DELETE_VIEW': {
+                     updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), settingsToUpdate);
+                    deleteDocumentNonBlocking(doc(firestore, 'projects', projectId, 'views', (action.payload as any).viewId));
+                    break;
+                }
+                case 'SET_VIEW': {
+                    updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), { currentViewId: (action.payload as any).viewId });
+                    break;
+                }
+                 default: { // Catches UPDATE_GANTT_SETTINGS and other setting changes
+                    updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'settings', 'app_settings'), settingsToUpdate);
+                 }
             }
         }
     }
