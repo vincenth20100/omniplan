@@ -1689,11 +1689,23 @@ export function useProject(user: User) {
   // Effect 2: Sync Settings Data
   useEffect(() => {
     if (!isLoaded || collections.views.isLoading || collections.settings.isLoading) return;
+
+    const loadedSettings = collections.settings.data ? { ...collections.settings.data } : null;
+    if (loadedSettings?.ganttSettings?.dateFormat) {
+        try {
+            // Test the format string to see if it's valid
+            format(new Date(), loadedSettings.ganttSettings.dateFormat);
+        } catch (e) {
+            console.warn(`Invalid date format string "${loadedSettings.ganttSettings.dateFormat}" found in settings. Resetting to default.`);
+            loadedSettings.ganttSettings.dateFormat = defaultAppSettings.ganttSettings.dateFormat;
+        }
+    }
+
     internalDispatch({
       type: 'SET_PERSISTED_STATE',
       payload: {
         views: collections.views.data || [],
-        settings: collections.settings.data ? { ...defaultAppSettings, ...collections.settings.data } : null
+        settings: loadedSettings ? { ...defaultAppSettings, ...loadedSettings } : null
       }
     });
   }, [isLoaded, collections.views.data, collections.views.isLoading, collections.settings.data, collections.settings.isLoading]);
