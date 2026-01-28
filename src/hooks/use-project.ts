@@ -434,7 +434,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, tasks: newTasks };
     }
     case 'COLLAPSE_ALL': {
-        const shouldCollapseSelected = state.selectedTaskIds.length > 0;
+        const shouldCollapseSelected = state.selectedTaskIds.length > 1;
         const newTasks = state.tasks.map(task => {
             if (task.isSummary) {
                 if (shouldCollapseSelected) {
@@ -450,7 +450,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, tasks: newTasks };
     }
     case 'EXPAND_ALL': {
-        const shouldExpandSelected = state.selectedTaskIds.length > 0;
+        const shouldExpandSelected = state.selectedTaskIds.length > 1;
         const newTasks = state.tasks.map(task => {
             if (task.isSummary) {
                 if (shouldExpandSelected) {
@@ -864,6 +864,11 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         if (!parentTask) return state;
 
+        // Ensure parent is expanded
+        if (parentTask.isCollapsed) {
+            taskMap.get(parentTask.id)!.isCollapsed = false;
+        }
+
         tasksToIndent.forEach(taskId => {
             const taskToIndent = taskMap.get(taskId)!;
             taskToIndent.parentId = parentTask!.id;
@@ -1069,6 +1074,8 @@ export function useProject(user: User) {
     const optimisticActions: Action['type'][] = [
         'ADD_NOTE_TO_TASK',
         'UPDATE_TASK',
+        'UPDATE_RESOURCE',
+        'UPDATE_CALENDAR',
     ];
 
     if (optimisticActions.includes(action.type)) {
@@ -1082,10 +1089,20 @@ export function useProject(user: User) {
                  const updatedState = projectReducer(historyState.present, action);
                  const updatedTask = updatedState.tasks.find(t => t.id === taskId);
                  if (updatedTask) {
-                     const { id, ...updateData } = toFirestoreTask(updatedTask);
+                     const { ...updateData } = toFirestoreTask(updatedTask);
                      updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'tasks', taskId), updateData);
                  }
                  break;
+            }
+             case 'UPDATE_RESOURCE': {
+                const { id, ...updateData } = action.payload;
+                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'resources', id), updateData);
+                break;
+            }
+            case 'UPDATE_CALENDAR': {
+                 const { id, ...updateData } = action.payload;
+                updateDocumentNonBlocking(doc(firestore, 'users', user.uid, 'calendars', id), updateData);
+                break;
             }
         }
         return;
@@ -1095,8 +1112,6 @@ export function useProject(user: User) {
     // Non-optimistic updates for complex or destructive actions
     const nonOptimisticActions: Action['type'][] = [
         'UPDATE_LINK',
-        'UPDATE_RESOURCE',
-        'UPDATE_CALENDAR',
         'ADD_TASK', 'REMOVE_TASK', 
         'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
         'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
@@ -1116,7 +1131,7 @@ export function useProject(user: User) {
                 batch.set(doc(firestore, 'users', user.uid, 'tasks', newTask.id), toFirestoreTask(newTask));
             } else {
                  if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
-                     const { id, ...updateData } = toFirestoreTask(newTask);
+                     const { ...updateData } = toFirestoreTask(newTask);
                      batch.update(doc(firestore, 'users', user.uid, 'tasks', newTask.id), updateData);
                  }
             }
