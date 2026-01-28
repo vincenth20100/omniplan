@@ -409,6 +409,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             onOpenChange={setIsGanttSettingsOpen}
             settings={state.ganttSettings}
             dispatch={dispatch}
+            isEditor={isEditorOrOwner}
           />
           <HistoryPanel
             open={isHistoryOpen}
