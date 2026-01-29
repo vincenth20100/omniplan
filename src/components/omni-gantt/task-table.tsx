@@ -206,12 +206,12 @@ const TaskCellRenderer = React.memo(({
                 if (task.duration) {
                     if (unit === 'week') {
                         const weeks = Math.round((task.duration / 5) * 10) / 10;
-                        displayValue = `${weeks} week${weeks !== 1 ? 's' : ''}`;
+                        displayValue = `${weeks}w`;
                     } else if (unit === 'month') {
                         const months = Math.round((task.duration / 21.75) * 10) / 10;
-                        displayValue = `${months} month${months !== 1 ? 's' : ''}`;
+                        displayValue = `${months}m`;
                     } else { // 'day'
-                        displayValue = `${task.duration} day${task.duration !== 1 ? 's' : ''}`;
+                        displayValue = `${task.duration}d`;
                     }
                 }
                 return <div className="text-right pr-4">{displayValue}</div>;
