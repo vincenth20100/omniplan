@@ -39,10 +39,10 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
     
     /* Custom Themeable Variables */
-    --gantt-bar-default: hsl(var(--primary));
-    --gantt-bar-critical: hsl(var(--destructive));
-    --milestone-default: hsl(var(--primary));
-    --milestone-critical: hsl(var(--destructive));
+    --gantt-bar-default: var(--primary);
+    --gantt-bar-critical: var(--destructive);
+    --milestone-default: var(--primary);
+    --milestone-critical: var(--destructive);
     --task-row-level-0-bg: transparent;
     --task-row-level-1-bg: hsl(var(--muted) / 0.4);
     --task-row-level-2-plus-bg: hsl(var(--muted) / 0.8);
@@ -83,10 +83,10 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
     
     /* Custom Themeable Variables */
-    --gantt-bar-default: hsl(var(--primary));
-    --gantt-bar-critical: hsl(var(--destructive));
-    --milestone-default: hsl(var(--primary));
-    --milestone-critical: hsl(var(--destructive));
+    --gantt-bar-default: var(--primary);
+    --gantt-bar-critical: var(--destructive);
+    --milestone-default: var(--primary);
+    --milestone-critical: var(--destructive);
     --task-row-level-0-bg: transparent;
     --task-row-level-1-bg: hsl(var(--muted) / 0.4);
     --task-row-level-2-plus-bg: hsl(var(--muted) / 0.8);
@@ -116,10 +116,10 @@
     --sidebar-foreground: 39 21% 26.1%;
     
     /* Custom Themeable Variables */
-    --gantt-bar-default: hsl(var(--primary));
-    --gantt-bar-critical: hsl(var(--destructive));
-    --milestone-default: hsl(var(--primary));
-    --milestone-critical: hsl(var(--destructive));
+    --gantt-bar-default: var(--primary);
+    --gantt-bar-critical: var(--destructive);
+    --milestone-default: var(--primary);
+    --milestone-critical: var(--destructive);
     --task-row-level-0-bg: transparent;
     --task-row-level-1-bg: hsl(var(--muted) / 0.4);
     --task-row-level-2-plus-bg: hsl(var(--muted) / 0.8);

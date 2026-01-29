@@ -66,12 +66,12 @@ export default {
           ring: 'hsl(var(--sidebar-ring))',
         },
         'gantt-bar': {
-          default: 'var(--gantt-bar-default)',
-          critical: 'var(--gantt-bar-critical)',
+          default: 'hsl(var(--gantt-bar-default))',
+          critical: 'hsl(var(--gantt-bar-critical))',
         },
         'milestone': {
-          default: 'var(--milestone-default)',
-          critical: 'var(--milestone-critical)',
+          default: 'hsl(var(--milestone-default))',
+          critical: 'hsl(var(--milestone-critical))',
         },
         'task-row': {
           'level-0': 'var(--task-row-level-0-bg)',

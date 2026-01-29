@@ -193,7 +193,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
             )}
              <div className={cn(
                 "relative px-2 text-sm truncate w-full flex justify-between items-center",
-                isSummary ? (task.isCritical && highlightCriticalPath ? "text-gantt-bar-critical font-medium" : "text-gantt-bar-default font-medium") : "text-primary-foreground",
+                isSummary ? "text-card-foreground font-medium" : "text-primary-foreground",
                 !showTaskLabels && "text-transparent"
             )}>
                 <span>{task.name}</span>
