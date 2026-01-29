@@ -169,7 +169,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 !isSummary && "cursor-pointer",
                 isSelected ? "ring-2 ring-offset-2 ring-accent ring-offset-card" : "hover:ring-1 hover:ring-accent",
                 isSummary ? 
-                    (task.isCritical && highlightCriticalPath ? "bg-destructive/15 border-2 border-gantt-bar-critical rounded-sm" : "bg-card border-2 border-gantt-bar-default rounded-sm")
+                    (task.isCritical && highlightCriticalPath ? "bg-destructive/15 border-2 border-gantt-bar-critical rounded-sm" : "bg-primary/15 border-2 border-gantt-bar-default rounded-sm")
                     : (task.isCritical && highlightCriticalPath ? "bg-gantt-bar-critical/90 rounded-md" : (task.schedulingConflict ? "bg-destructive/70 rounded-md" : "bg-gantt-bar-default/80 rounded-md"))
             )}
             style={{
