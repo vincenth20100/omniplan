@@ -1744,6 +1744,7 @@ export function useProject(user: User, projectId: string | null) {
 
     const optimisticActions: Action['type'][] = [
       'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
+      'UPDATE_LINK', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
     ];
     
     const userSettingsActions: Action['type'][] = [
@@ -1775,35 +1776,60 @@ export function useProject(user: User, projectId: string | null) {
         setDocumentNonBlocking(userPrefsDocRef, prefsToUpdate, { merge: true });
 
     } else if (optimisticActions.includes(action.type)) {
-        const currentState = historyStateRef.current.present;
-        const newState = projectReducer(currentState, action);
-
-        // Optimistically update UI
         internalDispatch(action); 
+        
+        const newState = projectReducer(historyStateRef.current.present, action);
+        const batch = writeBatch(firestore);
 
-        // Perform DB operations in background
-        switch(action.type) {
-            case 'ADD_NOTE_TO_TASK':
-            case 'UPDATE_TASK': {
-                 const taskId = (action.payload as { id: string }).id;
-                 const updatedTask = newState.tasks.find(t => t.id === taskId);
-                 if (updatedTask) {
-                     const { ...updateData } = toFirestoreTask(updatedTask);
-                     updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'tasks', taskId), updateData);
-                 }
-                 break;
-            }
-             case 'UPDATE_RESOURCE': {
-                const { id, ...updateData } = action.payload as { id: string };
-                updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'resources', id), updateData);
-                break;
-            }
-            case 'UPDATE_CALENDAR': {
-                 const { id, ...updateData } = action.payload as { id: string };
-                updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'calendars', id), updateData);
-                break;
+        if (action.type === 'UPDATE_TASK' || action.type === 'ADD_NOTE_TO_TASK') {
+            const taskId = (action.payload as { id: string }).id;
+            const updatedTask = newState.tasks.find(t => t.id === taskId);
+            if (updatedTask) {
+                const { ...updateData } = toFirestoreTask(updatedTask);
+                batch.update(doc(firestore, 'projects', projectId, 'tasks', taskId), updateData);
             }
         }
+        
+        if (action.type === 'UPDATE_LINK' || action.type === 'ADD_LINK' || action.type === 'UPDATE_RELATIONSHIPS' || action.type === 'REMOVE_LINK') {
+             newState.links.forEach(newLink => {
+                const oldLink = historyStateRef.current.present.links.find(l => l.id === newLink.id);
+                const { isDriving, ...linkData } = newLink;
+                if (!oldLink) {
+                    batch.set(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+                } else {
+                    const { isDriving: oldIsDriving, ...oldLinkData } = oldLink;
+                    if (JSON.stringify(oldLinkData) !== JSON.stringify(linkData)) {
+                            batch.update(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+                    }
+                }
+            });
+            historyStateRef.current.present.links.forEach(oldLink => {
+                if (!newState.links.some(l => l.id === oldLink.id)) {
+                    batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
+                }
+            });
+        }
+
+        if (action.type === 'UPDATE_RESOURCE') {
+            const { id, ...updateData } = action.payload as { id: string };
+            batch.update(doc(firestore, 'projects', projectId, 'resources', id), updateData);
+        }
+        if (action.type === 'UPDATE_CALENDAR') {
+            const { id, ...updateData } = action.payload as { id: string };
+            batch.update(doc(firestore, 'projects', projectId, 'calendars', id), updateData);
+        }
+
+        batch.commit().catch(e => {
+            console.error(`Optimistic action ${action.type} failed to commit.`, e);
+            toast({
+              variant: 'destructive',
+              title: 'Error Saving Changes',
+              description: `Your action (${action.type}) could not be saved. The UI will revert.`,
+            });
+            // Revert state if commit fails - may need more robust history implementation
+            internalDispatch({ type: 'UNDO' });
+        });
+
     } else { 
         const currentState = historyStateRef.current.present;
         const newState = projectReducer(currentState, action);
@@ -1902,15 +1928,15 @@ export function useProject(user: User, projectId: string | null) {
   }, [user, projectId, firestore, toast, isEditorOrOwner]);
   
   const collections = {
-    tasks: useCollection<Task>(useMemoFirebase(() => projectId ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId])),
-    links: useCollection<Link>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId])),
-    resources: useCollection<Resource>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId])),
-    assignments: useCollection<Assignment>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId])),
-    calendars: useCollection<Calendar>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId])),
-    views: useCollection<View>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId])),
-    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId])),
+    tasks: useCollection<Task>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId, member])),
+    links: useCollection<Link>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId, member])),
+    resources: useCollection<Resource>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId, member])),
+    assignments: useCollection<Assignment>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId, member])),
+    calendars: useCollection<Calendar>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId, member])),
+    views: useCollection<View>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId, member])),
+    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => (projectId && member) ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId, member])),
     userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
-    baselines: useCollection<Baseline>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId])),
+    baselines: useCollection<Baseline>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId, member])),
   };
   
   // Effect 1: Data Synchronization from Firestore
