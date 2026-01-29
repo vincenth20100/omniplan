@@ -29,7 +29,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import type { Project, ProjectMember, ColumnSpec, Invitation, Baseline } from "@/lib/types";
+import type { Project, ProjectState, ProjectMember, ColumnSpec, Invitation, Baseline } from "@/lib/types";
 import { useState, useEffect, useMemo } from 'react';
 import { collection, doc, writeBatch, updateDoc, arrayUnion, arrayRemove, addDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
@@ -54,7 +54,7 @@ export function ProjectSettingsDialog({
     open: boolean,
     onOpenChange: (open: boolean) => void,
     project: Project,
-    projectState: any,
+    projectState: ProjectState,
     allColumns: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[],
     onProjectUpdate: (updatedProject: Partial<Project>) => void,
     dispatch: any,
@@ -235,7 +235,7 @@ export function ProjectSettingsDialog({
 
                      {/* Members & Baselines Section */}
                     <div className="space-y-4 flex-grow flex flex-col min-h-0">
-                        <Accordion type="multiple" className="w-full" defaultValue={["members"]}>
+                        <Accordion type="multiple" className="w-full" defaultValue={["members", "baselines"]}>
                             <AccordionItem value="members">
                                 <AccordionTrigger>Members & Permissions</AccordionTrigger>
                                 <AccordionContent>
