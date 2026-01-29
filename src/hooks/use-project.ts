@@ -469,6 +469,15 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             }
         }
         
+        if (finalGanttSettings?.dateFormat) {
+            try {
+                format(new Date(), finalGanttSettings.dateFormat);
+            } catch (e) {
+                console.warn(`Invalid date format string "${finalGanttSettings.dateFormat}" found in settings. Resetting to default.`);
+                finalGanttSettings.dateFormat = defaultUserPreferences.ganttSettings.dateFormat;
+            }
+        }
+
         const tempStateForDirtyCheck: ProjectState = {
             ...state,
             views: newViews,
@@ -1686,7 +1695,7 @@ export function useProject(user: User, projectId: string | null) {
     }
 
     const optimisticActions: Action['type'][] = [
-      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
+      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR', 'UPDATE_RELATIONSHIPS',
     ];
     
     const userSettingsActions: Action['type'][] = [
@@ -1718,14 +1727,18 @@ export function useProject(user: User, projectId: string | null) {
         setDocumentNonBlocking(userPrefsDocRef, prefsToUpdate, { merge: true });
 
     } else if (optimisticActions.includes(action.type)) {
+        const currentState = historyStateRef.current.present;
+        const newState = projectReducer(currentState, action);
+
+        // Optimistically update UI
         internalDispatch(action); 
 
+        // Perform DB operations in background
         switch(action.type) {
             case 'ADD_NOTE_TO_TASK':
             case 'UPDATE_TASK': {
                  const taskId = (action.payload as { id: string }).id;
-                 const updatedState = projectReducer(historyStateRef.current.present, action);
-                 const updatedTask = updatedState.tasks.find(t => t.id === taskId);
+                 const updatedTask = newState.tasks.find(t => t.id === taskId);
                  if (updatedTask) {
                      const { ...updateData } = toFirestoreTask(updatedTask);
                      updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'tasks', taskId), updateData);
@@ -1740,6 +1753,52 @@ export function useProject(user: User, projectId: string | null) {
             case 'UPDATE_CALENDAR': {
                  const { id, ...updateData } = action.payload as { id: string };
                 updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'calendars', id), updateData);
+                break;
+            }
+            case 'UPDATE_RELATIONSHIPS': {
+                const batch = writeBatch(firestore);
+
+                // Diff links between currentState and newState
+                newState.links.forEach(newLink => {
+                    const oldLink = currentState.links.find(l => l.id === newLink.id);
+                    const { isDriving, ...linkData } = newLink;
+                    if (!oldLink) {
+                        batch.set(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+                    } else {
+                        const { isDriving: oldIsDriving, ...oldLinkData } = oldLink;
+                        if (JSON.stringify(oldLinkData) !== JSON.stringify(linkData)) {
+                             batch.update(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+                        }
+                    }
+                });
+                currentState.links.forEach(oldLink => {
+                    if (!newState.links.some(l => l.id === oldLink.id)) {
+                        batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
+                    }
+                });
+
+                // Diff all tasks because schedule changes
+                newState.tasks.forEach(newTask => {
+                    const oldTask = currentState.tasks.find(t => t.id === newTask.id);
+                    if (oldTask) { // Only checking for updates, not additions/deletions from this action
+                         if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
+                            const { id, ...updateData } = toFirestoreTask(newTask);
+                            batch.update(doc(firestore, 'projects', projectId, 'tasks', id), updateData);
+                         }
+                    }
+                });
+                
+                if (!batch.isEmpty) { 
+                    batch.commit().catch(e => { 
+                        console.error("Failed to save relationship changes:", e);
+                        toast({
+                            variant: 'destructive',
+                            title: 'Error Saving Changes',
+                            description: `Your dependency changes could not be saved. The view may be out of sync. Please refresh.`,
+                        });
+                        // TODO: Implement state reversion on error
+                    });
+                }
                 break;
             }
         }
