@@ -51,7 +51,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         }
     }, []);
 
-    const { tasks, links, resources, assignments, columns, grouping, filters, calendars, defaultCalendarId, ganttSettings, baselines } = projectState;
+    const { tasks, links, resources, assignments, columns, grouping, filters, calendars, defaultCalendarId, ganttSettings, baselines, visibleColumns, selectedTaskIds, focusCell, anchorCell, editingCell, selectionMode } = projectState;
     const defaultCalendar = useMemo(() => calendars.find(c => c.id === defaultCalendarId) || (calendars.length > 0 ? calendars[0] : null), [calendars, defaultCalendarId]);
     const resourceMap = useMemo(() => new Map(resources.map(r => [r.id, r.name])), [resources]);
 
@@ -280,7 +280,22 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
 
     const taskTableComponent = (
         <TaskTable 
-            projectState={projectState}
+            tasks={tasks}
+            links={links}
+            resources={resources}
+            assignments={assignments}
+            columns={columns}
+            visibleColumns={visibleColumns}
+            grouping={grouping}
+            selectedTaskIds={selectedTaskIds}
+            focusCell={focusCell}
+            anchorCell={anchorCell}
+            editingCell={editingCell}
+            selectionMode={selectionMode}
+            calendars={calendars}
+            defaultCalendarId={defaultCalendarId}
+            ganttSettings={ganttSettings}
+            baselines={baselines}
             renderableRows={renderableRows}
             dispatch={dispatch} 
             viewportRef={tableViewportRef}

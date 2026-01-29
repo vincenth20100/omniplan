@@ -1,12 +1,12 @@
 'use client';
-import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings, Baseline } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings, Baseline, SelectionMode } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag } from 'lucide-react';
-import React, { useCallback, useEffect, useRef } from 'react';
+import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag, GripVertical } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
 import { EditableSelectCell } from './editable-select-cell';
@@ -380,7 +380,7 @@ const TaskCellRenderer = React.memo(({
         }
         case 'finishVariance': {
             if (!baselineTask || !defaultCalendar) return null;
-            const variance = calendarService.getWorkingDaysDuration(baselineTask.finish, task.finish, calendar);
+            const variance = calendarService.getWorkingDaysDuration(baselineTask.finish, task.finish, defaultCalendar);
             const textClass = variance > 0 ? 'text-destructive' : variance < 0 ? 'text-chart-2' : '';
             return <div className={cn("text-right pr-4", textClass)}>{variance !== 0 ? `${variance > 0 ? '+' : ''}${variance}d` : '0d'}</div>;
         }
@@ -439,7 +439,22 @@ TaskCellRenderer.displayName = 'TaskCellRenderer';
 
 
 export function TaskTable({ 
-    projectState,
+    tasks,
+    links,
+    resources,
+    assignments,
+    columns,
+    visibleColumns,
+    grouping,
+    selectedTaskIds,
+    focusCell,
+    anchorCell,
+    editingCell,
+    selectionMode,
+    calendars,
+    defaultCalendarId,
+    ganttSettings,
+    baselines,
     renderableRows,
     dispatch, 
     viewportRef,
@@ -447,7 +462,22 @@ export function TaskTable({
     uiDensity,
     onToggleGroup,
 }: { 
-    projectState: ProjectState,
+    tasks: Task[];
+    links: Link[];
+    resources: Resource[];
+    assignments: Assignment[];
+    columns: ColumnSpec[];
+    visibleColumns: string[];
+    grouping: string[];
+    selectedTaskIds: string[];
+    focusCell: { taskId: string, columnId: string } | null;
+    anchorCell: { taskId: string, columnId: string } | null;
+    editingCell: { taskId: string, columnId: string, initialValue?: string } | null;
+    selectionMode: SelectionMode;
+    calendars: Calendar[];
+    defaultCalendarId: string | null;
+    ganttSettings: GanttSettings;
+    baselines: Baseline[];
     renderableRows: RenderableRow[],
     dispatch: any, 
     viewportRef: React.RefObject<HTMLDivElement>,
@@ -455,13 +485,12 @@ export function TaskTable({
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
 }) {
-    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, focusCell: activeCell, calendars, defaultCalendarId, ganttSettings, editingCell, baselines } = projectState;
-    const stateRef = useRef(projectState);
+    const stateRef = useRef({ tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping });
     const isMobile = useIsMobile();
 
     useEffect(() => {
-        stateRef.current = projectState;
-    }, [projectState]);
+        stateRef.current = { tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping };
+    }, [tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping]);
 
     const idToWbsMap = React.useMemo(() => new Map(tasks.map(t => [t.id, t.wbs || ''])), [tasks]);
     
@@ -780,7 +809,7 @@ export function TaskTable({
     }, [dispatch]);
 
     // Row Drag & Drop
-    const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, taskId: string) => {
+    const handleDragStart = (e: React.DragEvent, taskId: string) => {
         let sourceIds = [...selectedTaskIds];
         if (!sourceIds.includes(taskId)) {
             sourceIds = [taskId];
@@ -957,6 +986,27 @@ export function TaskTable({
     const defaultCalendar = React.useMemo(() => calendars.find(c => c.id === defaultCalendarId) || calendars[0] || null, [calendars, defaultCalendarId]);
     const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
+    const selectionRange = useMemo(() => {
+        if (selectionMode !== 'cell' || !anchorCell || !focusCell) return null;
+
+        const visibleTasks = renderableRows.filter((r): r is TaskRow => r.itemType === 'task');
+        const r1 = visibleTasks.findIndex(t => t.data.id === anchorCell.taskId);
+        const r2 = visibleTasks.findIndex(t => t.data.id === focusCell.taskId);
+
+        const c1 = orderedAndVisibleColumns.findIndex(c => c.id === anchorCell.columnId);
+        const c2 = orderedAndVisibleColumns.findIndex(c => c.id === focusCell.columnId);
+        
+        if (r1 === -1 || r2 === -1 || c1 === -1 || c2 === -1) return null;
+
+        return {
+            rowStart: Math.min(r1, r2),
+            rowEnd: Math.max(r1, r2),
+            colStart: Math.min(c1, c2),
+            colEnd: Math.max(c1, c2),
+        };
+    }, [selectionMode, anchorCell, focusCell, renderableRows, orderedAndVisibleColumns]);
+
+
     return (
         <>
         <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
@@ -964,12 +1014,14 @@ export function TaskTable({
                 <div className="pb-40">
                 <Table className="w-auto">
                     <colgroup>
+                        <col style={{ width: '40px' }} />
                         {orderedAndVisibleColumns.map((col) => (
                             <col key={col.id} style={{ width: `${col.width}px` }} />
                         ))}
                     </colgroup>
                     <TableHeader className="sticky top-0 bg-card z-10">
                         <TableRow>
+                            <TableHead className="p-0"></TableHead>
                             {orderedAndVisibleColumns.map(column => {
                                 return (
                                     <TableHead 
@@ -1022,11 +1074,11 @@ export function TaskTable({
                         </TableRow>
                     </TableHeader>
                     <TableBody onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragLeave}>
-                        {renderableRows.map((item) => {
+                        {renderableRows.map((item, rowIndex) => {
                             if (item.itemType === 'group') {
                                 return (
                                     <TableRow key={item.id} className="bg-muted/50 hover:bg-muted/50 font-semibold">
-                                        <TableCell colSpan={orderedAndVisibleColumns.length} className="p-0">
+                                        <TableCell colSpan={orderedAndVisibleColumns.length + 1} className="p-0">
                                             <div 
                                                 className="flex items-center gap-2 h-full"
                                                 style={{ paddingLeft: `${item.level * 1.5}rem`}}
@@ -1046,11 +1098,11 @@ export function TaskTable({
                             const level = task.level || 0;
                             const levelClass = level === 0 ? 'bg-task-row-level-0' : level === 1 ? 'bg-task-row-level-1' : 'bg-task-row-level-2-plus';
 
+                            const visibleTaskIndex = renderableRows.filter(r => r.itemType === 'task').findIndex(r => r.itemType === 'task' && r.data.id === item.data.id);
+
                             return (
                                 <TableRow
                                     key={task.id}
-                                    draggable={grouping.length === 0}
-                                    onDragStart={(e) => handleDragStart(e, task.id)}
                                     onDragOver={(e) => handleDragOver(e, task.id)}
                                     data-density={uiDensity}
                                     data-level={level}
@@ -1059,7 +1111,7 @@ export function TaskTable({
                                         "cursor-pointer", 
                                         "transition-all duration-150",
                                         "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                        selectedTaskIds.includes(task.id) && "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground",
+                                        selectedTaskIds.includes(task.id) && "bg-primary/20",
                                         !selectedTaskIds.includes(task.id) && "hover:bg-muted/50",
                                         draggedIds?.includes(task.id) && "opacity-30",
                                         !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && grouping.length === 0 && {
@@ -1069,8 +1121,22 @@ export function TaskTable({
                                         }
                                     )}
                                 >
-                                    {orderedAndVisibleColumns.map(column => {
+                                    <TableCell className="p-0 align-middle">
+                                        <div 
+                                            draggable={grouping.length === 0}
+                                            onDragStart={(e) => handleDragStart(e, task.id)}
+                                            className="flex h-full items-center justify-center cursor-grab text-muted-foreground"
+                                        >
+                                            <GripVertical className="h-4 w-4" />
+                                        </div>
+                                    </TableCell>
+                                    {orderedAndVisibleColumns.map((column, colIndex) => {
                                         const isEditing = editingCell?.taskId === task.id && editingCell?.columnId === column.id;
+                                        
+                                        const isCellSelected = selectionMode === 'cell' && selectionRange && visibleTaskIndex !== -1 &&
+                                            visibleTaskIndex >= selectionRange.rowStart && visibleTaskIndex <= selectionRange.rowEnd &&
+                                            colIndex >= selectionRange.colStart && colIndex <= selectionRange.colEnd;
+
                                         return (
                                             <TableCell 
                                                 key={column.id} 
@@ -1078,38 +1144,28 @@ export function TaskTable({
                                                 className={cn(
                                                     "font-medium truncate p-0",
                                                     "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                                    activeCell?.taskId === task.id && activeCell?.columnId === column.id && !isEditing && "ring-2 ring-inset ring-primary"
+                                                    isCellSelected && "bg-primary/10",
+                                                    focusCell?.taskId === task.id && focusCell?.columnId === column.id && !isEditing && "ring-2 ring-inset ring-primary"
                                                 )}
                                                 onClick={(e) => {
+                                                    dispatch({
+                                                        type: 'SET_ACTIVE_CELL_AND_SELECT_TASK',
+                                                        payload: {
+                                                            taskId: task.id,
+                                                            columnId: column.id,
+                                                            ctrlKey: e.ctrlKey,
+                                                            shiftKey: e.shiftKey
+                                                        }
+                                                    });
                                                     if (isMobile) {
-                                                        const isAlreadyActive = activeCell?.taskId === task.id && activeCell?.columnId === column.id;
+                                                        const isAlreadyActive = focusCell?.taskId === task.id && focusCell?.columnId === column.id;
                                                         if (isAlreadyActive && !editingCell) {
                                                             const value = getCellValueForEditing(task.id, column.id);
                                                             dispatch({
                                                                 type: 'START_EDITING_CELL',
                                                                 payload: { taskId: task.id, columnId: column.id, initialValue: value }
                                                             });
-                                                        } else {
-                                                            dispatch({
-                                                                type: 'SET_ACTIVE_CELL_AND_SELECT_TASK',
-                                                                payload: {
-                                                                    taskId: task.id,
-                                                                    columnId: column.id,
-                                                                    ctrlKey: false,
-                                                                    shiftKey: false
-                                                                }
-                                                            });
                                                         }
-                                                    } else {
-                                                        dispatch({
-                                                            type: 'SET_ACTIVE_CELL_AND_SELECT_TASK',
-                                                            payload: {
-                                                                taskId: task.id,
-                                                                columnId: column.id,
-                                                                ctrlKey: e.ctrlKey,
-                                                                shiftKey: e.shiftKey
-                                                            }
-                                                        });
                                                     }
                                                 }}
                                                 onDoubleClick={() => {

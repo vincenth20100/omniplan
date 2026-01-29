@@ -13,6 +13,8 @@ export type UiDensity = 'compact' | 'medium' | 'large';
 
 export type DurationUnit = 'd' | 'm' | 'ed' | 'em';
 
+export type SelectionMode = 'row' | 'cell';
+
 export interface Exception {
   id: string;
   name: string;
@@ -204,7 +206,7 @@ export interface ProjectState {
     baselines: Baseline[];
     
     // Selection state
-    selectionMode: 'row' | 'cell';
+    selectionMode: SelectionMode;
     selectedTaskIds: string[];
     selectionAnchor: string | null; // A taskId for row selection anchor
     focusCell: { taskId: string, columnId: string } | null;
