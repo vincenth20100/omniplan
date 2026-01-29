@@ -30,6 +30,23 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
     });
     setOpen(false);
   }
+
+  const handleCreateResource = (name: string) => {
+      const newResourceId = crypto.randomUUID();
+      // Heuristic: if name is short (<=3 chars), treat as initials. Otherwise as name.
+      const initials = name.length <= 3 ? name.toUpperCase() : name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
+
+      dispatch({
+          type: 'ADD_RESOURCE',
+          payload: { id: newResourceId, name: name, initials: initials }
+      });
+
+      dispatch({
+          type: 'ADD_ASSIGNMENT',
+          payload: { taskId: task.id, resourceId: newResourceId, units: 1 }
+      });
+      setOpen(false);
+  };
   
   const handleUpdateAssignment = (assignmentId: string, newUnits: number) => {
       dispatch({
@@ -136,24 +153,21 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
                             <TableCell colSpan={5} className="p-1">
                                 <Popover open={open} onOpenChange={setOpen}>
                                 <PopoverTrigger asChild>
-                                    <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={open}
-                                    className="w-full justify-between h-8 border-dashed text-xs text-muted-foreground"
-                                    >
-                                    <span className="flex items-center gap-2">
-                                        <Plus className="h-3 w-3" />
-                                        Assign Resource
-                                    </span>
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
+                                    <div className="relative w-full cursor-text" onClick={() => setOpen(true)}>
+                                        <Input
+                                            placeholder="Assign Resource..."
+                                            className="w-full h-8 border-dashed text-xs focus-visible:ring-1 bg-transparent pr-8 cursor-pointer"
+                                            readOnly
+                                        />
+                                        <Plus className="absolute right-2 top-2.5 h-3 w-3 text-muted-foreground pointer-events-none" />
+                                    </div>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[400px] p-0">
+                                <PopoverContent className="w-[400px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                                     <ResourceComboboxContent
                                         allResources={resources}
                                         excludedResourceIds={assignedResources.map(a => a.resourceId)}
                                         onSelectResource={handleAddAssignment}
+                                        onCreate={handleCreateResource}
                                     />
                                 </PopoverContent>
                                 </Popover>

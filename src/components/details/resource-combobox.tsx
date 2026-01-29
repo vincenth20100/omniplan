@@ -10,11 +10,13 @@ export function ResourceComboboxContent({
   allResources,
   excludedResourceIds,
   onSelectResource,
+  onCreate,
   searchPlaceholder = "Search by name or initials...",
 }: {
   allResources: Resource[];
   excludedResourceIds: string[];
   onSelectResource: (resourceId: string) => void;
+  onCreate?: (name: string) => void;
   searchPlaceholder?: string;
 }) {
   const [search, setSearch] = React.useState('');
@@ -65,9 +67,20 @@ export function ResourceComboboxContent({
               </div>
             ))
           ) : (
-            <div className="p-2 text-center text-sm text-muted-foreground">
-              No resources found.
-            </div>
+             onCreate && search.trim() !== '' ? (
+                 <div
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => onCreate(search)}
+                    className="p-2 rounded-md hover:bg-accent cursor-pointer text-sm flex items-center gap-2"
+                  >
+                    <span className="text-muted-foreground">Create</span>
+                    <span className="font-semibold">"{search}"</span>
+                  </div>
+             ) : (
+                <div className="p-2 text-center text-sm text-muted-foreground">
+                  No resources found.
+                </div>
+             )
           )}
         </div>
       </ScrollArea>

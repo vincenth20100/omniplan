@@ -143,9 +143,12 @@ type Action =
   | { type: 'NEST_TASKS', payload: { sourceIds: string[], parentId: string }}
   | { type: 'SET_UI_DENSITY', payload: UiDensity }
   | { type: 'UPDATE_RELATIONSHIPS', payload: { taskId: string, field: 'predecessors' | 'successors', value: string }}
-  | { type: 'ADD_RESOURCE' }
+  | { type: 'ADD_RESOURCE', payload?: { id?: string, name?: string, initials?: string } }
   | { type: 'REMOVE_RESOURCE', payload: { resourceId: string } }
   | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } }
+  | { type: 'ADD_ASSIGNMENT', payload: { taskId: string, resourceId: string, units?: number } }
+  | { type: 'UPDATE_ASSIGNMENT', payload: { id: string, units: number } }
+  | { type: 'REMOVE_ASSIGNMENT', payload: { id: string } }
   | { type: 'ADD_CALENDAR' }
   | { type: 'REMOVE_CALENDAR', payload: { calendarId: string } }
   | { type: 'UPDATE_CALENDAR', payload: Partial<Calendar> & { id: string } }
@@ -542,9 +545,11 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, resources: newResources };
     }
     case 'ADD_RESOURCE': {
+        const { id, name, initials } = action.payload || {};
         const newResource: Resource = {
-            id: `res-${Date.now()}`,
-            name: 'New Resource',
+            id: id || `res-${Date.now()}`,
+            name: name || 'New Resource',
+            initials: initials,
             type: 'Work',
             availability: 1,
             costPerHour: 0
@@ -558,6 +563,27 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newAssignments = state.assignments.filter(a => a.resourceId !== resourceId);
         const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
         return { ...state, resources: newResources, assignments: newAssignments, tasks: reScheduledTasks };
+    }
+    case 'ADD_ASSIGNMENT': {
+        const { taskId, resourceId, units } = action.payload;
+        const newAssignment: Assignment = {
+            id: `assignment-${crypto.randomUUID()}`,
+            taskId,
+            resourceId,
+            units: units ?? 1,
+        };
+        const newAssignments = [...state.assignments, newAssignment];
+        return { ...state, assignments: newAssignments };
+    }
+    case 'UPDATE_ASSIGNMENT': {
+        const { id, units } = action.payload;
+        const newAssignments = state.assignments.map(a => a.id === id ? { ...a, units } : a);
+        return { ...state, assignments: newAssignments };
+    }
+    case 'REMOVE_ASSIGNMENT': {
+        const { id } = action.payload;
+        const newAssignments = state.assignments.filter(a => a.id !== id);
+        return { ...state, assignments: newAssignments };
     }
     case 'ADD_CALENDAR': {
         const newCalendar: Calendar = {
@@ -1711,6 +1737,7 @@ export function useProject(user: User, projectId: string | null) {
             'UPDATE_RELATIONSHIPS', 'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
             'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
             'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE', 'ADD_BASELINE', 'DELETE_BASELINE',
+            'ADD_ASSIGNMENT', 'UPDATE_ASSIGNMENT', 'REMOVE_ASSIGNMENT',
           ];
     
           const sharedSettingsActions: Action['type'][] = [
@@ -1822,6 +1849,40 @@ export function useProject(user: User, projectId: string | null) {
         currentState.links.forEach(oldLink => {
             if (!newState.links.some(l => l.id === oldLink.id)) {
                 batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
+            }
+        });
+
+        newState.resources.forEach(newResource => {
+            const oldResource = currentState.resources.find(r => r.id === newResource.id);
+            if (!oldResource) {
+                batch.set(doc(firestore, 'projects', projectId, 'resources', newResource.id), newResource);
+            } else {
+                if (JSON.stringify(oldResource) !== JSON.stringify(newResource)) {
+                    batch.update(doc(firestore, 'projects', projectId, 'resources', newResource.id), newResource as any);
+                }
+            }
+        });
+        currentState.resources.forEach(oldResource => {
+            if (!newState.resources.some(r => r.id === oldResource.id)) {
+                batch.delete(doc(firestore, 'projects', projectId, 'resources', oldResource.id));
+            }
+        });
+
+        newState.assignments.forEach(newAssignment => {
+            const oldAssignment = currentState.assignments.find(a => a.id === newAssignment.id);
+            const { resource, ...assignmentData } = newAssignment as any;
+            if (!oldAssignment) {
+                batch.set(doc(firestore, 'projects', projectId, 'assignments', newAssignment.id), assignmentData);
+            } else {
+                const { resource: oldResource, ...oldAssignmentData } = oldAssignment as any;
+                if (JSON.stringify(oldAssignmentData) !== JSON.stringify(assignmentData)) {
+                    batch.update(doc(firestore, 'projects', projectId, 'assignments', newAssignment.id), assignmentData as any);
+                }
+            }
+        });
+        currentState.assignments.forEach(oldAssignment => {
+            if (!newState.assignments.some(a => a.id === oldAssignment.id)) {
+                batch.delete(doc(firestore, 'projects', projectId, 'assignments', oldAssignment.id));
             }
         });
 
