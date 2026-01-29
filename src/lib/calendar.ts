@@ -77,20 +77,19 @@ class CalendarService {
     const d1 = startOfDay(start);
     const d2 = startOfDay(end);
 
-    if (d1 > d2) {
-      // If start is after end, calculate negative duration. The count will be inclusive.
-      return -this.getWorkingDaysDuration(d2, d1, calendar);
-    }
+    const reverse = d1 > d2;
+    const startDate = reverse ? d2 : d1;
+    const endDate = reverse ? d1 : d2;
 
     let count = 0;
-    let currentDate = d1;
-    while(currentDate <= d2) {
+    let currentDate = startDate;
+    while(currentDate <= endDate) {
       if (this.isWorkingDay(currentDate, calendar)) {
         count++;
       }
       currentDate = addDays(currentDate, 1);
     }
-    return count;
+    return reverse ? -count : count;
   }
 
   public calculateFinishDate(startDate: Date, duration: number, unit: DurationUnit, calendar: Calendar): Date {
