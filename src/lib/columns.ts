@@ -23,6 +23,10 @@ export const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })
         'Start No Later Than',
     ] },
     { id: 'constraintDate', name: 'Constraint Date', defaultWidth: 110, type: 'date' },
+    { id: 'baselineDuration', name: 'Baseline Duration', defaultWidth: 80, type: 'number' },
+    { id: 'baselineStart', name: 'Baseline Start', defaultWidth: 110, type: 'date' },
+    { id: 'baselineFinish', name: 'Baseline Finish', defaultWidth: 110, type: 'date' },
+    { id: 'finishVariance', name: 'Finish Variance', defaultWidth: 80, type: 'number' },
 ];
 
 export const initialColumns: ColumnSpec[] = ALL_COLUMNS.map(c => {

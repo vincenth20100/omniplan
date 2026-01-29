@@ -1069,6 +1069,17 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
           activeStylePresetId: newActiveStylePresetId,
       };
 
+      const baselineColumns = ['baselineDuration', 'baselineStart', 'baselineFinish', 'finishVariance'];
+      const wasShowingBaseline = !!state.ganttSettings.comparisonBaselineId;
+      const isShowingBaseline = !!action.payload.comparisonBaselineId;
+
+      if (isShowingBaseline && !wasShowingBaseline) {
+        const columnsToAdd = baselineColumns.filter(bc => !newState.visibleColumns.includes(bc));
+        newState.visibleColumns = [...newState.visibleColumns, ...columnsToAdd];
+      } else if (!isShowingBaseline && wasShowingBaseline) {
+        newState.visibleColumns = newState.visibleColumns.filter(vc => !baselineColumns.includes(vc));
+      }
+
       return { ...newState, isDirty: checkDirty(newState) };
     }
     case 'SET_STYLE_PRESETS': {

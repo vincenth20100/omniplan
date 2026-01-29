@@ -1,5 +1,5 @@
 'use client';
-import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings, Baseline } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -23,6 +23,7 @@ import { ColumnConfigDialog, type ColumnConfig } from '../view-options/column-co
 import { type RenderableRow, type TaskRow } from './gantt-chart';
 import { parseDuration, formatDuration } from '@/lib/duration';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { calendarService } from '@/lib/calendar';
 
 const TaskCellRenderer = React.memo(({
     task,
@@ -42,6 +43,7 @@ const TaskCellRenderer = React.memo(({
     onStopEditing,
     dateFormat,
     ganttSettings,
+    baselines,
 }: {
     task: Task;
     column: ColumnSpec;
@@ -60,8 +62,20 @@ const TaskCellRenderer = React.memo(({
     onStopEditing: () => void;
     dateFormat: string;
     ganttSettings: GanttSettings;
+    baselines: Baseline[];
 }) => {
     const isEditable = !task.isSummary || grouping.length > 0;
+
+    const comparisonBaseline = React.useMemo(() => {
+        if (!ganttSettings.comparisonBaselineId) return null;
+        return baselines.find(b => b.id === ganttSettings.comparisonBaselineId);
+    }, [baselines, ganttSettings.comparisonBaselineId]);
+
+    const baselineTask = React.useMemo(() => {
+        if (!comparisonBaseline) return null;
+        return comparisonBaseline.tasks.find(bt => bt.id === task.id);
+    }, [comparisonBaseline, task.id]);
+
 
     switch (column.id) {
         case 'wbs':
@@ -352,6 +366,24 @@ const TaskCellRenderer = React.memo(({
                 />
             );
         }
+        case 'baselineDuration': {
+            if (!baselineTask) return null;
+            return <div className="text-right pr-4">{formatDuration(baselineTask.duration, baselineTask.durationUnit)}</div>;
+        }
+        case 'baselineStart': {
+            if (!baselineTask) return null;
+            return <>{format(baselineTask.start, dateFormat)}</>;
+        }
+        case 'baselineFinish': {
+            if (!baselineTask) return null;
+            return <>{format(baselineTask.finish, dateFormat)}</>;
+        }
+        case 'finishVariance': {
+            if (!baselineTask || !defaultCalendar) return null;
+            const variance = calendarService.getWorkingDaysDuration(baselineTask.finish, task.finish, defaultCalendar);
+            const textClass = variance > 0 ? 'text-destructive' : variance < 0 ? 'text-green-500' : '';
+            return <div className={cn("text-right pr-4", textClass)}>{variance !== 0 ? `${variance > 0 ? '+' : ''}${variance}d` : '0d'}</div>;
+        }
         default: {
             if (column.id.startsWith('custom-')) {
                 if (task.isSummary && grouping.length === 0) {
@@ -423,7 +455,7 @@ export function TaskTable({
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
 }) {
-    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, focusCell: activeCell, calendars, defaultCalendarId, ganttSettings, editingCell } = projectState;
+    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, focusCell: activeCell, calendars, defaultCalendarId, ganttSettings, editingCell, baselines } = projectState;
     const stateRef = useRef(projectState);
     const isMobile = useIsMobile();
 
@@ -1102,6 +1134,7 @@ export function TaskTable({
                                                         onStopEditing={onStopEditing}
                                                         dateFormat={dateFormat}
                                                         ganttSettings={ganttSettings}
+                                                        baselines={baselines}
                                                 />
                                                 </div>
                                             </TableCell>
