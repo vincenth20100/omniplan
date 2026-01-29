@@ -1675,6 +1675,29 @@ export function useProject(user: User, projectId: string | null) {
       useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
   );
   
+  const projectDocRef = useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]);
+  const { data: projectData } = useDoc<Project>(projectDocRef);
+  
+  // Effect to migrate legacy projects by creating member documents if they don't exist
+  useEffect(() => {
+    if (firestore && user && projectData && !isMemberLoading && !member) {
+      if (projectData.memberIds && projectData.memberIds.includes(user.uid)) {
+        console.log(`Migrating user ${user.uid} to members subcollection for project ${projectData.id}`);
+        const memberDocRef = doc(firestore, 'projects', projectData.id, 'members', user.uid);
+        
+        const role = projectData.ownerId === user.uid ? 'owner' : 'viewer';
+
+        const newMemberData: Omit<ProjectMember, 'permissions'> = {
+            userId: user.uid,
+            role: role,
+            displayName: user.displayName || user.email || '',
+            photoURL: user.photoURL || '',
+        };
+        setDocumentNonBlocking(memberDocRef, newMemberData, { merge: false });
+      }
+    }
+  }, [firestore, user, projectData, isMemberLoading, member]);
+
   const isEditorOrOwner = useMemo(() => {
     if (isMemberLoading || isCheckingAdmin) {
       return false; // Default to non-editor while loading to be safe
@@ -1720,7 +1743,7 @@ export function useProject(user: User, projectId: string | null) {
     }
 
     const optimisticActions: Action['type'][] = [
-      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR', 'UPDATE_RELATIONSHIPS',
+      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
     ];
     
     const userSettingsActions: Action['type'][] = [
@@ -1780,52 +1803,6 @@ export function useProject(user: User, projectId: string | null) {
                 updateDocumentNonBlocking(doc(firestore, 'projects', projectId, 'calendars', id), updateData);
                 break;
             }
-            case 'UPDATE_RELATIONSHIPS': {
-                const batch = writeBatch(firestore);
-
-                // Diff links between currentState and newState
-                newState.links.forEach(newLink => {
-                    const oldLink = currentState.links.find(l => l.id === newLink.id);
-                    const { isDriving, ...linkData } = newLink;
-                    if (!oldLink) {
-                        batch.set(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
-                    } else {
-                        const { isDriving: oldIsDriving, ...oldLinkData } = oldLink;
-                        if (JSON.stringify(oldLinkData) !== JSON.stringify(linkData)) {
-                             batch.update(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
-                        }
-                    }
-                });
-                currentState.links.forEach(oldLink => {
-                    if (!newState.links.some(l => l.id === oldLink.id)) {
-                        batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
-                    }
-                });
-
-                // Diff all tasks because schedule changes
-                newState.tasks.forEach(newTask => {
-                    const oldTask = currentState.tasks.find(t => t.id === newTask.id);
-                    if (oldTask) { // Only checking for updates, not additions/deletions from this action
-                         if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
-                            const { id, ...updateData } = toFirestoreTask(newTask);
-                            batch.update(doc(firestore, 'projects', projectId, 'tasks', id), updateData);
-                         }
-                    }
-                });
-                
-                if (!batch.isEmpty) { 
-                    batch.commit().catch(e => { 
-                        console.error("Failed to save relationship changes:", e);
-                        toast({
-                            variant: 'destructive',
-                            title: 'Error Saving Changes',
-                            description: `Your dependency changes could not be saved. The view may be out of sync. Please refresh.`,
-                        });
-                        // TODO: Implement state reversion on error
-                    });
-                }
-                break;
-            }
         }
     } else { 
         const currentState = historyStateRef.current.present;
@@ -1833,6 +1810,23 @@ export function useProject(user: User, projectId: string | null) {
         const batch = writeBatch(firestore);
 
         // ... existing batch logic for tasks, links ...
+        newState.links.forEach(newLink => {
+            const oldLink = currentState.links.find(l => l.id === newLink.id);
+            const { isDriving, ...linkData } = newLink;
+            if (!oldLink) {
+                batch.set(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+            } else {
+                const { isDriving: oldIsDriving, ...oldLinkData } = oldLink;
+                if (JSON.stringify(oldLinkData) !== JSON.stringify(linkData)) {
+                        batch.update(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+                }
+            }
+        });
+        currentState.links.forEach(oldLink => {
+            if (!newState.links.some(l => l.id === oldLink.id)) {
+                batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
+            }
+        });
 
         if (action.type === 'ADD_BASELINE') {
             const newBaseline = newState.baselines.find(b => !currentState.baselines.some(cb => cb.id === b.id));
@@ -1866,24 +1860,6 @@ export function useProject(user: User, projectId: string | null) {
         currentState.tasks.forEach(oldTask => {
             if (!newState.tasks.some(t => t.id === oldTask.id)) {
                 batch.delete(doc(firestore, 'projects', projectId, 'tasks', oldTask.id));
-            }
-        });
-
-        newState.links.forEach(newLink => {
-            const oldLink = currentState.links.find(l => l.id === newLink.id);
-            const { isDriving, ...linkData } = newLink; // Don't save calculated fields
-            if (!oldLink) {
-                batch.set(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
-            } else {
-                const { isDriving: oldIsDriving, ...oldLinkData } = oldLink;
-                if (JSON.stringify(oldLinkData) !== JSON.stringify(linkData)) {
-                    batch.update(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
-                }
-            }
-        });
-        currentState.links.forEach(oldLink => {
-            if (!newState.links.some(l => l.id === oldLink.id)) {
-                batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
             }
         });
         
