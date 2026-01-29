@@ -248,7 +248,7 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'start': {
-            if (!isEditable) return <>{format(task.start, dateFormat)}</>;
+            if (!isEditable) return <span className="text-xs">{format(task.start, dateFormat)}</span>;
 
             return (
                 <EditableDateCell
@@ -263,12 +263,12 @@ const TaskCellRenderer = React.memo(({
                     isEditing={isEditing}
                     initialValue={editingInitialValue}
                     onStopEditing={onStopEditing}
-                    inputClassName={displayLevel > 0 ? "text-xs" : ""}
+                    inputClassName="text-xs pl-0"
                 />
             );
         }
         case 'finish': {
-            if (!isEditable) return <>{format(task.finish, dateFormat)}</>;
+            if (!isEditable) return <span className="text-xs">{format(task.finish, dateFormat)}</span>;
 
             return (
                 <EditableDateCell
@@ -283,7 +283,7 @@ const TaskCellRenderer = React.memo(({
                     isEditing={isEditing}
                     initialValue={editingInitialValue}
                     onStopEditing={onStopEditing}
-                    inputClassName={displayLevel > 0 ? "text-xs" : ""}
+                    inputClassName="text-xs pl-0"
                 />
             );
         }
@@ -303,6 +303,7 @@ const TaskCellRenderer = React.memo(({
                     isEditing={isEditing}
                     initialValue={editingInitialValue}
                     onStopEditing={onStopEditing}
+                    inputClassName="text-xs pl-0"
                 />
             );
         }
