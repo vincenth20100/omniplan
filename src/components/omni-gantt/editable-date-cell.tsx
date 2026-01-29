@@ -178,6 +178,7 @@ export function EditableDateCell({
                 <Calendar
                     mode="single"
                     selected={value || undefined}
+                    defaultMonth={value || undefined}
                     onSelect={handleSaveFromPicker}
                     modifiers={modifiers}
                     modifiersClassNames={modifiersClassNames}
