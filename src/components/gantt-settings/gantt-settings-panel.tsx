@@ -93,7 +93,7 @@ export function GanttSettingsPanel({
           <SheetDescription>
             Customize the appearance of the Gantt chart and grid.
           </SheetDescription>
-           {!isEditor && <p className="text-sm text-destructive font-semibold">You have view-only permissions. Your changes will not be saved.</p>}
+           {!isEditor && <p className="mt-2 text-destructive font-semibold">You have view-only permissions. Your changes will not be saved.</p>}
         </SheetHeader>
         <ScrollArea className="flex-grow pr-4 -mr-6">
           <div className="grid gap-6 py-4">
@@ -230,6 +230,23 @@ export function GanttSettingsPanel({
                       onCheckedChange={(checked) => handleSettingChange('renderSplitTasks', checked)}
                       disabled={!isEditor}
                   />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="summary-duration-unit">Summary Task Duration Unit</Label>
+                  <Select
+                    value={settings.summaryDurationUnit || 'day'}
+                    onValueChange={(value: 'day' | 'week' | 'month') => handleSettingChange('summaryDurationUnit', value)}
+                    disabled={!isEditor}
+                  >
+                    <SelectTrigger id="summary-duration-unit" className="w-[180px]">
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">Working Days</SelectItem>
+                      <SelectItem value="week">Weeks</SelectItem>
+                      <SelectItem value="month">Months</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

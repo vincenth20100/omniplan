@@ -28,6 +28,7 @@ const initialGanttSettings: GanttSettings = {
   highlightCriticalPath: true,
   renderSplitTasks: false,
   dateFormat: 'MMM d, yyyy',
+  summaryDurationUnit: 'day',
   theme: 'dark',
   customStyles: {}
 };

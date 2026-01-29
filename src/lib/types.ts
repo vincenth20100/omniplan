@@ -149,6 +149,7 @@ export interface GanttSettings {
   highlightCriticalPath: boolean;
   renderSplitTasks?: boolean;
   dateFormat?: string;
+  summaryDurationUnit?: 'day' | 'week' | 'month';
   theme?: 'light' | 'dark' | 'sepia';
   customStyles?: {
     ganttBarDefault?: string;

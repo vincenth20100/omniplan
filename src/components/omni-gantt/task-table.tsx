@@ -1,5 +1,5 @@
 'use client';
-import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -41,6 +41,7 @@ const TaskCellRenderer = React.memo(({
     editingInitialValue,
     onStopEditing,
     dateFormat,
+    ganttSettings,
 }: {
     task: Task;
     column: ColumnSpec;
@@ -58,6 +59,7 @@ const TaskCellRenderer = React.memo(({
     editingInitialValue?: string;
     onStopEditing: () => void;
     dateFormat: string;
+    ganttSettings: GanttSettings;
 }) => {
     const isEditable = !task.isSummary || grouping.length > 0;
 
@@ -198,8 +200,21 @@ const TaskCellRenderer = React.memo(({
             );
         }
         case 'duration': {
-            if (!isEditable) {
-                return <div className="text-right pr-4">{task.duration ? formatDuration(task.duration, task.durationUnit) : ''}</div>;
+            if (!isEditable) { // This means it's a summary task and we are not in a grouped view
+                const unit = ganttSettings?.summaryDurationUnit || 'day';
+                let displayValue = '';
+                if (task.duration) {
+                    if (unit === 'week') {
+                        const weeks = Math.round((task.duration / 5) * 10) / 10;
+                        displayValue = `${weeks} week${weeks !== 1 ? 's' : ''}`;
+                    } else if (unit === 'month') {
+                        const months = Math.round((task.duration / 21.75) * 10) / 10;
+                        displayValue = `${months} month${months !== 1 ? 's' : ''}`;
+                    } else { // 'day'
+                        displayValue = `${task.duration} day${task.duration !== 1 ? 's' : ''}`;
+                    }
+                }
+                return <div className="text-right pr-4">{displayValue}</div>;
             }
 
             return (
@@ -1086,6 +1101,7 @@ export function TaskTable({
                                                         editingInitialValue={editingCell?.initialValue}
                                                         onStopEditing={onStopEditing}
                                                         dateFormat={dateFormat}
+                                                        ganttSettings={ganttSettings}
                                                 />
                                                 </div>
                                             </TableCell>
