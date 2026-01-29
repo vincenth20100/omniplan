@@ -217,6 +217,8 @@ export interface ProjectState {
     // UI and View settings
     visibleColumns: string[];
     columns: ColumnSpec[];
+    sortColumn?: string | null;
+    sortDirection?: 'asc' | 'desc' | null;
     uiDensity: UiDensity;
     grouping: string[];
     filters: Filter[];

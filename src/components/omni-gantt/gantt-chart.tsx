@@ -51,7 +51,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         }
     }, []);
 
-    const { tasks, links, resources, assignments, columns, grouping, filters, calendars, defaultCalendarId, ganttSettings, baselines, visibleColumns, selectedTaskIds, focusCell, anchorCell, editingCell, selectionMode } = projectState;
+    const { tasks, links, resources, assignments, columns, grouping, filters, calendars, defaultCalendarId, ganttSettings, baselines, visibleColumns, selectedTaskIds, focusCell, anchorCell, editingCell, selectionMode, sortColumn, sortDirection } = projectState;
     const defaultCalendar = useMemo(() => calendars.find(c => c.id === defaultCalendarId) || (calendars.length > 0 ? calendars[0] : null), [calendars, defaultCalendarId]);
     const resourceMap = useMemo(() => new Map(resources.map(r => [r.id, r.name])), [resources]);
 
@@ -207,8 +207,46 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         
         const finalTasks = tasks.filter(t => filteredTaskIds.has(t.id));
 
+        const compareTasks = (a: Task, b: Task): number => {
+            if (!sortColumn || !sortDirection) return 0;
+            const valA = getRawTaskPropertyValue(a, sortColumn);
+            const valB = getRawTaskPropertyValue(b, sortColumn);
+
+            if (valA === valB) return 0;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
+
+            if (typeof valA === 'string' && typeof valB === 'string') {
+                return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            }
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        };
+
         const getVisibleHierarchicalTasks = (): Task[] => {
-            return finalTasks.filter(task => {
+            const tasksByParent = new Map<string, Task[]>();
+            finalTasks.forEach(t => {
+                const pId = t.parentId || 'root';
+                if (!tasksByParent.has(pId)) tasksByParent.set(pId, []);
+                tasksByParent.get(pId)!.push(t);
+            });
+
+            tasksByParent.forEach(siblings => {
+                siblings.sort(compareTasks);
+            });
+
+            const flattened: Task[] = [];
+            const traverse = (parentId: string) => {
+                const children = tasksByParent.get(parentId) || [];
+                for (const child of children) {
+                    flattened.push(child);
+                    traverse(child.id);
+                }
+            };
+            traverse('root');
+
+            return flattened.filter(task => {
                 if (!task.parentId) return true;
                 let parent = taskMap.get(task.parentId);
                 while(parent) {
@@ -223,7 +261,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
             const finalRows: RenderableRow[] = [];
             const groupRecursively = (tasksToGroup: Task[], groupLevel: number) => {
                 if (groupLevel >= grouping.length) {
-                    tasksToGroup.forEach(task => {
+                    tasksToGroup.sort(compareTasks).forEach(task => {
                         finalRows.push({ itemType: 'task', data: task, displayLevel: groupLevel });
                     });
                     return;
@@ -267,7 +305,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         } else {
              return getVisibleHierarchicalTasks().map(task => ({ itemType: 'task', data: task, displayLevel: task.level || 0 }));
         }
-    }, [tasks, filters, grouping, collapsedGroups, getRawTaskPropertyValue, getTaskPropertyValue, columns, assignments, resourceMap]);
+    }, [tasks, filters, grouping, collapsedGroups, getRawTaskPropertyValue, getTaskPropertyValue, columns, assignments, resourceMap, sortColumn, sortDirection]);
     
     const timelineTasks = useMemo(() => 
         renderableRows.filter((r): r is TaskRow => r.itemType === 'task').map(r => r.data)
@@ -302,6 +340,8 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
             onScroll={() => handleVerticalScroll('table')}
             uiDensity={uiDensity}
             onToggleGroup={handleToggleGroup}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
         />
     );
 
