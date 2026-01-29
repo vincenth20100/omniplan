@@ -137,7 +137,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
   const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
-  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
+  const [isDetailsSheetOpen, setIsDetailsSheetOpen] = useState(false);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
   const [projectSettingsSection, setProjectSettingsSection] = useState<'members' | 'baselines'>('members');
@@ -281,11 +281,9 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         >
           <ListChecks />
         </Toggle>
-        {isMobile && (
-            <Button variant="outline" size="icon" onClick={() => setIsMobileSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
-                <Info />
-            </Button>
-        )}
+        <Button variant="outline" size="icon" onClick={() => setIsDetailsSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
+            <Info />
+        </Button>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink || !isEditorOrOwner} title="Link Selected Tasks">
             <LinkIcon />
         </Button>
@@ -497,26 +495,24 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
       </main>
       {isLoaded && (
         <>
-          {isMobile && (
-            <Sheet open={isMobileSheetOpen} onOpenChange={setIsMobileSheetOpen}>
-                <SheetContent side="bottom" className="h-[80vh] p-0">
-                  {selectedTask && (
-                    <>
-                      <SheetTitle className="sr-only">Task Details: {selectedTask.name}</SheetTitle>
-                      <TaskDetailsPanel 
-                          task={selectedTask} 
-                          projectState={state}
-                          dispatch={dispatch}
-                          onClose={() => setIsMobileSheetOpen(false)}
-                          uiDensity={state.uiDensity}
-                          defaultCalendar={defaultCalendar}
-                          dateFormat={dateFormat}
-                      />
-                    </>
-                  )}
-                </SheetContent>
-            </Sheet>
-          )}
+          <Sheet open={isDetailsSheetOpen} onOpenChange={setIsDetailsSheetOpen}>
+              <SheetContent side="bottom" className="h-[80vh] p-0">
+                {selectedTask && (
+                  <>
+                    <SheetTitle className="sr-only">Task Details: {selectedTask.name}</SheetTitle>
+                    <TaskDetailsPanel
+                        task={selectedTask}
+                        projectState={state}
+                        dispatch={dispatch}
+                        onClose={() => setIsDetailsSheetOpen(false)}
+                        uiDensity={state.uiDensity}
+                        defaultCalendar={defaultCalendar}
+                        dateFormat={dateFormat}
+                    />
+                  </>
+                )}
+              </SheetContent>
+          </Sheet>
            {project && (
                 <ProjectSettingsDialog
                     open={isProjectSettingsOpen}
