@@ -115,6 +115,8 @@ export function EditableDateCell({
                 !inputRef.current.contains(target) &&
                 !document.querySelector('[data-radix-popper-content-wrapper]')?.contains(target)
             ) {
+                 event.preventDefault();
+                 event.stopPropagation();
                  handleInputBlur();
             }
         };

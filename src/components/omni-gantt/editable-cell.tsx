@@ -79,6 +79,8 @@ export function EditableCell({
 
         const handlePointerDown = (event: PointerEvent) => {
             if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
+                event.preventDefault();
+                event.stopPropagation();
                 inputRef.current.blur();
             }
         };
