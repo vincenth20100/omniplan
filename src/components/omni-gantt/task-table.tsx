@@ -380,7 +380,7 @@ const TaskCellRenderer = React.memo(({
         }
         case 'finishVariance': {
             if (!baselineTask || !defaultCalendar) return null;
-            const variance = calendarService.getWorkingDaysDuration(baselineTask.finish, task.finish, defaultCalendar);
+            const variance = calendarService.getWorkingDaysDuration(baselineTask.finish, task.finish, calendar);
             const textClass = variance > 0 ? 'text-destructive' : variance < 0 ? 'text-chart-2' : '';
             return <div className={cn("text-right pr-4", textClass)}>{variance !== 0 ? `${variance > 0 ? '+' : ''}${variance}d` : '0d'}</div>;
         }
@@ -1081,24 +1081,35 @@ export function TaskTable({
                                                     activeCell?.taskId === task.id && activeCell?.columnId === column.id && !isEditing && "ring-2 ring-inset ring-primary"
                                                 )}
                                                 onClick={(e) => {
-                                                    const isAlreadyActive = activeCell?.taskId === task.id && activeCell?.columnId === column.id;
-                                                    if (isMobile && isAlreadyActive && !editingCell) {
-                                                        const value = getCellValueForEditing(task.id, column.id);
-                                                        dispatch({
-                                                            type: 'START_EDITING_CELL',
-                                                            payload: { taskId: task.id, columnId: column.id, initialValue: value }
-                                                        });
-                                                        return;
-                                                    }
-                                                     dispatch({
-                                                        type: 'SET_ACTIVE_CELL_AND_SELECT_TASK',
-                                                        payload: {
-                                                            taskId: task.id,
-                                                            columnId: column.id,
-                                                            ctrlKey: e.ctrlKey,
-                                                            shiftKey: e.shiftKey
+                                                    if (isMobile) {
+                                                        const isAlreadyActive = activeCell?.taskId === task.id && activeCell?.columnId === column.id;
+                                                        if (isAlreadyActive && !editingCell) {
+                                                            const value = getCellValueForEditing(task.id, column.id);
+                                                            dispatch({
+                                                                type: 'START_EDITING_CELL',
+                                                                payload: { taskId: task.id, columnId: column.id, initialValue: value }
+                                                            });
+                                                        } else {
+                                                            dispatch({
+                                                                type: 'UPDATE_SELECTION',
+                                                                payload: {
+                                                                    mode: 'cell',
+                                                                    taskId: task.id,
+                                                                    columnId: column.id,
+                                                                }
+                                                            });
                                                         }
-                                                    });
+                                                    } else {
+                                                        dispatch({
+                                                            type: 'SET_ACTIVE_CELL_AND_SELECT_TASK',
+                                                            payload: {
+                                                                taskId: task.id,
+                                                                columnId: column.id,
+                                                                ctrlKey: e.ctrlKey,
+                                                                shiftKey: e.shiftKey
+                                                            }
+                                                        });
+                                                    }
                                                 }}
                                                 onDoubleClick={() => {
                                                     if (!isMobile) {

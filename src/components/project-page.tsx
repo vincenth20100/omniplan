@@ -281,6 +281,11 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         >
           <ListChecks />
         </Toggle>
+        {isMobile && (
+            <Button variant="outline" size="icon" onClick={() => setIsMobileSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
+                <Info />
+            </Button>
+        )}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink || !isEditorOrOwner} title="Link Selected Tasks">
             <LinkIcon />
         </Button>
@@ -402,11 +407,6 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Separator orientation="vertical" className="h-6 mx-1" />
         
         {/* More Tools */}
-        {isMobile && (
-            <Button variant="outline" size="icon" onClick={() => setIsMobileSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
-                <Info />
-            </Button>
-        )}
          <Button variant="outline" size="icon" onClick={() => setIsFindReplaceOpen(true)} title="Find and Replace (Ctrl+H)" disabled={!isEditorOrOwner}>
             <Search />
         </Button>
@@ -468,8 +468,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             <ResizablePanel defaultSize={35} minSize={20}>
               <TaskDetailsPanel 
                 task={selectedTask} 
-                links={state.links} 
-                tasks={state.tasks}
+                projectState={state}
                 dispatch={dispatch}
                 onClose={() => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: null } })}
                 uiDensity={state.uiDensity}
@@ -506,8 +505,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                       <SheetTitle className="sr-only">Task Details: {selectedTask.name}</SheetTitle>
                       <TaskDetailsPanel 
                           task={selectedTask} 
-                          links={state.links} 
-                          tasks={state.tasks}
+                          projectState={state}
                           dispatch={dispatch}
                           onClose={() => setIsMobileSheetOpen(false)}
                           uiDensity={state.uiDensity}
