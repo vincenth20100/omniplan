@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { format, parse, isValid } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -50,6 +50,12 @@ export function EditableDateCell({
             setTimeout(() => inputRef.current?.focus(), 0);
         }
     }, [isEditingProp, initialValue, value, dateFormat]);
+    
+    const stopEditing = useCallback(() => {
+        if (onStopEditing) {
+            onStopEditing();
+        }
+    }, [onStopEditing]);
 
     const handleSaveFromPicker = (date: Date | undefined | null) => {
         setPopoverOpen(false);
@@ -59,47 +65,69 @@ export function EditableDateCell({
         if (oldTime !== newTime) {
             onSave(newDate);
         }
+        stopEditing();
     };
 
-    const tryParseAndSave = () => {
-        if (inputValue === (value ? format(value, dateFormat) : '')) {
-            return; // No change
-        }
-
-        if (inputValue.trim() === '') {
-            onSave(null);
+    const handleInputBlur = useCallback(() => {
+        const currentInputValue = inputRef.current?.value ?? '';
+        
+        if (currentInputValue === (value ? format(value, dateFormat) : '')) {
+            stopEditing();
             return;
         }
 
-        const parsedDate = parse(inputValue, dateFormat, new Date());
+        if (currentInputValue.trim() === '') {
+            onSave(null);
+            stopEditing();
+            return;
+        }
+
+        const parsedDate = parse(currentInputValue, dateFormat, new Date());
         
         if (isValid(parsedDate)) {
             const oldTime = value?.getTime();
             const newTime = parsedDate?.getTime();
             if (oldTime !== newTime) {
                 onSave(parsedDate);
-            } else {
-                 if(value) setInputValue(format(value, dateFormat));
             }
-        } else {
-            setInputValue(value ? format(value, dateFormat) : '');
         }
-    }
+        stopEditing();
+    }, [value, dateFormat, onSave, stopEditing]);
 
-    const handleInputBlur = () => {
-        tryParseAndSave();
-        onStopEditing?.();
-    };
-    
+
     const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
-            tryParseAndSave();
-            (e.target as HTMLInputElement).blur();
+            e.preventDefault();
+            handleInputBlur();
         } else if (e.key === 'Escape') {
-             setInputValue(value ? format(value, dateFormat) : '');
-             (e.target as HTMLInputElement).blur();
+             e.preventDefault();
+             stopEditing();
         }
     };
+    
+    useEffect(() => {
+        if (!isEditingProp) return;
+
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node;
+            if (
+                inputRef.current && 
+                !inputRef.current.contains(target) &&
+                !document.querySelector('[data-radix-popper-content-wrapper]')?.contains(target)
+            ) {
+                 handleInputBlur();
+            }
+        };
+        
+        const timer = setTimeout(() => {
+             document.addEventListener('pointerdown', handlePointerDown, true);
+        }, 0);
+
+        return () => {
+            clearTimeout(timer);
+            document.removeEventListener('pointerdown', handlePointerDown, true);
+        };
+    }, [isEditingProp, handleInputBlur]);
 
     const modifiers = useMemo(() => {
         if (!calendar) return {};
@@ -113,7 +141,17 @@ export function EditableDateCell({
     };
     
     return (
-        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <Popover open={popoverOpen} onOpenChange={(open) => {
+            setPopoverOpen(open);
+            if (!open) {
+                // If popover closes, ensure editing stops if input isn't focused
+                setTimeout(() => {
+                    if (document.activeElement !== inputRef.current) {
+                        stopEditing();
+                    }
+                }, 0);
+            }
+        }}>
             <div className={cn("relative w-full h-full flex items-center", className)}>
                 <Input
                     ref={inputRef}
@@ -129,6 +167,7 @@ export function EditableDateCell({
                         tabIndex={-1}
                         className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
                         aria-label="Open calendar"
+                        onClick={() => setPopoverOpen(p => !p)}
                     >
                         <CalendarIcon className="h-4 w-4" />
                     </button>

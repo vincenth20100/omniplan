@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -48,27 +48,50 @@ export function EditableCell({
     }, [isEditing, initialValue]);
 
 
-    const handleBlur = () => {
-        if (currentValue !== value) {
-            onSave(currentValue);
+    const handleBlur = useCallback(() => {
+        if (inputRef.current && inputRef.current.value !== value) {
+            onSave(inputRef.current.value);
         }
         if (isControlled) {
             onStopEditingProp?.();
         } else {
             setInternalIsEditing(false);
         }
-    };
+    }, [value, onSave, isControlled, onStopEditingProp]);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Escape') {
-            setCurrentValue(value);
-            if (isControlled) {
-                onStopEditingProp?.();
-            } else {
-                setInternalIsEditing(false);
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            // To prevent saving on escape, reset the input's value before blurring
+            if (inputRef.current) {
+                inputRef.current.value = value;
             }
+            (e.target as HTMLInputElement).blur();
         }
     };
+
+    // This effect handles clicking outside the input to commit changes
+    useEffect(() => {
+        if (!isEditing) return;
+
+        const handlePointerDown = (event: PointerEvent) => {
+            if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
+                inputRef.current.blur();
+            }
+        };
+
+        const timer = setTimeout(() => {
+            document.addEventListener('pointerdown', handlePointerDown, true);
+        }, 0);
+
+        return () => {
+            clearTimeout(timer);
+            document.removeEventListener('pointerdown', handlePointerDown, true);
+        };
+    }, [isEditing, handleBlur]);
 
     return (
         <div className={cn("w-full h-full flex items-center cursor-text", className)} onClick={() => !isControlled && !internalIsEditing && setInternalIsEditing(true)}>
