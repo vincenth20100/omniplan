@@ -92,8 +92,8 @@ export function GanttSettingsPanel({
           <SheetTitle>Display Options</SheetTitle>
           <SheetDescription>
             Customize the appearance of the Gantt chart and grid.
-             {!isEditor && <div className="mt-2 text-destructive font-semibold">You have view-only permissions. Your changes will not be saved.</div>}
           </SheetDescription>
+           {!isEditor && <p className="text-sm text-destructive font-semibold">You have view-only permissions. Your changes will not be saved.</p>}
         </SheetHeader>
         <ScrollArea className="flex-grow pr-4 -mr-6">
           <div className="grid gap-6 py-4">
@@ -111,6 +111,7 @@ export function GanttSettingsPanel({
                                 dispatch({ type: 'SET_ACTIVE_STYLE_PRESET', payload: { id: value }});
                             }
                         }}
+                        disabled={!isEditor}
                     >
                         <SelectTrigger id="theme-select" className="w-[180px]">
                         <SelectValue placeholder="Select theme" />
@@ -121,7 +122,7 @@ export function GanttSettingsPanel({
                               {preset.name}
                             </SelectItem>
                           ))}
-                          <SelectItem value="custom" disabled={activeStylePresetId !== null}>
+                          <SelectItem value="custom">
                             Custom
                           </SelectItem>
                         </SelectContent>
@@ -135,6 +136,7 @@ export function GanttSettingsPanel({
                       value={settings.dateFormat || 'MMM d, yyyy'}
                       onChange={(e) => handleSettingChange('dateFormat', e.target.value)}
                       className="w-[180px] h-9"
+                      disabled={!isEditor}
                       />
                 </div>
                  <p className="text-xs text-muted-foreground -mt-2">
@@ -154,6 +156,7 @@ export function GanttSettingsPanel({
                   <Select
                     value={settings.viewMode}
                     onValueChange={(value: 'day' | 'week' | 'month') => handleSettingChange('viewMode', value)}
+                    disabled={!isEditor}
                   >
                     <SelectTrigger id="view-mode" className="w-[180px]">
                       <SelectValue placeholder="Select view mode" />
@@ -171,6 +174,7 @@ export function GanttSettingsPanel({
                     id="highlight-non-working"
                     checked={settings.highlightNonWorkingTime}
                     onCheckedChange={(checked) => handleSettingChange('highlightNonWorkingTime', checked)}
+                    disabled={!isEditor}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -179,6 +183,7 @@ export function GanttSettingsPanel({
                     id="show-today-line"
                     checked={settings.showTodayLine}
                     onCheckedChange={(checked) => handleSettingChange('showTodayLine', checked)}
+                    disabled={!isEditor}
                   />
                 </div>
               </div>
@@ -196,6 +201,7 @@ export function GanttSettingsPanel({
                     id="show-dependencies"
                     checked={settings.showDependencies}
                     onCheckedChange={(checked) => handleSettingChange('showDependencies', checked)}
+                    disabled={!isEditor}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -204,6 +210,7 @@ export function GanttSettingsPanel({
                     id="show-progress"
                     checked={settings.showProgress}
                     onCheckedChange={(checked) => handleSettingChange('showProgress', checked)}
+                    disabled={!isEditor}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -212,6 +219,7 @@ export function GanttSettingsPanel({
                     id="show-task-labels"
                     checked={settings.showTaskLabels}
                     onCheckedChange={(checked) => handleSettingChange('showTaskLabels', checked)}
+                    disabled={!isEditor}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -220,6 +228,7 @@ export function GanttSettingsPanel({
                       id="split-tasks"
                       checked={!!settings.renderSplitTasks}
                       onCheckedChange={(checked) => handleSettingChange('renderSplitTasks', checked)}
+                      disabled={!isEditor}
                   />
                 </div>
               </div>
@@ -237,6 +246,7 @@ export function GanttSettingsPanel({
                           id="critical-path"
                           checked={settings.highlightCriticalPath}
                           onCheckedChange={(checked) => handleSettingChange('highlightCriticalPath', checked)}
+                          disabled={!isEditor}
                       />
                   </div>
               </div>
@@ -255,6 +265,7 @@ export function GanttSettingsPanel({
                         <Select
                             value={settings.theme || 'dark'}
                             onValueChange={(value: 'light' | 'dark' | 'sepia') => handleSettingChange('theme', value)}
+                            disabled={!isEditor}
                         >
                             <SelectTrigger id="base-theme-select" className="w-[180px]">
                                 <SelectValue placeholder="Select base theme" />
@@ -271,37 +282,44 @@ export function GanttSettingsPanel({
                       label="Gantt Bar (Default)"
                       value={settings.customStyles?.ganttBarDefault || ''}
                       onChange={(value) => handleCustomStyleChange('ganttBarDefault', value)}
+                      disabled={!isEditor}
                     />
                      <ColorPicker
                       label="Gantt Bar (Critical)"
                       value={settings.customStyles?.ganttBarCritical || ''}
                       onChange={(value) => handleCustomStyleChange('ganttBarCritical', value)}
+                      disabled={!isEditor}
                     />
                      <ColorPicker
                       label="Milestone (Default)"
                       value={settings.customStyles?.milestoneDefault || ''}
                       onChange={(value) => handleCustomStyleChange('milestoneDefault', value)}
+                      disabled={!isEditor}
                     />
                      <ColorPicker
                       label="Milestone (Critical)"
                       value={settings.customStyles?.milestoneCritical || ''}
                       onChange={(value) => handleCustomStyleChange('milestoneCritical', value)}
+                      disabled={!isEditor}
                     />
                     <Separator className="my-4" />
                      <ColorPicker
                       label="Task Row (Level 0)"
                       value={settings.customStyles?.taskRowLevel0Bg || ''}
                       onChange={(value) => handleCustomStyleChange('taskRowLevel0Bg', value)}
+                      disabled={!isEditor}
                     />
                      <ColorPicker
                       label="Task Row (Level 1)"
                       value={settings.customStyles?.taskRowLevel1Bg || ''}
                       onChange={(value) => handleCustomStyleChange('taskRowLevel1Bg', value)}
+                      disabled={!isEditor}
                     />
                      <ColorPicker
                       label="Task Row (Level 2+)"
                       value={settings.customStyles?.taskRowLevel2PlusBg || ''}
                       onChange={(value) => handleCustomStyleChange('taskRowLevel2PlusBg', value)}
+                      disabled={!isEditor}
                     />
                     <Separator className="my-4" />
                     <Button variant="outline" className="w-full" onClick={onManageThemes} disabled={!isEditor}>Manage Custom Themes...</Button>
