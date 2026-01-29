@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { format, parse, isValid } from 'date-fns';
-import { Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -68,17 +67,15 @@ export function EditableDateCell({
         stopEditing();
     };
 
-    const handleInputBlur = useCallback(() => {
+    const commitChanges = useCallback(() => {
         const currentInputValue = inputRef.current?.value ?? '';
         
         if (currentInputValue === (value ? format(value, dateFormat) : '')) {
-            stopEditing();
             return;
         }
 
         if (currentInputValue.trim() === '') {
             onSave(null);
-            stopEditing();
             return;
         }
 
@@ -91,16 +88,25 @@ export function EditableDateCell({
                 onSave(parsedDate);
             }
         }
-        stopEditing();
-    }, [value, dateFormat, onSave, stopEditing]);
+    }, [value, dateFormat, onSave]);
+
+    const handleInputBlur = useCallback(() => {
+        commitChanges();
+        if (!popoverOpen) {
+            stopEditing();
+        }
+    }, [commitChanges, popoverOpen, stopEditing]);
 
 
     const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            handleInputBlur();
+            setPopoverOpen(false);
+            commitChanges();
+            stopEditing();
         } else if (e.key === 'Escape') {
              e.preventDefault();
+             setPopoverOpen(false);
              stopEditing();
         }
     };
@@ -117,7 +123,8 @@ export function EditableDateCell({
             ) {
                  event.preventDefault();
                  event.stopPropagation();
-                 handleInputBlur();
+                 commitChanges();
+                 stopEditing();
             }
         };
         
@@ -129,7 +136,7 @@ export function EditableDateCell({
             clearTimeout(timer);
             document.removeEventListener('pointerdown', handlePointerDown, true);
         };
-    }, [isEditingProp, handleInputBlur]);
+    }, [isEditingProp, commitChanges, stopEditing]);
 
     const modifiers = useMemo(() => {
         if (!calendar) return {};
@@ -154,33 +161,24 @@ export function EditableDateCell({
                 }, 0);
             }
         }}>
-            <div className={cn("relative w-full h-full flex items-center", className)}>
-                <Input
-                    ref={inputRef}
-                    type="text"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onBlur={handleInputBlur}
-                    onKeyDown={handleInputKeyDown}
-                    className="h-full p-0 pl-2 pr-8 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring"
-                />
-                <PopoverTrigger asChild>
-                    <button
-                        tabIndex={-1}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
-                        aria-label="Open calendar"
-                        onClick={() => setPopoverOpen(p => !p)}
-                    >
-                        <CalendarIcon className="h-4 w-4" />
-                    </button>
-                </PopoverTrigger>
-            </div>
+            <PopoverTrigger asChild>
+                <div className={cn("relative w-full h-full flex items-center", className)}>
+                    <Input
+                        ref={inputRef}
+                        type="text"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onBlur={handleInputBlur}
+                        onKeyDown={handleInputKeyDown}
+                        className="h-full p-0 pl-2 pr-2 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                </div>
+            </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                     mode="single"
                     selected={value || undefined}
                     onSelect={handleSaveFromPicker}
-                    initialFocus
                     modifiers={modifiers}
                     modifiersClassNames={modifiersClassNames}
                 />
