@@ -6,6 +6,7 @@ import { Timeline } from './timeline';
 import React, { useRef, useCallback, useMemo, useState } from 'react';
 import { format, startOfDay } from 'date-fns';
 import { addDays, min } from 'date-fns';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export type GroupRow = {
     itemType: 'group';
@@ -28,6 +29,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
     const tableViewportRef = useRef<HTMLDivElement>(null);
     const timelineViewportRef = useRef<HTMLDivElement>(null);
     const isSyncingVerticalScroll = useRef(false);
+    const isMobile = useIsMobile();
 
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
@@ -276,34 +278,56 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         return links.filter(l => visibleTaskIds.has(l.source) && visibleTaskIds.has(l.target));
     }, [timelineTasks, links]);
 
+    const taskTableComponent = (
+        <TaskTable 
+            projectState={projectState}
+            renderableRows={renderableRows}
+            dispatch={dispatch} 
+            viewportRef={tableViewportRef}
+            onScroll={() => handleVerticalScroll('table')}
+            uiDensity={uiDensity}
+            onToggleGroup={handleToggleGroup}
+        />
+    );
+
+    const timelineComponent = (
+        <Timeline 
+            allTasks={tasks}
+            renderableRows={renderableRows}
+            links={timelineLinks}
+            dispatch={dispatch}
+            selectedTaskIds={projectState.selectedTaskIds}
+            viewportRef={timelineViewportRef}
+            onScroll={() => handleVerticalScroll('timeline')}
+            uiDensity={uiDensity}
+            defaultCalendar={defaultCalendar}
+            ganttSettings={ganttSettings}
+        />
+    );
+
+    if (isMobile) {
+        return (
+            <div className="border rounded-lg overflow-x-auto h-full flex flex-row bg-card">
+                <div className="shrink-0">
+                    {taskTableComponent}
+                </div>
+                <div className="flex-1 min-w-0">
+                    {timelineComponent}
+                </div>
+            </div>
+        );
+    }
+    
+
     return (
         <div className="border rounded-lg overflow-hidden h-full flex flex-col bg-card">
             <ResizablePanelGroup direction="horizontal" className="h-full">
                 <ResizablePanel defaultSize={50} minSize={20}>
-                    <TaskTable 
-                        projectState={projectState}
-                        renderableRows={renderableRows}
-                        dispatch={dispatch} 
-                        viewportRef={tableViewportRef}
-                        onScroll={() => handleVerticalScroll('table')}
-                        uiDensity={uiDensity}
-                        onToggleGroup={handleToggleGroup}
-                    />
+                    {taskTableComponent}
                 </ResizablePanel>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={50}>
-                    <Timeline 
-                        allTasks={tasks}
-                        renderableRows={renderableRows}
-                        links={timelineLinks}
-                        dispatch={dispatch}
-                        selectedTaskIds={projectState.selectedTaskIds}
-                        viewportRef={timelineViewportRef}
-                        onScroll={() => handleVerticalScroll('timeline')}
-                        uiDensity={uiDensity}
-                        defaultCalendar={defaultCalendar}
-                        ganttSettings={ganttSettings}
-                    />
+                    {timelineComponent}
                 </ResizablePanel>
             </ResizablePanelGroup>
         </div>
