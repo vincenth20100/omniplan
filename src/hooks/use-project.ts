@@ -1739,6 +1739,12 @@ export function useProject(user: User, projectId: string | null) {
   }, [isMemberLoading, isCheckingAdmin, member, isAdmin]);
   
   const dispatch = useCallback((action: Action) => {
+    // These actions should bypass the batching logic and directly manipulate the history state.
+    if (action.type === 'UNDO' || action.type === 'REDO' || action.type === 'JUMP_TO_HISTORY') {
+        internalDispatch(action);
+        return;
+    }
+
     if (!user || !projectId) {
         internalDispatch(action);
         return;
