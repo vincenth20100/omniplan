@@ -381,7 +381,7 @@ const TaskCellRenderer = React.memo(({
         case 'finishVariance': {
             if (!baselineTask || !defaultCalendar) return null;
             const variance = calendarService.getWorkingDaysDuration(baselineTask.finish, task.finish, defaultCalendar);
-            const textClass = variance > 0 ? 'text-destructive' : variance < 0 ? 'text-green-500' : '';
+            const textClass = variance > 0 ? 'text-destructive' : variance < 0 ? 'text-chart-2' : '';
             return <div className={cn("text-right pr-4", textClass)}>{variance !== 0 ? `${variance > 0 ? '+' : ''}${variance}d` : '0d'}</div>;
         }
         default: {
