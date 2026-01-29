@@ -84,7 +84,7 @@ const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensi
                         key={segIndex}
                         className={cn(
                             "absolute flex items-center group",
-                            task.isCritical && ganttSettings.highlightCriticalPath ? "bg-destructive/15 border-2 border-destructive/90 rounded-sm" : "bg-card border-2 border-primary/90 rounded-sm",
+                            task.isCritical && ganttSettings.highlightCriticalPath ? "bg-destructive/15 border-2 border-destructive/90 rounded-sm" : "bg-muted border-2 border-primary/90 rounded-sm",
                              selectedTaskIds.includes(task.id) ? "ring-2 ring-offset-2 ring-accent ring-offset-card" : "hover:ring-1 hover:ring-accent",
                         )}
                         style={{
