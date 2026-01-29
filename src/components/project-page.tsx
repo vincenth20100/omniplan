@@ -237,9 +237,13 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
           pressed={state.multiSelectMode}
           onPressedChange={handleToggleMultiSelect}
           title="Toggle Multi-Select Mode"
+          className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
         >
           <ListChecks />
         </Toggle>
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink || !isEditorOrOwner} title="Link Selected Tasks">
+            <LinkIcon />
+        </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
         {/* View Type */}
         <ToggleGroup
@@ -274,9 +278,6 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         </Button>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REMOVE_TASK' })} disabled={!canRemove || !isEditorOrOwner} title="Remove Selected Tasks">
             <Trash2 />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink || !isEditorOrOwner} title="Link Selected Tasks">
-            <LinkIcon />
         </Button>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'INDENT_TASK' })} disabled={!canIndent || !isEditorOrOwner} title="Indent Task">
             <Indent />
