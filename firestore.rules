@@ -20,7 +20,8 @@ service cloud.firestore {
       // Fallback for projects that haven't been migrated to the `members` subcollection yet.
       // This costs an extra document read per access check.
       let projectDoc = get(/databases/$(database)/documents/projects/$(projectId));
-      return 'memberIds' in projectDoc.data && request.auth.uid in projectDoc.data.memberIds;
+      // Use hasAny for list membership check.
+      return 'memberIds' in projectDoc.data && projectDoc.data.memberIds.hasAny([request.auth.uid]);
     }
 
     function isProjectViewer(projectId) {
@@ -59,7 +60,10 @@ service cloud.firestore {
     // --- Projects and Subcollections ---
     match /projects/{projectId} {
       // Project Document
-      allow read: if isProjectViewer(projectId) || isGlobalAdmin() || (isSignedIn() && 'memberIds' in resource.data && request.auth.uid in resource.data.memberIds);
+      // FIX: Removed recursive call to isProjectViewer to break circular dependency.
+      // This allows get() calls from other rules (for legacy checks) to succeed.
+      // The direct check on `resource.data.memberIds` handles direct reads of the project doc for legacy members.
+      allow read: if isProjectMember(projectId) || isGlobalAdmin() || (resource.data.memberIds.hasAny([request.auth.uid]));
       allow list: if isGlobalAdmin();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isProjectEditor(projectId) || isGlobalAdmin();
