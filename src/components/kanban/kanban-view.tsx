@@ -2,16 +2,19 @@
 import type { ProjectState, Task } from '@/lib/types';
 import { KanbanColumn } from './kanban-column';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { NotesSection } from '@/components/details/notes-section';
+import { TaskDetailsPanel } from '@/components/details/task-details-panel';
+import { useMemo } from 'react';
 
 const KANBAN_COLUMNS = ['To Do', 'In Progress', 'Done'];
 
 export function KanbanView({ projectState, dispatch }: { projectState: ProjectState, dispatch: any }) {
-    const { tasks, selectedTaskIds, ganttSettings } = projectState;
+    const { tasks, links, selectedTaskIds, ganttSettings, uiDensity, calendars, defaultCalendarId } = projectState;
     const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
     const lastSelectedId = selectedTaskIds[selectedTaskIds.length - 1];
     const selectedTask = tasks.find(t => t.id === lastSelectedId);
+
+    const defaultCalendar = useMemo(() => calendars.find(c => c.id === defaultCalendarId) || calendars[0] || null, [calendars, defaultCalendarId]);
 
     const tasksByStatus = tasks.reduce((acc, task) => {
         if (task.isSummary) return acc;
@@ -51,14 +54,17 @@ export function KanbanView({ projectState, dispatch }: { projectState: ProjectSt
             {selectedTask && (
                 <>
                     <ResizableHandle withHandle />
-                    <ResizablePanel defaultSize={25} minSize={20} maxSize={40} className="bg-card border-l flex flex-col">
-                        <div className="p-4 border-b shrink-0">
-                            <h2 className="text-lg font-semibold">{selectedTask.name}</h2>
-                             <p className="text-sm text-muted-foreground">{selectedTask.wbs}</p>
-                        </div>
-                         <div className="flex-grow p-4 overflow-hidden">
-                            <NotesSection task={selectedTask} dispatch={dispatch} />
-                        </div>
+                    <ResizablePanel defaultSize={35} minSize={20}>
+                      <TaskDetailsPanel 
+                        task={selectedTask} 
+                        links={links} 
+                        tasks={tasks}
+                        dispatch={dispatch}
+                        onClose={() => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: null } })}
+                        uiDensity={uiDensity}
+                        defaultCalendar={defaultCalendar}
+                        dateFormat={dateFormat}
+                      />
                     </ResizablePanel>
                 </>
             )}

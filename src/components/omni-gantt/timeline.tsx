@@ -72,7 +72,7 @@ const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensi
                 width: `${width}px`,
                 height: `${summaryBarHeight}px`
             }}
-            onClick={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
+            onClick={(e) => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
         >
             {segments.map((segment, segIndex) => {
                 const segmentOffsetDays = differenceInCalendarDays(segment.start, task.start);
@@ -325,7 +325,7 @@ export function Timeline({
                               dispatch={dispatch}
                               row={index}
                               isSelected={selectedTaskIds.includes(task.id)}
-                              onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
+                              onSelect={(e) => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
                               registerBarElement={registerBarElement}
                               uiDensity={uiDensity}
                               showProgress={ganttSettings.showProgress}

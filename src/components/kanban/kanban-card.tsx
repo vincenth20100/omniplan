@@ -10,8 +10,8 @@ export function KanbanCard({ task, projectState, dispatch, dateFormat }: { task:
         e.dataTransfer.setData('text/plain', task.id);
     };
 
-    const handleCardClick = () => {
-        dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id } });
+    const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } });
     }
 
     const isSelected = projectState.selectedTaskIds.includes(task.id);
