@@ -1711,7 +1711,7 @@ export function useProject(user: User, projectId: string | null) {
 
   useEffect(() => {
     const allCollectionsLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading;
-    const allLoading = allCollectionsLoading || isMemberLoading;
+    const allLoading = allCollectionsLoading || isMemberLoading || isCheckingAdmin;
 
     if (!projectId || allLoading) {
         return;
@@ -1754,7 +1754,7 @@ export function useProject(user: User, projectId: string | null) {
         setIsLoaded(true);
     }
   }, [
-    projectId, isLoaded, isMemberLoading,
+    projectId, isLoaded, isMemberLoading, isCheckingAdmin,
     collections.tasks.data, collections.tasks.isLoading,
     collections.links.data, collections.links.isLoading,
     collections.resources.data, collections.resources.isLoading,
