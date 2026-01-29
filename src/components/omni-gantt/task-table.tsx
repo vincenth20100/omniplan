@@ -423,7 +423,7 @@ export function TaskTable({
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
 }) {
-    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, activeCell, calendars, defaultCalendarId, ganttSettings, editingCell } = projectState;
+    const { tasks, links, resources, assignments, selectedTaskIds, visibleColumns, columns, grouping, focusCell: activeCell, calendars, defaultCalendarId, ganttSettings, editingCell } = projectState;
     const stateRef = useRef(projectState);
     const isMobile = useIsMobile();
 
@@ -478,7 +478,7 @@ export function TaskTable({
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            const { activeCell, columns, visibleColumns, editingCell } = stateRef.current;
+            const { focusCell: activeCell, columns, visibleColumns, editingCell } = stateRef.current;
 
             const isEditing = !!editingCell;
             const isNavKey = event.key.startsWith('Arrow') || event.key === 'Enter';
@@ -705,7 +705,7 @@ export function TaskTable({
         };
 
         const handlePaste = (e: ClipboardEvent) => {
-            const { editingCell } = stateRef.current;
+            const { editingCell, focusCell } = stateRef.current;
             if (editingCell) return; // Don't handle paste when editing a cell
 
             const pastedData = e.clipboardData?.getData('text/plain');
@@ -713,7 +713,7 @@ export function TaskTable({
                 e.preventDefault();
                 dispatch({ 
                     type: 'ADD_TASKS_FROM_PASTE', 
-                    payload: { data: pastedData, activeCell: stateRef.current.activeCell }
+                    payload: { data: pastedData, activeCell: focusCell }
                 });
             }
         };
