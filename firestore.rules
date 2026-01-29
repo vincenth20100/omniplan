@@ -15,6 +15,17 @@ service cloud.firestore {
     function isProjectMember(projectId) {
       return isSignedIn() && exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
     }
+
+    function isLegacyProjectMember(projectId) {
+      // Fallback for projects that haven't been migrated to the `members` subcollection yet.
+      // This costs an extra document read per access check.
+      let projectDoc = get(/databases/$(database)/documents/projects/$(projectId));
+      return 'memberIds' in projectDoc.data && request.auth.uid in projectDoc.data.memberIds;
+    }
+
+    function isProjectViewer(projectId) {
+      return isProjectMember(projectId) || isLegacyProjectMember(projectId);
+    }
     
     function isProjectEditor(projectId) {
       let userRole = get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role;
@@ -48,7 +59,7 @@ service cloud.firestore {
     // --- Projects and Subcollections ---
     match /projects/{projectId} {
       // Project Document
-      allow read: if isProjectMember(projectId) || isGlobalAdmin() || (isSignedIn() && 'memberIds' in resource.data && request.auth.uid in resource.data.memberIds);
+      allow read: if isProjectViewer(projectId) || isGlobalAdmin() || (isSignedIn() && 'memberIds' in resource.data && request.auth.uid in resource.data.memberIds);
       allow list: if isGlobalAdmin();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isProjectEditor(projectId) || isGlobalAdmin();
@@ -56,7 +67,7 @@ service cloud.firestore {
 
       // Project Members
       match /members/{userId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         // Allow a user to create their own membership doc IF they are the project owner (checked via getAfter)
         // OR allow an existing owner/admin to add/edit members.
         allow create: if (getAfter(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid && request.auth.uid == userId) || isProjectOwner(projectId) || isGlobalAdmin();
@@ -67,66 +78,66 @@ service cloud.firestore {
 
       // Tasks
       match /tasks/{taskId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Links
       match /links/{linkId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Baselines
       match /baselines/{baselineId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Resources
       match /resources/{resourceId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
       
       // Assignments
       match /assignments/{assignmentId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
       
       // Calendars
       match /calendars/{calendarId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
       
       // Views
       match /views/{viewId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create, update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Settings
       match /settings/{settingId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create, update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Other collections with same simple logic
       match /zones/{zoneId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
       match /history_logs/{historyLogId} {
-        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
