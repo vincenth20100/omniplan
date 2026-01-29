@@ -121,6 +121,7 @@ type Action =
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
   | { type: 'UPDATE_SELECTION', payload: { mode: 'row' | 'cell', taskId: string, columnId?: string, shiftKey?: boolean, ctrlKey?: boolean } }
+  | { type: 'SET_ACTIVE_CELL_AND_SELECT_TASK', payload: { taskId: string, columnId: string, shiftKey?: boolean, ctrlKey?: boolean } }
   | { type: 'LINK_TASKS' }
   | { type: 'ADD_LINK'; payload: { source: string, target: string, type: LinkType, lag: number } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
@@ -159,7 +160,7 @@ type Action =
   | { type: 'DELETE_VIEW', payload: { viewId: string } }
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
-  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, focusCell: { taskId: string, columnId: string } | null } }
+  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, activeCell: { taskId: string, columnId: string } | null } }
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
   | { type: 'STOP_EDITING_CELL' }
   | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
@@ -643,6 +644,47 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         return state;
     }
+    case 'SET_ACTIVE_CELL_AND_SELECT_TASK': {
+      const { taskId, columnId, shiftKey, ctrlKey } = action.payload;
+      const newState: ProjectState = {
+        ...state,
+        focusCell: { taskId, columnId },
+        editingCell: null,
+      };
+
+      if (shiftKey) {
+        // If shift is held, we are in cell selection mode.
+        // We ensure anchorCell exists.
+        newState.selectionMode = 'cell';
+        if (!newState.anchorCell) {
+          newState.anchorCell = state.focusCell || { taskId, columnId };
+        }
+        // Row selection is cleared in cell mode.
+        newState.selectedTaskIds = [];
+        newState.selectionAnchor = null;
+      } else {
+        // Not holding shift means we switch to row selection mode.
+        newState.selectionMode = 'row';
+        newState.anchorCell = null; // Clear cell selection anchor
+        
+        let newSelectedIds = [taskId];
+        if (ctrlKey || state.multiSelectMode) {
+          const currentSelection = [...state.selectedTaskIds];
+          const existingIndex = currentSelection.indexOf(taskId);
+          if (existingIndex > -1) {
+            currentSelection.splice(existingIndex, 1);
+          } else {
+            currentSelection.push(taskId);
+          }
+          newSelectedIds = currentSelection;
+        }
+        
+        newState.selectedTaskIds = newSelectedIds;
+        newState.selectionAnchor = taskId;
+      }
+
+      return newState;
+    }
     case 'TOGGLE_TASK_COLLAPSE': {
       const newTasks = state.tasks.map(task => 
         task.id === action.payload.taskId ? { ...task, isCollapsed: !task.isCollapsed } : task
@@ -834,7 +876,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, multiSelectMode: !state.multiSelectMode };
     }
     case 'ADD_TASKS_FROM_PASTE': {
-        const { data, focusCell } = action.payload;
+        const { data, activeCell } = action.payload;
         try {
             const parsedData = JSON.parse(data);
             if (parsedData.type === 'omniplan-tasks' && Array.isArray(parsedData.tasks)) {
@@ -845,8 +887,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 pastedTasks.forEach(t => idMap.set(t.id, `task-${Date.now()}-${Math.random()}`.replace('.','')));
                 
                 let targetIndex = state.tasks.length;
-                if (focusCell) {
-                    const activeTaskIndex = state.tasks.findIndex(t => t.id === focusCell.taskId);
+                if (activeCell) {
+                    const activeTaskIndex = state.tasks.findIndex(t => t.id === activeCell.taskId);
                     if (activeTaskIndex !== -1) {
                         targetIndex = activeTaskIndex + 1;
                     }
@@ -897,8 +939,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         if (lines.length > 1) {
             let targetIndex = state.tasks.length;
-            if (focusCell) {
-                const activeTaskIndex = state.tasks.findIndex(t => t.id === focusCell.taskId);
+            if (activeCell) {
+                const activeTaskIndex = state.tasks.findIndex(t => t.id === activeCell.taskId);
                 if (activeTaskIndex > -1) {
                     targetIndex = activeTaskIndex + 1;
                 }
@@ -929,8 +971,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             
             return { ...state, tasks: scheduledTasks, selectedTaskIds: newSelectedIds };
 
-        } else if (lines.length === 1 && focusCell) {
-            const { taskId, columnId } = focusCell;
+        } else if (lines.length === 1 && activeCell) {
+            const { taskId, columnId } = activeCell;
             const value = lines[0].trim();
             
             if (columnId === 'predecessors' || columnId === 'successors') {
@@ -1492,6 +1534,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             'SET_PROJECT_DATA', 
             'SET_PERSISTED_STATE',
             'UPDATE_SELECTION',
+            'SET_ACTIVE_CELL_AND_SELECT_TASK',
             'START_EDITING_CELL', 
             'STOP_EDITING_CELL',
             'CLEAR_NOTIFICATIONS',
@@ -1836,15 +1879,15 @@ export function useProject(user: User, projectId: string | null) {
   useEffect(() => {
     if (!isLoaded || collections.views.isLoading || collections.sharedSettings.isLoading || collections.userPreferences.isLoading) return;
     
-    let sharedSettings = collections.sharedSettings.data ? { ...defaultAppSettings, ...collections.sharedSettings.data } : defaultAppSettings;
+    const sharedSettings = collections.sharedSettings.data ? { ...defaultAppSettings, ...collections.sharedSettings.data } : defaultAppSettings;
     let userPreferences = collections.userPreferences.data ? { ...defaultUserPreferences, ...collections.userPreferences.data } : null;
 
-    if (sharedSettings?.ganttSettings?.dateFormat) {
+    if (userPreferences?.ganttSettings?.dateFormat) {
         try {
-            format(new Date(), sharedSettings.ganttSettings.dateFormat);
+            format(new Date(), userPreferences.ganttSettings.dateFormat);
         } catch (e) {
-            console.warn(`Invalid date format string "${sharedSettings.ganttSettings.dateFormat}" found in settings. Resetting to default.`);
-            sharedSettings.ganttSettings.dateFormat = defaultAppSettings.ganttSettings.dateFormat;
+            console.warn(`Invalid date format string "${userPreferences.ganttSettings.dateFormat}" found in user preferences. Resetting to default.`);
+            userPreferences.ganttSettings.dateFormat = defaultUserPreferences.ganttSettings.dateFormat;
         }
     }
     
@@ -1857,7 +1900,7 @@ export function useProject(user: User, projectId: string | null) {
         member: member,
       }
     });
-  }, [isLoaded, collections.views.data, collections.views.isLoading, collections.sharedSettings.data, collections.sharedSettings.isLoading, collections.userPreferences.data, collections.userPreferences.isLoading, member]);
+  }, [isLoaded, collections.views.isLoading, collections.sharedSettings.isLoading, collections.userPreferences.isLoading, member, collections.views.data, collections.sharedSettings.data, collections.userPreferences.data]);
 
 
   useEffect(() => {
