@@ -145,6 +145,7 @@ export function FilterDialog({
                     <EditableDateCell
                         value={filter.value ? new Date(filter.value) : null}
                         onSave={(newValue) => handleUpdateFilter(filter.id, { value: newValue?.toISOString() || '' })}
+                        calendar={null}
                     />
                 </div>
             )

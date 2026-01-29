@@ -22,6 +22,7 @@ export function EditableDateCell({
     isEditing: isEditingProp,
     onStopEditing,
     initialValue,
+    inputClassName,
 }: {
     value: Date | null | undefined;
     onSave: (newValue: Date | null) => void;
@@ -31,6 +32,7 @@ export function EditableDateCell({
     isEditing?: boolean;
     onStopEditing?: () => void;
     initialValue?: string;
+    inputClassName?: string;
 }) {
     const [popoverOpen, setPopoverOpen] = useState(false);
     const [inputValue, setInputValue] = useState('');
@@ -170,7 +172,7 @@ export function EditableDateCell({
                         onChange={(e) => setInputValue(e.target.value)}
                         onBlur={handleInputBlur}
                         onKeyDown={handleInputKeyDown}
-                        className="h-full p-0 pl-2 pr-2 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring"
+                        className={cn("h-full p-0 pl-2 pr-2 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring", inputClassName)}
                     />
                 </div>
             </PopoverTrigger>

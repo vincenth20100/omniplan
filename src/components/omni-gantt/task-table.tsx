@@ -263,6 +263,7 @@ const TaskCellRenderer = React.memo(({
                     isEditing={isEditing}
                     initialValue={editingInitialValue}
                     onStopEditing={onStopEditing}
+                    inputClassName={displayLevel > 0 ? "text-xs" : ""}
                 />
             );
         }
@@ -282,6 +283,7 @@ const TaskCellRenderer = React.memo(({
                     isEditing={isEditing}
                     initialValue={editingInitialValue}
                     onStopEditing={onStopEditing}
+                    inputClassName={displayLevel > 0 ? "text-xs" : ""}
                 />
             );
         }
