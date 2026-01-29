@@ -54,10 +54,10 @@ export function ProjectSettingsDialog({
     open: boolean,
     onOpenChange: (open: boolean) => void,
     project: Project,
-    projectState: ProjectState,
+    projectState?: ProjectState,
     allColumns: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[],
     onProjectUpdate: (updatedProject: Partial<Project>) => void,
-    dispatch: any,
+    dispatch?: any,
 }) {
     const firestore = useFirestore();
     const { currentUser } = useAuth();
@@ -198,7 +198,7 @@ export function ProjectSettingsDialog({
     };
 
     const handleSaveBaseline = () => {
-        if (!newBaselineName.trim()) return;
+        if (!newBaselineName.trim() || !dispatch) return;
         dispatch({ type: "ADD_BASELINE", payload: { name: newBaselineName } });
         setIsSaveBaselineOpen(false);
         setNewBaselineName("");
@@ -206,7 +206,7 @@ export function ProjectSettingsDialog({
     };
 
     const handleDeleteBaseline = () => {
-        if (!baselineToDelete) return;
+        if (!baselineToDelete || !dispatch) return;
         dispatch({ type: "DELETE_BASELINE", payload: { baselineId: baselineToDelete.id } });
         setBaselineToDelete(null);
         toast({ title: "Baseline Deleted" });
@@ -348,6 +348,7 @@ export function ProjectSettingsDialog({
                                     </div>
                                 </AccordionContent>
                             </AccordionItem>
+                            {projectState && dispatch && (
                             <AccordionItem value="baselines">
                                 <AccordionTrigger>Baselines</AccordionTrigger>
                                 <AccordionContent>
@@ -374,6 +375,7 @@ export function ProjectSettingsDialog({
                                      <Button className="mt-4" variant="outline" onClick={() => setIsSaveBaselineOpen(true)}>Set Current Schedule as Baseline</Button>
                                 </AccordionContent>
                             </AccordionItem>
+                            )}
                         </Accordion>
                     </div>
                 </div>
