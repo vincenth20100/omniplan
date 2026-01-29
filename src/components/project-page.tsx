@@ -285,7 +285,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
 
   const headerRightActions = (
     <>
-      <ProjectMembers projectId={projectId} firestore={firestore} />
+      <ProjectMembers projectId={projectId} firestore={firestore} user={user} />
     </>
   );
 
