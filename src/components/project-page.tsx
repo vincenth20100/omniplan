@@ -229,6 +229,18 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
 
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
+        {/* Tools */}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleToggleMultiSelect}
+          title="Toggle Multi-Select Mode"
+          data-state={state.multiSelectMode ? 'on' : 'off'}
+          className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+        >
+          <ListChecks />
+        </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
         {/* View Type */}
         <ToggleGroup
             type="single"
@@ -290,20 +302,33 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         {isLoaded && (
           <>
             <ColumnSelector visibleColumns={state.visibleColumns} columns={state.columns} dispatch={dispatch} disabled={!isEditorOrOwner} />
-            <Button variant={state.filters.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsFilterDialogOpen(true)} title="Filter Tasks" disabled={!isEditorOrOwner}>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsFilterDialogOpen(true)}
+              title="Filter Tasks"
+              disabled={!isEditorOrOwner}
+              data-state={state.filters.length > 0 ? 'on' : 'off'}
+              className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+            >
                 <Filter className="h-4 w-4" />
             </Button>
-            <Button variant={state.grouping.length > 0 ? "secondary" : "outline"} size="icon" onClick={() => setIsGroupingDialogOpen(true)} title="Group Tasks" disabled={!isEditorOrOwner}>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsGroupingDialogOpen(true)}
+              title="Group Tasks"
+              disabled={!isEditorOrOwner}
+              data-state={state.grouping.length > 0 ? 'on' : 'off'}
+              className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+            >
                 <Layers className="h-4 w-4" />
             </Button>
           </>
         )}
         <Separator orientation="vertical" className="h-6 mx-1" />
         
-        {/* Tools */}
-        <Button variant={state.multiSelectMode ? "secondary" : "outline"} size="icon" onClick={handleToggleMultiSelect} title="Toggle Multi-Select Mode">
-          <ListChecks />
-        </Button>
+        {/* More Tools */}
         {isMobile && (
             <Button variant="outline" size="icon" onClick={() => setIsMobileSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
                 <Info />
