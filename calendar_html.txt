@@ -1,0 +1,1 @@
+<span class="text-sm font-medium" role="status" aria-live="polite">January 2026</span>
