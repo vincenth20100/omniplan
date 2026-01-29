@@ -5,7 +5,7 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag, GripVertical } from 'lucide-react';
+import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
@@ -463,6 +463,8 @@ export function TaskTable({
     onScroll,
     uiDensity,
     onToggleGroup,
+    sortColumn,
+    sortDirection,
 }: { 
     tasks: Task[];
     links: Link[];
@@ -486,6 +488,8 @@ export function TaskTable({
     onScroll: () => void,
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
+    sortColumn?: string | null,
+    sortDirection?: 'asc' | 'desc' | null,
 }) {
     const stateRef = useRef({ tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode });
     const isMobile = useIsMobile();
@@ -1026,14 +1030,20 @@ export function TaskTable({
                                         onDragLeave={handleColDragLeave}
                                         onDrop={(e) => handleColDrop(e, column.id)}
                                         onDragEnd={handleColDragEnd}
+                                        onClick={() => dispatch({ type: 'SORT_TASKS', payload: { columnId: column.id } })}
                                         className={cn(
-                                            "relative group/header select-none overflow-hidden",
+                                            "relative group/header select-none overflow-hidden cursor-pointer hover:bg-muted/50",
                                             draggedColId === column.id && "opacity-50",
                                             dropColIndicator?.targetId === column.id && "border-l-2 border-primary"
                                         )}
                                     >
                                       <div className="flex items-center justify-between h-full">
-                                        <span>{column.name}</span>
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <span className="truncate">{column.name}</span>
+                                            {sortColumn === column.id && sortDirection && (
+                                                sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                                            )}
+                                        </div>
                                         <div className="flex items-center">
                                             {column.id.startsWith('custom-') && (
                                                 <DropdownMenu>

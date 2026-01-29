@@ -87,6 +87,8 @@ const initialState: ProjectState = {
   activeStylePresetId: 'default-dark',
   notifications: [],
   currentRepresentation: 'gantt',
+  sortColumn: null,
+  sortDirection: null,
 };
 
 type Action =
@@ -152,7 +154,8 @@ type Action =
   | { type: 'JUMP_TO_HISTORY', payload: { index: number } }
   | { type: 'CLEAR_NOTIFICATIONS' }
   | { type: 'FIND_AND_REPLACE', payload: { find: string; replace: string } }
-  | { type: 'SET_REPRESENTATION', payload: Representation };
+  | { type: 'SET_REPRESENTATION', payload: Representation }
+  | { type: 'SORT_TASKS', payload: { columnId: string } };
 
 /**
  * Creates a "clean" task object suitable for Firestore,
@@ -1514,6 +1517,17 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'SET_REPRESENTATION': {
         return { ...state, currentRepresentation: action.payload };
+    }
+    case 'SORT_TASKS': {
+        const { columnId } = action.payload;
+        if (state.sortColumn === columnId) {
+            if (state.sortDirection === 'asc') {
+                return { ...state, sortDirection: 'desc' };
+            } else if (state.sortDirection === 'desc') {
+                return { ...state, sortColumn: null, sortDirection: null };
+            }
+        }
+        return { ...state, sortColumn: columnId, sortDirection: 'asc' };
     }
     default:
       return state;
