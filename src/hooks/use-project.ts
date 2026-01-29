@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useEffect, useState, useMemo, useCallback } from 'react';
+import { useReducer, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember, StylePreset } from '@/lib/types';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
@@ -154,6 +154,7 @@ type Action =
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
   | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, activeCell: { taskId: string, columnId: string } | null } }
   | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null }
+  | { type: 'SET_ACTIVE_AND_SELECT_TASK', payload: { taskId: string, columnId: string, shiftKey?: boolean, ctrlKey?: boolean } }
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
   | { type: 'STOP_EDITING_CELL' }
   | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
@@ -554,7 +555,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       const { taskId, ctrlKey, shiftKey } = action.payload;
 
       if (taskId === null) {
-        return { ...state, selectedTaskIds: [], selectionAnchor: null };
+        return { ...state, selectedTaskIds: [], selectionAnchor: null, activeCell: null };
       }
 
       const visibleTasks = getVisibleTasks(state.tasks);
@@ -929,6 +930,41 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
           return { ...state, activeCell: action.payload, editingCell: null };
       }
       return { ...state, activeCell: action.payload };
+    }
+    case 'SET_ACTIVE_AND_SELECT_TASK': {
+        const { taskId, columnId, shiftKey, ctrlKey } = action.payload;
+        if (!taskId || !columnId) return state;
+
+        const stateWithActiveCell = { ...state, activeCell: { taskId, columnId } };
+        const visibleTasks = getVisibleTasks(stateWithActiveCell.tasks);
+        const anchorId = stateWithActiveCell.selectionAnchor || stateWithActiveCell.selectedTaskIds[0] || null;
+        
+        let newSelectedIds = [taskId];
+        let newAnchor = taskId;
+
+        if (shiftKey && anchorId) {
+            const anchorIndex = visibleTasks.findIndex(t => t.id === anchorId);
+            const currentSelectedIndex = visibleTasks.findIndex(t => t.id === taskId);
+            
+            if (anchorIndex !== -1 && currentSelectedIndex !== -1) {
+                const start = Math.min(anchorIndex, currentSelectedIndex);
+                const end = Math.max(anchorIndex, currentSelectedIndex);
+                newSelectedIds = visibleTasks.slice(start, end + 1).map(t => t.id);
+                newAnchor = stateWithActiveCell.selectionAnchor || taskId; // Keep original anchor during shift-select
+            }
+        } else if (ctrlKey || stateWithActiveCell.multiSelectMode) {
+            const currentSelection = [...stateWithActiveCell.selectedTaskIds];
+            const existingIndex = currentSelection.indexOf(taskId);
+            if (existingIndex > -1) {
+                currentSelection.splice(existingIndex, 1);
+            } else {
+                currentSelection.push(taskId);
+            }
+            newSelectedIds = currentSelection;
+            newAnchor = taskId;
+        }
+        
+        return { ...stateWithActiveCell, selectedTaskIds: newSelectedIds, selectionAnchor: newAnchor };
     }
     case 'START_EDITING_CELL': {
       return { ...state, activeCell: action.payload, editingCell: action.payload };
@@ -1417,7 +1453,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
     return (state: HistoryState, action: Action): HistoryState => {
         const { past, present, future } = state;
         
-        const nonHistoricActions = [
+        const nonHistoricActions: Action['type'][] = [
             'SET_PROJECT_DATA', 
             'SET_PERSISTED_STATE',
             'SELECT_TASK', 
@@ -1425,6 +1461,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             'START_EDITING_CELL', 
             'STOP_EDITING_CELL',
             'CLEAR_NOTIFICATIONS',
+            'SET_ACTIVE_AND_SELECT_TASK'
         ];
 
         if (action.type === '_APPLY_STATE_CHANGE') {
@@ -1500,21 +1537,21 @@ export function useProject(user: User, projectId: string | null) {
   const [isLoaded, setIsLoaded] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
+  const historyStateRef = useRef(historyState);
+
+  useEffect(() => {
+      historyStateRef.current = historyState;
+  }, [historyState]);
+
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
-
-  // This effect ensures we clear the permission state when the user or project changes.
-  useEffect(() => {
-    setIsAdmin(false);
-    setIsCheckingAdmin(true);
-  }, [user, projectId]);
 
   // Effect to get admin status
   useEffect(() => {
     if (user) {
       setIsCheckingAdmin(true);
-      user.getIdTokenResult().then((idTokenResult) => {
+      user.getIdTokenResult(true).then((idTokenResult) => {
         setIsAdmin(!!idTokenResult.claims.admin);
         setIsCheckingAdmin(false);
       });
@@ -1522,7 +1559,7 @@ export function useProject(user: User, projectId: string | null) {
         setIsAdmin(false);
         setIsCheckingAdmin(false);
     }
-  }, [user]);
+  }, [user, projectId]);
 
   const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
       useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
@@ -1583,7 +1620,7 @@ export function useProject(user: User, projectId: string | null) {
 
     if (userSettingsActions.includes(action.type)) {
         internalDispatch(action);
-        const newState = projectReducer(historyState.present, action);
+        const newState = projectReducer(historyStateRef.current.present, action);
         const userPrefsDocRef = doc(firestore, 'user_preferences', `${user.uid}_${projectId}`);
 
         const prefsToUpdate: Partial<typeof defaultUserPreferences> = {};
@@ -1611,7 +1648,7 @@ export function useProject(user: User, projectId: string | null) {
             case 'ADD_NOTE_TO_TASK':
             case 'UPDATE_TASK': {
                  const taskId = (action.payload as { id: string }).id;
-                 const updatedState = projectReducer(historyState.present, action);
+                 const updatedState = projectReducer(historyStateRef.current.present, action);
                  const updatedTask = updatedState.tasks.find(t => t.id === taskId);
                  if (updatedTask) {
                      const { ...updateData } = toFirestoreTask(updatedTask);
@@ -1631,7 +1668,7 @@ export function useProject(user: User, projectId: string | null) {
             }
         }
     } else { 
-        const currentState = historyState.present;
+        const currentState = historyStateRef.current.present;
         const newState = projectReducer(currentState, action);
         const batch = writeBatch(firestore);
 
@@ -1688,7 +1725,7 @@ export function useProject(user: User, projectId: string | null) {
             });
         });
     }
-  }, [user, projectId, firestore, toast, historyState.present, isEditorOrOwner]);
+  }, [user, projectId, firestore, toast, isEditorOrOwner]);
   
   const collections = {
     tasks: useCollection<Task>(useMemoFirebase(() => projectId ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId])),
@@ -1820,7 +1857,7 @@ export function useProject(user: User, projectId: string | null) {
   return { 
     state: historyState.present, 
     dispatch,
-    isLoaded: isLoaded && projectId,
+    isLoaded: isLoaded && projectId && !isCheckingAdmin && !isMemberLoading,
     isEditorOrOwner,
     canUndo: historyState.past.length > 0,
     canRedo: historyState.future.length > 0,

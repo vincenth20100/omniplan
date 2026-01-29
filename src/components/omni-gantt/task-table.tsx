@@ -578,70 +578,60 @@ export function TaskTable({
 
                 if (activeRowIndex === -1 || activeColIndex === -1) return;
 
-                if (event.shiftKey) {
-                    let nextRowIndex = activeRowIndex + (event.key === 'ArrowDown' ? 1 : -1);
-                    // Find next actual task row, skipping groups
-                    while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
-                        nextRowIndex += (event.key === 'ArrowDown' ? 1 : -1);
-                    }
+                let nextTaskId = activeCell.taskId;
+                let nextColId = activeCell.columnId;
 
-                    if (nextRowIndex >= 0 && nextRowIndex < renderableRows.length) {
-                        const nextTaskRow = renderableRows[nextRowIndex] as TaskRow;
-                        // Move active cell
-                        dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskRow.data.id, columnId: activeCell.columnId }});
-                        // Extend selection
-                        dispatch({ type: 'SELECT_TASK', payload: { taskId: nextTaskRow.data.id, shiftKey: true } });
+                switch (event.key) {
+                    case 'ArrowDown': {
+                        let nextRowIndex = activeRowIndex + 1;
+                        while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
+                            nextRowIndex++;
+                        }
+                        if (nextRowIndex < renderableRows.length) {
+                            const row = renderableRows[nextRowIndex];
+                            if (row.itemType === 'task') {
+                                nextTaskId = row.data.id;
+                            }
+                        }
+                        break;
                     }
-                } else { // Not holding shift
-                    let nextTaskId = activeCell.taskId;
-                    let nextColId = activeCell.columnId;
+                    case 'ArrowUp': {
+                        let nextRowIndex = activeRowIndex - 1;
+                        while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
+                            nextRowIndex--;
+                        }
+                        if (nextRowIndex >= 0) {
+                            const row = renderableRows[nextRowIndex];
+                            if (row.itemType === 'task') {
+                                nextTaskId = row.data.id;
+                            }
+                        }
+                        break;
+                    }
+                    case 'ArrowRight': {
+                        if (activeColIndex < orderedVisibleColumns.length - 1) {
+                            nextColId = orderedVisibleColumns[activeColIndex + 1].id;
+                        }
+                        break;
+                    }
+                    case 'ArrowLeft': {
+                        if (activeColIndex > 0) {
+                            nextColId = orderedVisibleColumns[activeColIndex - 1].id;
+                        }
+                        break;
+                    }
+                }
 
-                    switch (event.key) {
-                        case 'ArrowDown': {
-                            let nextRowIndex = activeRowIndex + 1;
-                            while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
-                                nextRowIndex++;
-                            }
-                            if (nextRowIndex < renderableRows.length) {
-                                const row = renderableRows[nextRowIndex];
-                                if (row.itemType === 'task') {
-                                    nextTaskId = row.data.id;
-                                    dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskId, columnId: nextColId }});
-                                    dispatch({ type: 'SELECT_TASK', payload: { taskId: nextTaskId }});
-                                }
-                            }
-                            break;
+                if (nextTaskId !== activeCell.taskId || nextColId !== activeCell.columnId) {
+                     dispatch({
+                        type: 'SET_ACTIVE_AND_SELECT_TASK',
+                        payload: {
+                            taskId: nextTaskId,
+                            columnId: nextColId,
+                            shiftKey: event.shiftKey,
+                            ctrlKey: event.ctrlKey,
                         }
-                        case 'ArrowUp': {
-                            let nextRowIndex = activeRowIndex - 1;
-                            while(renderableRows[nextRowIndex] && renderableRows[nextRowIndex].itemType === 'group') {
-                                nextRowIndex--;
-                            }
-                            if (nextRowIndex >= 0) {
-                                const row = renderableRows[nextRowIndex];
-                                if (row.itemType === 'task') {
-                                    nextTaskId = row.data.id;
-                                    dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskId, columnId: nextColId }});
-                                    dispatch({ type: 'SELECT_TASK', payload: { taskId: nextTaskId }});
-                                }
-                            }
-                            break;
-                        }
-                        case 'ArrowRight': {
-                            if (activeColIndex < orderedVisibleColumns.length - 1) {
-                                nextColId = orderedVisibleColumns[activeColIndex + 1].id;
-                                dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskId, columnId: nextColId }});
-                            }
-                            break;
-                        }
-                        case 'ArrowLeft': {
-                            if (activeColIndex > 0) {
-                                nextColId = orderedVisibleColumns[activeColIndex - 1].id;
-                                dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: nextTaskId, columnId: nextColId }});
-                            }
-                            break;
-                        }
-                    }
+                    });
                 }
             }
         };

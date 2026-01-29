@@ -320,7 +320,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                 links={state.links} 
                 tasks={state.tasks}
                 dispatch={dispatch}
-                onClose={() => dispatch({ type: 'SET_SELECTION', payload: { activeCell: null, selectionAnchorCell: null, selectedTaskIds: [], selectedCells: [] } })}
+                onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
                 uiDensity={state.uiDensity}
                 defaultCalendar={defaultCalendar}
                 dateFormat={dateFormat}
@@ -408,6 +408,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             activeStylePresetId={state.activeStylePresetId}
             dispatch={dispatch}
             onManageThemes={() => setIsThemeManagerOpen(true)}
+            isEditor={isEditorOrOwner}
           />
           <ThemeManagementDialog
             open={isThemeManagerOpen}
