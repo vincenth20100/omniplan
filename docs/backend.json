@@ -248,6 +248,15 @@
             "null"
           ],
           "description": "Persistent, high-level notes about the task."
+        },
+        "work": {
+          "type": "number",
+          "description": "Total labor hours required for the task."
+        },
+        "schedulingType": {
+          "type": "string",
+          "enum": ["duration", "effort"],
+          "description": "Determines if scheduling is driven by duration or by work (effort)."
         }
       },
       "required": [
@@ -405,6 +414,10 @@
           "type": "string",
           "description": "Name of the resource."
         },
+        "initials": {
+          "type": "string",
+          "description": "Initials for the resource for compact display."
+        },
         "category": {
           "type": "string",
           "description": "Category of the resource."
@@ -454,6 +467,10 @@
         "resourceId": {
           "type": "string",
           "description": "ID of the assigned resource."
+        },
+        "units": {
+          "type": "number",
+          "description": "Percentage of the resource's time allocated to the task (e.g., 0.5 for 50%)."
         }
       },
       "required": [

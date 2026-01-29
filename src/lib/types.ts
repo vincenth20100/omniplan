@@ -73,6 +73,10 @@ export interface Task {
   additionalNotes?: string;
   notes?: Note[];
 
+  // Effort-driven properties
+  work?: number; // Total labor hours
+  schedulingType?: 'duration' | 'effort'; // Defaults to 'duration'
+
   // Calculated fields
   schedulingConflict?: boolean;
   deadlineMissed?: boolean;
@@ -102,6 +106,7 @@ export interface Zone {
 export interface Resource {
   id: string;
   name: string;
+  initials?: string;
   type: 'Work' | 'Material' | 'Cost';
   category?: string;
   costPerHour?: number;

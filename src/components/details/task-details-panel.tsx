@@ -1,5 +1,5 @@
 'use client';
-import type { Task, Link, UiDensity, Calendar, GanttSettings } from '@/lib/types';
+import type { Task, Link, UiDensity, Calendar, ProjectState } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { PredecessorList } from './predecessor-list';
@@ -10,11 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NotesSection } from './notes-section';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { InfoSection } from './info-section';
+import { ResourceSection } from './resource-section';
 
-export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDensity, defaultCalendar, dateFormat }: { task: Task, links: Link[], tasks: Task[], dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null, dateFormat: string }) {
+export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDensity, defaultCalendar, dateFormat }: { task: Task, projectState: ProjectState, dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null, dateFormat: string }) {
 
+    const { links, tasks, resources, assignments } = projectState;
     const predecessors = links.filter(l => l.target === task.id);
     const successors = links.filter(l => l.source === task.id);
+    const taskAssignments = assignments.filter(a => a.taskId === task.id);
 
     return (
         <div className="flex flex-col h-full bg-card border-t rounded-t-lg overflow-hidden">
@@ -54,6 +57,7 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                 )}>
                     <TabsList className="bg-transparent p-0">
                         <TabsTrigger value="links" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Links</TabsTrigger>
+                        <TabsTrigger value="resources" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Resources</TabsTrigger>
                         <TabsTrigger value="dates" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Dates</TabsTrigger>
                         <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Activity Log</TabsTrigger>
                     </TabsList>
@@ -82,6 +86,21 @@ export function TaskDetailsPanel({ task, links, tasks, dispatch, onClose, uiDens
                                     </div>
                                 </ResizablePanel>
                            </ResizablePanelGroup>
+                        </div>
+                    </TabsContent>
+                    <TabsContent value="resources" className="m-0 h-full">
+                        <div className={cn(
+                            "h-full",
+                            uiDensity === 'large' && 'p-4',
+                            uiDensity === 'medium' && 'p-3',
+                            uiDensity === 'compact' && 'p-2'
+                        )}>
+                            <ResourceSection 
+                                task={task} 
+                                assignments={taskAssignments}
+                                resources={resources}
+                                dispatch={dispatch}
+                            />
                         </div>
                     </TabsContent>
                     <TabsContent value="dates" className="m-0 h-full">
