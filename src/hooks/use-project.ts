@@ -1764,6 +1764,24 @@ export function useProject(user: User, projectId: string | null) {
                 batch.delete(doc(firestore, 'projects', projectId, 'tasks', oldTask.id));
             }
         });
+
+        newState.links.forEach(newLink => {
+            const oldLink = currentState.links.find(l => l.id === newLink.id);
+            const { isDriving, ...linkData } = newLink; // Don't save calculated fields
+            if (!oldLink) {
+                batch.set(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+            } else {
+                const { isDriving: oldIsDriving, ...oldLinkData } = oldLink;
+                if (JSON.stringify(oldLinkData) !== JSON.stringify(linkData)) {
+                    batch.update(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+                }
+            }
+        });
+        currentState.links.forEach(oldLink => {
+            if (!newState.links.some(l => l.id === oldLink.id)) {
+                batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
+            }
+        });
         
         if (isEditAction(action)) {
             const sharedSettingsDocRef = doc(firestore, 'projects', projectId, 'settings', 'app_settings');
