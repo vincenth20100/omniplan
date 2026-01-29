@@ -37,6 +37,7 @@ export function KanbanView({ projectState, dispatch }: { projectState: ProjectSt
                     onDrop={handleDrop}
                     projectState={projectState}
                     dispatch={dispatch}
+                    dateFormat={dateFormat}
                 />
             ))}
         </div>

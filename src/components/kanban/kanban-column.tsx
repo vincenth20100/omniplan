@@ -4,7 +4,7 @@ import { KanbanCard } from './kanban-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
-export function KanbanColumn({ status, tasks, onDrop, projectState, dispatch }: { status: string, tasks: Task[], onDrop: (taskId: string, newStatus: string) => void, projectState: ProjectState, dispatch: any }) {
+export function KanbanColumn({ status, tasks, onDrop, projectState, dispatch, dateFormat }: { status: string, tasks: Task[], onDrop: (taskId: string, newStatus: string) => void, projectState: ProjectState, dispatch: any, dateFormat: string }) {
     
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -31,6 +31,7 @@ export function KanbanColumn({ status, tasks, onDrop, projectState, dispatch }: 
                             task={task} 
                             projectState={projectState}
                             dispatch={dispatch}
+                            dateFormat={dateFormat}
                         />
                     ))}
                 </div>
