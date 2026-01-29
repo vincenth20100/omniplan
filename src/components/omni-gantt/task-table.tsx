@@ -693,7 +693,7 @@ export function TaskTable({
         };
 
         const handleCopy = (e: ClipboardEvent) => {
-            const { selectedTaskIds, tasks, editingCell } = stateRef.current;
+            const { selectedTaskIds, tasks, links, editingCell } = stateRef.current;
             if (selectedTaskIds.length === 0 || editingCell) return;
 
             e.preventDefault();
@@ -727,10 +727,13 @@ export function TaskTable({
                     const { isCritical, totalFloat, lateStart, lateFinish, ...rest } = t;
                     return rest;
                 });
+            
+            const linksToCopy = links.filter(l => tasksToCopyIds.has(l.source) && tasksToCopyIds.has(l.target));
 
             const data = {
                 type: 'omniplan-tasks',
-                tasks: tasksToCopy
+                tasks: tasksToCopy,
+                links: linksToCopy
             };
             
             e.clipboardData?.setData('text/plain', JSON.stringify(data));

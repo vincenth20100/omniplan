@@ -123,7 +123,7 @@ type Action =
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
   | { type: 'UPDATE_SELECTION', payload: { mode: 'row' | 'cell', taskId: string, columnId?: string, shiftKey?: boolean, ctrlKey?: boolean } }
-  | { type: 'SET_ACTIVE_CELL_AND_SELECT_TASK', payload: { taskId: string, columnId: string, shiftKey?: boolean, ctrlKey?: boolean } }
+  | { type: 'SET_ACTIVE_AND_SELECT_TASK', payload: { taskId: string, columnId: string, shiftKey?: boolean, ctrlKey?: boolean } }
   | { type: 'LINK_TASKS' }
   | { type: 'ADD_LINK'; payload: { source: string, target: string, type: LinkType, lag: number } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
@@ -658,7 +658,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
 
         return state;
     }
-    case 'SET_ACTIVE_CELL_AND_SELECT_TASK': {
+    case 'SET_ACTIVE_AND_SELECT_TASK': {
       const { taskId, columnId, shiftKey, ctrlKey } = action.payload;
       const newState: ProjectState = {
         ...state,
@@ -895,6 +895,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             const parsedData = JSON.parse(data);
             if (parsedData.type === 'omniplan-tasks' && Array.isArray(parsedData.tasks)) {
                 const pastedTasks: Task[] = parsedData.tasks;
+                const pastedLinks: Link[] = parsedData.links || [];
                 if (pastedTasks.length === 0) return state;
 
                 const idMap = new Map<string, string>();
@@ -935,13 +936,22 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                     };
                 });
                 
+                const newLinksFromPaste: Link[] = pastedLinks.map(link => ({
+                    ...link,
+                    id: `link-${Date.now()}-${Math.random()}`.replace('.', ''),
+                    source: idMap.get(link.source)!,
+                    target: idMap.get(link.target)!,
+                }));
+                
                 const allTasks = [...state.tasks];
                 allTasks.splice(targetIndex, 0, ...newTasks);
                 
-                const scheduledTasks = runScheduler(allTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+                const allLinks = [...state.links, ...newLinksFromPaste];
+                
+                const scheduledTasks = runScheduler(allTasks, allLinks, state.columns, state.calendars, state.defaultCalendarId);
                 const newSelectedIds = newTasks.map(t => t.id);
 
-                return { ...state, tasks: scheduledTasks, selectedTaskIds: newSelectedIds };
+                return { ...state, tasks: scheduledTasks, links: allLinks, selectedTaskIds: newSelectedIds };
             }
         } catch (e) {
             // Not JSON, fall through to plain text handling
@@ -1579,7 +1589,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             'SET_PROJECT_DATA', 
             'SET_PERSISTED_STATE',
             'UPDATE_SELECTION',
-            'SET_ACTIVE_CELL_AND_SELECT_TASK',
+            'SET_ACTIVE_AND_SELECT_TASK',
             'START_EDITING_CELL', 
             'STOP_EDITING_CELL',
             'CLEAR_NOTIFICATIONS',
