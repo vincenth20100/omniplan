@@ -1933,9 +1933,7 @@ export function useProject(user: User, projectId: string | null) {
   // Effect 1: Data Synchronization from Firestore
   useEffect(() => {
     // On project change, reset loaded state until all collections are confirmed loaded
-    if(isLoaded) {
-      setIsLoaded(false);
-    }
+    setIsLoaded(false);
   }, [projectId]);
 
   useEffect(() => {
@@ -1994,7 +1992,7 @@ export function useProject(user: User, projectId: string | null) {
         setIsLoaded(true);
     }
   }, [
-    projectId, isLoaded, isMemberLoading, isCheckingAdmin, member,
+    projectId, isMemberLoading, isCheckingAdmin, member,
     collections.tasks.data, collections.tasks.isLoading,
     collections.links.data, collections.links.isLoading,
     collections.resources.data, collections.resources.isLoading,
@@ -2028,7 +2026,12 @@ export function useProject(user: User, projectId: string | null) {
         member: member,
       }
     });
-  }, [isLoaded, collections.views.isLoading, collections.sharedSettings.isLoading, collections.userPreferences.isLoading, member, collections.views.data, collections.sharedSettings.data, collections.userPreferences.data]);
+  }, [
+    isLoaded,
+    collections.views.isLoading, collections.sharedSettings.isLoading, collections.userPreferences.isLoading, 
+    member, 
+    collections.views.data, collections.sharedSettings.data, collections.userPreferences.data
+  ]);
 
 
   useEffect(() => {
