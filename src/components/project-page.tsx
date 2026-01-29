@@ -29,12 +29,15 @@ import { FindReplaceDialog } from './find-replace-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import type { Representation, GanttSettings, ProjectMember } from '@/lib/types';
+import type { Representation, GanttSettings, ProjectMember, Project } from '@/lib/types';
 import { PrintPreviewDialog } from './print-preview';
 import { ProjectMembers } from './project-members';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { ThemeManagementDialog } from './gantt-settings/theme-management-dialog';
+import { ProjectSettingsDialog } from './project-settings-dialog';
+import { ALL_COLUMNS } from '@/lib/columns';
+
 
 const hexToHsl = (hex: string): string => {
     let r = 0, g = 0, b = 0;
@@ -125,9 +128,13 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const firestore = useFirestore();
+
+  const projectDocRef = useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]);
+  const { data: project } = useDoc<Project>(projectDocRef);
 
   useEffect(() => {
     if (state.notifications && state.notifications.length > 0) {
@@ -359,6 +366,9 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const headerRightActions = (
     <>
       <ProjectMembers projectId={projectId} firestore={firestore} user={user} />
+      <Button variant="outline" size="icon" onClick={() => setIsProjectSettingsOpen(true)} title="Project Settings" disabled={!project}>
+        <Settings />
+      </Button>
     </>
   );
 
@@ -375,14 +385,16 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
       return <KanbanView projectState={state} dispatch={dispatch} />;
     }
 
+    const ganttChartComponent = <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />;
+
     if (isMobile) {
-      return <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />;
+        return ganttChartComponent;
     }
 
     return (
       <ResizablePanelGroup direction="vertical">
         <ResizablePanel>
-          <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />
+          {ganttChartComponent}
         </ResizablePanel>
         {selectedTask && (
           <>
@@ -441,6 +453,20 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                 </SheetContent>
             </Sheet>
           )}
+           {project && (
+                <ProjectSettingsDialog
+                    open={isProjectSettingsOpen}
+                    onOpenChange={setIsProjectSettingsOpen}
+                    project={project}
+                    projectState={state}
+                    allColumns={ALL_COLUMNS}
+                    onProjectUpdate={() => {
+                        // The project data will re-sync from Firestore automatically via the useDoc hook.
+                        // No need to manually update state here.
+                    }}
+                    dispatch={dispatch}
+                />
+            )}
           <ResourceManagementDialog
             open={isResourceDialogOpen}
             onOpenChange={setIsResourceDialogOpen}
