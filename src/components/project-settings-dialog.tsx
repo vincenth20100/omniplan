@@ -50,6 +50,7 @@ export function ProjectSettingsDialog({
     allColumns,
     onProjectUpdate,
     dispatch,
+    initialOpenSection = 'members',
 }: {
     open: boolean,
     onOpenChange: (open: boolean) => void,
@@ -58,6 +59,7 @@ export function ProjectSettingsDialog({
     allColumns: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[],
     onProjectUpdate: (updatedProject: Partial<Project>) => void,
     dispatch?: any,
+    initialOpenSection?: 'members' | 'baselines',
 }) {
     const firestore = useFirestore();
     const { currentUser } = useAuth();
@@ -84,6 +86,7 @@ export function ProjectSettingsDialog({
     const [isSaveBaselineOpen, setIsSaveBaselineOpen] = useState(false);
     const [newBaselineName, setNewBaselineName] = useState("");
     const [baselineToDelete, setBaselineToDelete] = useState<Baseline | null>(null);
+    const [accordionValue, setAccordionValue] = useState<string[]>([]);
 
     const originalMembers = useMemo(() => {
         return fetchedMembers?.map(m => ({
@@ -98,8 +101,14 @@ export function ProjectSettingsDialog({
             setName(project.name);
             setDescription(project.description || '');
             setMembers(originalMembers);
+            
+            const openSections = ['members'];
+            if (initialOpenSection === 'baselines' && projectState) {
+                openSections.push('baselines');
+            }
+            setAccordionValue(openSections);
         }
-    }, [open, project, originalMembers]);
+    }, [open, project, originalMembers, initialOpenSection, projectState]);
 
     const handleMemberChange = (userId: string, updates: Partial<ProjectMember>) => {
         setMembers(prevMembers =>
@@ -235,7 +244,7 @@ export function ProjectSettingsDialog({
 
                      {/* Members & Baselines Section */}
                     <div className="space-y-4 flex-grow flex flex-col min-h-0">
-                        <Accordion type="multiple" className="w-full" defaultValue={["members", "baselines"]}>
+                        <Accordion type="multiple" className="w-full" value={accordionValue} onValueChange={setAccordionValue}>
                             <AccordionItem value="members">
                                 <AccordionTrigger>Members & Permissions</AccordionTrigger>
                                 <AccordionContent>

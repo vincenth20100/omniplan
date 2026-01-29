@@ -140,6 +140,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
+  const [projectSettingsSection, setProjectSettingsSection] = useState<'members' | 'baselines'>('members');
   const [isSetBaselineOpen, setIsSetBaselineOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -147,6 +148,11 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
 
   const projectDocRef = useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]);
   const { data: project } = useDoc<Project>(projectDocRef);
+  
+  const handleOpenSettings = (section: 'members' | 'baselines') => {
+    setProjectSettingsSection(section);
+    setIsProjectSettingsOpen(true);
+  };
 
   useEffect(() => {
     if (state.notifications && state.notifications.length > 0) {
@@ -386,7 +392,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                     <DropdownMenuItem onSelect={() => setIsSetBaselineOpen(true)} disabled={!isEditorOrOwner}>
                         Set Current as Baseline...
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setIsProjectSettingsOpen(true)} disabled={!project}>
+                    <DropdownMenuItem onSelect={() => handleOpenSettings('baselines')} disabled={!project}>
                         Manage Baselines...
                     </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -426,7 +432,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const headerRightActions = (
     <>
       <ProjectMembers projectId={projectId} firestore={firestore} user={user} />
-      <Button variant="outline" size="icon" onClick={() => setIsProjectSettingsOpen(true)} title="Project Settings" disabled={!project}>
+      <Button variant="outline" size="icon" onClick={() => handleOpenSettings('members')} title="Project Settings" disabled={!project}>
         <Settings />
       </Button>
     </>
@@ -525,6 +531,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                         // No need to manually update state here.
                     }}
                     dispatch={dispatch}
+                    initialOpenSection={projectSettingsSection}
                 />
             )}
           <ResourceManagementDialog
