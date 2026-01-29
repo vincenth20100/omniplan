@@ -27,6 +27,7 @@ import type { User } from 'firebase/auth';
 import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
 import { FindReplaceDialog } from './find-replace-dialog';
 import { useToast } from "@/hooks/use-toast";
+import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { Representation, GanttSettings, ProjectMember } from '@/lib/types';
 import { PrintPreviewDialog } from './print-preview';
@@ -230,16 +231,15 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
         {/* Tools */}
-        <Button
+        <Toggle
           variant="outline"
           size="icon"
-          onClick={handleToggleMultiSelect}
+          pressed={state.multiSelectMode}
+          onPressedChange={handleToggleMultiSelect}
           title="Toggle Multi-Select Mode"
-          data-state={state.multiSelectMode ? 'on' : 'off'}
-          className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
         >
           <ListChecks />
-        </Button>
+        </Toggle>
         <Separator orientation="vertical" className="h-6 mx-1" />
         {/* View Type */}
         <ToggleGroup
