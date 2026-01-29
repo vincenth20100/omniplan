@@ -7,7 +7,7 @@ import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
 import { parseDuration, formatDuration } from '@/lib/duration';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, writeBatch, query, orderBy } from 'firebase/firestore';
+import { collection, doc, writeBatch, query, orderBy, setDoc } from 'firebase/firestore';
 import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { User } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
@@ -1680,22 +1680,34 @@ export function useProject(user: User, projectId: string | null) {
   
   // Effect to migrate legacy projects by creating member documents if they don't exist
   useEffect(() => {
-    if (firestore && user && projectData && !isMemberLoading && !member) {
-      if (projectData.memberIds && projectData.memberIds.includes(user.uid)) {
-        console.log(`Migrating user ${user.uid} to members subcollection for project ${projectData.id}`);
-        const memberDocRef = doc(firestore, 'projects', projectData.id, 'members', user.uid);
-        
-        const role = projectData.ownerId === user.uid ? 'owner' : 'viewer';
+    const performMigration = async () => {
+      if (firestore && user && projectData && !isMemberLoading && !member) {
+        if (projectData.memberIds && projectData.memberIds.includes(user.uid)) {
+          console.log(`Migrating user ${user.uid} to members subcollection for project ${projectData.id}`);
+          const memberDocRef = doc(firestore, 'projects', projectData.id, 'members', user.uid);
+          
+          const role = projectData.ownerId === user.uid ? 'owner' : 'viewer';
 
-        const newMemberData: Omit<ProjectMember, 'permissions'> = {
-            userId: user.uid,
-            role: role,
-            displayName: user.displayName || user.email || '',
-            photoURL: user.photoURL || '',
-        };
-        setDocumentNonBlocking(memberDocRef, newMemberData, { merge: false });
+          const newMemberData: Omit<ProjectMember, 'permissions'> = {
+              userId: user.uid,
+              role: role,
+              displayName: user.displayName || user.email || '',
+              photoURL: user.photoURL || '',
+          };
+
+          try {
+            // Use a blocking setDoc here to ensure the document exists on the backend
+            // before other data-fetching hooks that depend on it are triggered.
+            await setDoc(memberDocRef, newMemberData, { merge: false });
+          } catch (e) {
+             console.error("Failed to migrate user to members subcollection:", e);
+             // We can optionally toast an error here if migration is critical for app function
+          }
+        }
       }
     }
+    
+    performMigration();
   }, [firestore, user, projectData, isMemberLoading, member]);
 
   const isEditorOrOwner = useMemo(() => {
@@ -1744,7 +1756,6 @@ export function useProject(user: User, projectId: string | null) {
 
     const optimisticActions: Action['type'][] = [
       'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
-      'UPDATE_LINK', 'ADD_LINK', 'REMOVE_LINK', 'UPDATE_RELATIONSHIPS',
     ];
     
     const userSettingsActions: Action['type'][] = [
@@ -1790,26 +1801,6 @@ export function useProject(user: User, projectId: string | null) {
             }
         }
         
-        if (action.type === 'UPDATE_LINK' || action.type === 'ADD_LINK' || action.type === 'UPDATE_RELATIONSHIPS' || action.type === 'REMOVE_LINK') {
-             newState.links.forEach(newLink => {
-                const oldLink = historyStateRef.current.present.links.find(l => l.id === newLink.id);
-                const { isDriving, ...linkData } = newLink;
-                if (!oldLink) {
-                    batch.set(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
-                } else {
-                    const { isDriving: oldIsDriving, ...oldLinkData } = oldLink;
-                    if (JSON.stringify(oldLinkData) !== JSON.stringify(linkData)) {
-                            batch.update(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
-                    }
-                }
-            });
-            historyStateRef.current.present.links.forEach(oldLink => {
-                if (!newState.links.some(l => l.id === oldLink.id)) {
-                    batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
-                }
-            });
-        }
-
         if (action.type === 'UPDATE_RESOURCE') {
             const { id, ...updateData } = action.payload as { id: string };
             batch.update(doc(firestore, 'projects', projectId, 'resources', id), updateData);
@@ -1951,7 +1942,7 @@ export function useProject(user: User, projectId: string | null) {
     const allCollectionsLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading || collections.baselines.isLoading;
     const allLoading = allCollectionsLoading || isMemberLoading || isCheckingAdmin;
 
-    if (!projectId || allLoading) {
+    if (!projectId || allLoading || !member) {
         return;
     };
 
@@ -2003,7 +1994,7 @@ export function useProject(user: User, projectId: string | null) {
         setIsLoaded(true);
     }
   }, [
-    projectId, isLoaded, isMemberLoading, isCheckingAdmin,
+    projectId, isLoaded, isMemberLoading, isCheckingAdmin, member,
     collections.tasks.data, collections.tasks.isLoading,
     collections.links.data, collections.links.isLoading,
     collections.resources.data, collections.resources.isLoading,
