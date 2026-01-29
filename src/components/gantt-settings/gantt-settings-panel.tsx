@@ -22,35 +22,8 @@ import type { GanttSettings, StylePreset, Baseline } from "@/lib/types";
 import { Input } from "../ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { useId } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
-
-const ColorPicker = ({ label, value, onChange, disabled }: { label: string, value: string, onChange: (value: string) => void, disabled?: boolean }) => {
-  const id = useId();
-  return (
-    <div className="flex items-center justify-between">
-      <Label htmlFor={id} className={cn(disabled && 'opacity-50')}>{label}</Label>
-      <div className="flex items-center gap-2">
-        <Input 
-          id={id}
-          type="text" 
-          value={value} 
-          onChange={(e) => onChange(e.target.value)} 
-          className="w-24 h-8"
-          disabled={disabled}
-        />
-        <Input 
-          type="color" 
-          value={value || '#000000'}
-          onChange={(e) => onChange(e.target.value)} 
-          className="w-8 h-8 p-1 disabled:opacity-50"
-          disabled={disabled}
-        />
-      </div>
-    </div>
-  );
-}
 
 export function GanttSettingsPanel({
   open,
@@ -77,13 +50,6 @@ export function GanttSettingsPanel({
     dispatch({
       type: 'UPDATE_GANTT_SETTINGS',
       payload: { ...settings, [key]: value },
-    });
-  };
-
-  const handleCustomStyleChange = (key: keyof NonNullable<GanttSettings['customStyles']>, value: string) => {
-    handleSettingChange('customStyles', {
-      ...(settings.customStyles || {}),
-      [key]: value
     });
   };
 
@@ -305,69 +271,10 @@ export function GanttSettingsPanel({
                 <AccordionTrigger>Customize Theme</AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-4 pt-4">
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="base-theme-select">Base Theme</Label>
-                        <Select
-                            value={settings.theme || 'dark'}
-                            onValueChange={(value: 'light' | 'dark' | 'sepia') => handleSettingChange('theme', value)}
-                            disabled={!isEditor}
-                        >
-                            <SelectTrigger id="base-theme-select" className="w-[180px]">
-                                <SelectValue placeholder="Select base theme" />
-                            </SelectTrigger>
-                            <SelectContent>
-                            <SelectItem value="dark">Dark</SelectItem>
-                            <SelectItem value="light">Light</SelectItem>
-                            <SelectItem value="sepia">Sepia</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <Separator />
-                    <ColorPicker
-                      label="Gantt Bar (Default)"
-                      value={settings.customStyles?.ganttBarDefault || ''}
-                      onChange={(value) => handleCustomStyleChange('ganttBarDefault', value)}
-                      disabled={!isEditor}
-                    />
-                     <ColorPicker
-                      label="Gantt Bar (Critical)"
-                      value={settings.customStyles?.ganttBarCritical || ''}
-                      onChange={(value) => handleCustomStyleChange('ganttBarCritical', value)}
-                      disabled={!isEditor}
-                    />
-                     <ColorPicker
-                      label="Milestone (Default)"
-                      value={settings.customStyles?.milestoneDefault || ''}
-                      onChange={(value) => handleCustomStyleChange('milestoneDefault', value)}
-                      disabled={!isEditor}
-                    />
-                     <ColorPicker
-                      label="Milestone (Critical)"
-                      value={settings.customStyles?.milestoneCritical || ''}
-                      onChange={(value) => handleCustomStyleChange('milestoneCritical', value)}
-                      disabled={!isEditor}
-                    />
-                    <Separator className="my-4" />
-                     <ColorPicker
-                      label="Task Row (Level 0)"
-                      value={settings.customStyles?.taskRowLevel0Bg || ''}
-                      onChange={(value) => handleCustomStyleChange('taskRowLevel0Bg', value)}
-                      disabled={!isEditor}
-                    />
-                     <ColorPicker
-                      label="Task Row (Level 1)"
-                      value={settings.customStyles?.taskRowLevel1Bg || ''}
-                      onChange={(value) => handleCustomStyleChange('taskRowLevel1Bg', value)}
-                      disabled={!isEditor}
-                    />
-                     <ColorPicker
-                      label="Task Row (Level 2+)"
-                      value={settings.customStyles?.taskRowLevel2PlusBg || ''}
-                      onChange={(value) => handleCustomStyleChange('taskRowLevel2PlusBg', value)}
-                      disabled={!isEditor}
-                    />
-                    <Separator className="my-4" />
-                    <Button variant="outline" className="w-full" onClick={onManageThemes} disabled={!isEditor}>Manage Custom Themes...</Button>
+                     <p className="text-sm text-muted-foreground">
+                        Use the detailed theme manager to customize colors, fonts, and layout for the entire project.
+                     </p>
+                    <Button variant="outline" className="w-full" onClick={onManageThemes} disabled={!isEditor}>Open Theme Manager</Button>
                   </div>
                 </AccordionContent>
               </AccordionItem>
