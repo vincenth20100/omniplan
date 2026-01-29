@@ -158,8 +158,16 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   };
 
 
-  const lastSelectedId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
-  const selectedTask = state.tasks.find(t => t.id === lastSelectedId);
+  const selectedTask = useMemo(() => {
+      let taskId: string | null = null;
+      if (state.selectionMode === 'row' && state.selectedTaskIds.length > 0) {
+          taskId = state.selectedTaskIds[state.selectedTaskIds.length - 1];
+      } else if (state.selectionMode === 'cell' && state.focusCell) {
+          taskId = state.focusCell.taskId;
+      }
+      return state.tasks.find(t => t.id === taskId) || null;
+  }, [state.selectionMode, state.selectedTaskIds, state.focusCell, state.tasks]);
+  
   const defaultCalendar = state.calendars.find(c => c.id === state.defaultCalendarId) || state.calendars[0] || null;
   const dateFormat = state.ganttSettings.dateFormat || 'MMM d, yyyy';
 
@@ -360,7 +368,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                 links={state.links} 
                 tasks={state.tasks}
                 dispatch={dispatch}
-                onClose={() => dispatch({ type: 'SELECT_TASK', payload: { taskId: null } })}
+                onClose={() => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: null } })}
                 uiDensity={state.uiDensity}
                 defaultCalendar={defaultCalendar}
                 dateFormat={dateFormat}

@@ -188,8 +188,17 @@ export interface ProjectState {
     zones: Zone[];
     calendars: Calendar[];
     defaultCalendarId: string | null;
+    
+    // Selection state
+    selectionMode: 'row' | 'cell';
     selectedTaskIds: string[];
-    selectionAnchor: string | null;
+    selectionAnchor: string | null; // A taskId for row selection anchor
+    focusCell: { taskId: string, columnId: string } | null;
+    anchorCell: { taskId: string, columnId: string } | null; // For cell selection anchor
+    
+    editingCell?: { taskId: string, columnId: string, initialValue?: string } | null;
+    
+    // UI and View settings
     visibleColumns: string[];
     columns: ColumnSpec[];
     uiDensity: UiDensity;
@@ -199,8 +208,7 @@ export interface ProjectState {
     currentViewId: string | null;
     isDirty?: boolean;
     multiSelectMode: boolean;
-    activeCell: { taskId: string, columnId: string } | null;
-    editingCell?: { taskId: string, columnId: string, initialValue?: string } | null;
+
     ganttSettings: GanttSettings;
     stylePresets: StylePreset[];
     activeStylePresetId: string | null;

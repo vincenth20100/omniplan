@@ -88,8 +88,16 @@ const initialState: ProjectState = {
   zones: [],
   calendars: [],
   defaultCalendarId: null,
+  
+  // Selection
+  selectionMode: 'row',
   selectedTaskIds: [],
   selectionAnchor: null,
+  focusCell: null,
+  anchorCell: null,
+  editingCell: null,
+
+  // View
   visibleColumns: initialVisibleColumns,
   columns: initialColumns,
   uiDensity: 'compact',
@@ -99,8 +107,6 @@ const initialState: ProjectState = {
   currentViewId: 'default',
   isDirty: false,
   multiSelectMode: false,
-  activeCell: null,
-  editingCell: null,
   ganttSettings: initialGanttSettings,
   stylePresets: defaultStylePresets,
   activeStylePresetId: 'default-dark',
@@ -114,7 +120,7 @@ type Action =
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
-  | { type: 'SELECT_TASK'; payload: { taskId: string | null, ctrlKey?: boolean, shiftKey?: boolean } }
+  | { type: 'UPDATE_SELECTION', payload: { mode: 'row' | 'cell', taskId: string, columnId?: string, shiftKey?: boolean, ctrlKey?: boolean } }
   | { type: 'LINK_TASKS' }
   | { type: 'ADD_LINK'; payload: { source: string, target: string, type: LinkType, lag: number } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
@@ -153,10 +159,7 @@ type Action =
   | { type: 'DELETE_VIEW', payload: { viewId: string } }
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
-  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, activeCell: { taskId: string, columnId: string } | null } }
-  | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null }
-  | { type: 'SET_ACTIVE_CELL_AND_SELECT_TASK', payload: { taskId: string, columnId: string, ctrlKey?: boolean, shiftKey?: boolean } }
-  | { type: 'SET_ACTIVE_AND_SELECT_TASK', payload: { taskId: string, columnId: string, shiftKey?: boolean, ctrlKey?: boolean } }
+  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, focusCell: { taskId: string, columnId: string } | null } }
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
   | { type: 'STOP_EDITING_CELL' }
   | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
@@ -256,6 +259,30 @@ function getVisibleTasks(tasks: Task[]): Task[] {
         return true;
     });
 };
+
+function getTaskIdsInSelection(state: ProjectState): Set<string> {
+    if (state.selectionMode === 'row') {
+        return new Set(state.selectedTaskIds);
+    }
+    if (state.selectionMode === 'cell' && state.anchorCell && state.focusCell) {
+        const visibleTasks = getVisibleTasks(state.tasks);
+        const taskIds = new Set<string>();
+        
+        const r1 = visibleTasks.findIndex(t => t.id === state.anchorCell.taskId);
+        const r2 = visibleTasks.findIndex(t => t.id === state.focusCell.taskId);
+
+        if (r1 === -1 || r2 === -1) return taskIds;
+
+        const rowStart = Math.min(r1, r2);
+        const rowEnd = Math.max(r1, r2);
+        
+        for (let i = rowStart; i <= rowEnd; i++) {
+            taskIds.add(visibleTasks[i].id);
+        }
+        return taskIds;
+    }
+    return new Set();
+}
 
 function expandSummaryLinks(links: Link[], tasks: Task[]): Link[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
@@ -534,7 +561,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
      case 'REMOVE_CALENDAR': {
         const { calendarId } = action.payload;
-        if (state.calendars.length <= 1) return state; // Prevent deleting the last calendar
+        if (state.calendars.length <= 1) return state;
         const newCalendars = state.calendars.filter(c => c.id !== calendarId);
         const newDefaultCalendarId = state.defaultCalendarId === calendarId ? newCalendars[0].id : state.defaultCalendarId;
         const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, newDefaultCalendarId);
@@ -553,42 +580,68 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         );
         return { ...state, tasks: updatedTasks };
     }
-    case 'SELECT_TASK': {
-      const { taskId, ctrlKey, shiftKey } = action.payload;
+    case 'UPDATE_SELECTION': {
+        const { mode, taskId, columnId, shiftKey, ctrlKey } = action.payload;
+        
+        if (mode === 'row') {
+            const visibleTasks = getVisibleTasks(state.tasks);
+            const anchorId = state.selectionAnchor || state.selectedTaskIds[0] || null;
+            let newSelectedIds = [taskId];
+            let newAnchorId = taskId;
 
-      if (taskId === null) {
-        return { ...state, selectedTaskIds: [], selectionAnchor: null, activeCell: null };
-      }
+            if (shiftKey && anchorId) {
+                 const anchorIndex = visibleTasks.findIndex(t => t.id === anchorId);
+                 const currentSelectedIndex = visibleTasks.findIndex(t => t.id === taskId);
+                 if (anchorIndex !== -1 && currentSelectedIndex !== -1) {
+                    const start = Math.min(anchorIndex, currentSelectedIndex);
+                    const end = Math.max(anchorIndex, currentSelectedIndex);
+                    newSelectedIds = visibleTasks.slice(start, end + 1).map(t => t.id);
+                    newAnchorId = anchorId;
+                 }
+            } else if (ctrlKey || state.multiSelectMode) {
+                 const currentSelection = [...state.selectedTaskIds];
+                 const existingIndex = currentSelection.indexOf(taskId);
+                 if (existingIndex > -1) {
+                     currentSelection.splice(existingIndex, 1);
+                 } else {
+                     currentSelection.push(taskId);
+                 }
+                 newSelectedIds = currentSelection;
+                 newAnchorId = taskId;
+            }
 
-      const visibleTasks = getVisibleTasks(state.tasks);
-      
-      const anchorId = state.selectionAnchor || state.selectedTaskIds[0] || null;
+            return {
+                ...state,
+                selectionMode: 'row',
+                selectedTaskIds: newSelectedIds,
+                selectionAnchor: newAnchorId,
+                focusCell: columnId ? { taskId, columnId } : state.focusCell,
+                anchorCell: null
+            }
+        }
+        
+        if (mode === 'cell' && columnId) {
+            const newFocusCell = { taskId, columnId };
+            let newAnchorCell = state.anchorCell;
 
-      if (shiftKey && anchorId) {
-          const anchorIndex = visibleTasks.findIndex(t => t.id === anchorId);
-          const currentSelectedIndex = visibleTasks.findIndex(t => t.id === taskId);
-          
-          if (anchorIndex !== -1 && currentSelectedIndex !== -1) {
-              const start = Math.min(anchorIndex, currentSelectedIndex);
-              const end = Math.max(anchorIndex, currentSelectedIndex);
-              const rangeIds = visibleTasks.slice(start, end + 1).map(t => t.id);
-              
-              return { ...state, selectedTaskIds: rangeIds };
-          }
-      }
+            if (!shiftKey) {
+                newAnchorCell = newFocusCell;
+            } else if (!newAnchorCell) {
+                // If there's no anchor, the focus cell becomes the anchor on first shift-click
+                newAnchorCell = state.focusCell || newFocusCell;
+            }
+            
+            return {
+                ...state,
+                selectionMode: 'cell',
+                focusCell: newFocusCell,
+                anchorCell: newAnchorCell,
+                selectedTaskIds: [],
+                selectionAnchor: null
+            };
+        }
 
-      if (ctrlKey || state.multiSelectMode) {
-          const currentSelection = [...state.selectedTaskIds];
-          const existingIndex = currentSelection.indexOf(taskId);
-          if (existingIndex > -1) {
-              currentSelection.splice(existingIndex, 1);
-          } else {
-              currentSelection.push(taskId);
-          }
-          return { ...state, selectedTaskIds: currentSelection, selectionAnchor: taskId };
-      }
-
-      return { ...state, selectedTaskIds: [taskId], selectionAnchor: taskId };
+        return state;
     }
     case 'TOGGLE_TASK_COLLAPSE': {
       const newTasks = state.tasks.map(task => 
@@ -597,11 +650,13 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, tasks: newTasks };
     }
     case 'COLLAPSE_ALL': {
-        const shouldCollapseSelected = state.selectedTaskIds.length > 1;
+        const taskIdsInSelection = getTaskIdsInSelection(state);
+        const shouldCollapseSelected = taskIdsInSelection.size > 0;
+
         const newTasks = state.tasks.map(task => {
             if (task.isSummary) {
                 if (shouldCollapseSelected) {
-                    if (state.selectedTaskIds.includes(task.id)) {
+                    if (taskIdsInSelection.has(task.id)) {
                         return { ...task, isCollapsed: true };
                     }
                 } else {
@@ -613,11 +668,13 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, tasks: newTasks };
     }
     case 'EXPAND_ALL': {
-        const shouldExpandSelected = state.selectedTaskIds.length > 1;
+        const taskIdsInSelection = getTaskIdsInSelection(state);
+        const shouldExpandSelected = taskIdsInSelection.size > 0;
+
         const newTasks = state.tasks.map(task => {
             if (task.isSummary) {
                 if (shouldExpandSelected) {
-                    if (state.selectedTaskIds.includes(task.id)) {
+                    if (taskIdsInSelection.has(task.id)) {
                         return { ...task, isCollapsed: false };
                     }
                 } else {
@@ -777,7 +834,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, multiSelectMode: !state.multiSelectMode };
     }
     case 'ADD_TASKS_FROM_PASTE': {
-        const { data, activeCell } = action.payload;
+        const { data, focusCell } = action.payload;
         try {
             const parsedData = JSON.parse(data);
             if (parsedData.type === 'omniplan-tasks' && Array.isArray(parsedData.tasks)) {
@@ -788,8 +845,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                 pastedTasks.forEach(t => idMap.set(t.id, `task-${Date.now()}-${Math.random()}`.replace('.','')));
                 
                 let targetIndex = state.tasks.length;
-                if (activeCell) {
-                    const activeTaskIndex = state.tasks.findIndex(t => t.id === activeCell.taskId);
+                if (focusCell) {
+                    const activeTaskIndex = state.tasks.findIndex(t => t.id === focusCell.taskId);
                     if (activeTaskIndex !== -1) {
                         targetIndex = activeTaskIndex + 1;
                     }
@@ -840,8 +897,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         
         if (lines.length > 1) {
             let targetIndex = state.tasks.length;
-            if (activeCell) {
-                const activeTaskIndex = state.tasks.findIndex(t => t.id === activeCell.taskId);
+            if (focusCell) {
+                const activeTaskIndex = state.tasks.findIndex(t => t.id === focusCell.taskId);
                 if (activeTaskIndex > -1) {
                     targetIndex = activeTaskIndex + 1;
                 }
@@ -872,8 +929,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             
             return { ...state, tasks: scheduledTasks, selectedTaskIds: newSelectedIds };
 
-        } else if (lines.length === 1 && activeCell) {
-            const { taskId, columnId } = activeCell;
+        } else if (lines.length === 1 && focusCell) {
+            const { taskId, columnId } = focusCell;
             const value = lines[0].trim();
             
             if (columnId === 'predecessors' || columnId === 'successors') {
@@ -926,82 +983,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             ]
         };
     }
-    case 'SET_ACTIVE_CELL': {
-      if (state.editingCell && (action.payload?.taskId !== state.editingCell.taskId || action.payload?.columnId !== state.editingCell.columnId)) {
-          return { ...state, activeCell: action.payload, editingCell: null };
-      }
-      return { ...state, activeCell: action.payload };
-    }
-    case 'SET_ACTIVE_CELL_AND_SELECT_TASK': {
-        const { taskId, columnId, ctrlKey, shiftKey } = action.payload;
-        
-        const stateWithActiveCell = { ...state, activeCell: { taskId, columnId } };
-        
-        const visibleTasks = getVisibleTasks(stateWithActiveCell.tasks);
-        const anchorId = stateWithActiveCell.selectionAnchor || stateWithActiveCell.selectedTaskIds[0] || null;
-
-        if (shiftKey && anchorId) {
-            const anchorIndex = visibleTasks.findIndex(t => t.id === anchorId);
-            const currentSelectedIndex = visibleTasks.findIndex(t => t.id === taskId);
-            
-            if (anchorIndex !== -1 && currentSelectedIndex !== -1) {
-                const start = Math.min(anchorIndex, currentSelectedIndex);
-                const end = Math.max(anchorIndex, currentSelectedIndex);
-                const rangeIds = visibleTasks.slice(start, end + 1).map(t => t.id);
-                return { ...stateWithActiveCell, selectedTaskIds: rangeIds };
-            }
-        }
-
-        if (ctrlKey || stateWithActiveCell.multiSelectMode) {
-            const currentSelection = [...stateWithActiveCell.selectedTaskIds];
-            const existingIndex = currentSelection.indexOf(taskId);
-            if (existingIndex > -1) {
-                currentSelection.splice(existingIndex, 1);
-            } else {
-                currentSelection.push(taskId);
-            }
-            return { ...stateWithActiveCell, selectedTaskIds: currentSelection, selectionAnchor: taskId };
-        }
-
-        return { ...stateWithActiveCell, selectedTaskIds: [taskId], selectionAnchor: taskId };
-    }
-    case 'SET_ACTIVE_AND_SELECT_TASK': {
-        const { taskId, columnId, shiftKey, ctrlKey } = action.payload;
-        if (!taskId || !columnId) return state;
-
-        const stateWithActiveCell = { ...state, activeCell: { taskId, columnId } };
-        const visibleTasks = getVisibleTasks(stateWithActiveCell.tasks);
-        const anchorId = stateWithActiveCell.selectionAnchor || stateWithActiveCell.selectedTaskIds[0] || null;
-        
-        let newSelectedIds = [taskId];
-        let newAnchor = taskId;
-
-        if (shiftKey && anchorId) {
-            const anchorIndex = visibleTasks.findIndex(t => t.id === anchorId);
-            const currentSelectedIndex = visibleTasks.findIndex(t => t.id === taskId);
-            
-            if (anchorIndex !== -1 && currentSelectedIndex !== -1) {
-                const start = Math.min(anchorIndex, currentSelectedIndex);
-                const end = Math.max(anchorIndex, currentSelectedIndex);
-                newSelectedIds = visibleTasks.slice(start, end + 1).map(t => t.id);
-                newAnchor = stateWithActiveCell.selectionAnchor || taskId; // Keep original anchor during shift-select
-            }
-        } else if (ctrlKey || stateWithActiveCell.multiSelectMode) {
-            const currentSelection = [...stateWithActiveCell.selectedTaskIds];
-            const existingIndex = currentSelection.indexOf(taskId);
-            if (existingIndex > -1) {
-                currentSelection.splice(existingIndex, 1);
-            } else {
-                currentSelection.push(taskId);
-            }
-            newSelectedIds = currentSelection;
-            newAnchor = taskId;
-        }
-        
-        return { ...stateWithActiveCell, selectedTaskIds: newSelectedIds, selectionAnchor: newAnchor };
-    }
     case 'START_EDITING_CELL': {
-      return { ...state, activeCell: action.payload, editingCell: action.payload };
+      return { ...state, focusCell: action.payload, editingCell: action.payload };
     }
     case 'STOP_EDITING_CELL': {
       return { ...state, editingCell: null };
@@ -1068,8 +1051,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'ADD_TASK': {
         const newId = `task-${Date.now()}`;
-        const { tasks, selectedTaskIds } = state;
-        const lastSelectedId = selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : null;
+        const { tasks, focusCell } = state;
+        const lastSelectedId = focusCell?.taskId || (state.selectedTaskIds.length > 0 ? state.selectedTaskIds[state.selectedTaskIds.length - 1] : null);
 
         let newOrder: number;
 
@@ -1111,10 +1094,18 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
         
         const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: scheduledTasks, selectedTaskIds: [newTask.id], activeCell: { taskId: newTask.id, columnId: 'name' } };
+        return { 
+            ...state, 
+            tasks: scheduledTasks, 
+            selectionMode: 'cell',
+            focusCell: { taskId: newTask.id, columnId: 'name' },
+            anchorCell: { taskId: newTask.id, columnId: 'name' },
+            selectedTaskIds: [],
+            selectionAnchor: null,
+        };
     }
     case 'REMOVE_TASK': {
-        const idsToRemove = new Set(state.selectedTaskIds);
+        const idsToRemove = getTaskIdsInSelection(state);
         if (idsToRemove.size === 0) return state;
 
         const tasksToRemove = new Set<string>();
@@ -1135,14 +1126,23 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newLinks = state.links.filter(l => !tasksToRemove.has(l.source) && !tasksToRemove.has(l.target));
         
         const scheduledTasks = runScheduler(newTasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
-        return { ...state, tasks: scheduledTasks, links: newLinks, selectedTaskIds: [] };
+        return { 
+            ...state, 
+            tasks: scheduledTasks, 
+            links: newLinks, 
+            selectedTaskIds: [],
+            selectionAnchor: null,
+            focusCell: null,
+            anchorCell: null,
+         };
     }
     case 'LINK_TASKS': {
-        if (state.selectedTaskIds.length < 2) return state;
+        const taskIdsToLink = Array.from(getTaskIdsInSelection(state));
+        if (taskIdsToLink.length < 2) return state;
         
         const existingLinkPairs = new Set(state.links.map(l => `${l.source}-${l.target}`));
         const visibleTasks = getVisibleTasks(state.tasks);
-        const selectedVisibleTasks = visibleTasks.filter(t => state.selectedTaskIds.includes(t.id));
+        const selectedVisibleTasks = visibleTasks.filter(t => taskIdsToLink.includes(t.id));
 
         if (selectedVisibleTasks.length < 2) return state;
         
@@ -1308,7 +1308,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, links: finalLinks, tasks: newTasks };
     }
     case 'INDENT_TASK': {
-        const tasksToIndent = state.selectedTaskIds;
+        const tasksToIndent = Array.from(getTaskIdsInSelection(state));
         if (tasksToIndent.length === 0) return state;
 
         const tasks = [...state.tasks];
@@ -1389,13 +1389,14 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         return { ...state, tasks: scheduledTasks, links: newLinks, notifications };
     }
     case 'OUTDENT_TASK': {
-        if (state.selectedTaskIds.length === 0) return state;
+        const taskIdsToOutdent = Array.from(getTaskIdsInSelection(state));
+        if (taskIdsToOutdent.length === 0) return state;
 
         const tasks = [...state.tasks];
         const taskMap = new Map(tasks.map(t => [t.id, t]));
 
         const sortedSelectedIds = tasks
-            .filter(t => state.selectedTaskIds.includes(t.id))
+            .filter(t => taskIdsToOutdent.includes(t.id))
             .map(t => t.id);
             
         for (const taskId of sortedSelectedIds) {
@@ -1490,13 +1491,10 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
         const nonHistoricActions: Action['type'][] = [
             'SET_PROJECT_DATA', 
             'SET_PERSISTED_STATE',
-            'SELECT_TASK', 
-            'SET_ACTIVE_CELL', 
+            'UPDATE_SELECTION',
             'START_EDITING_CELL', 
             'STOP_EDITING_CELL',
             'CLEAR_NOTIFICATIONS',
-            'SET_ACTIVE_AND_SELECT_TASK',
-            'SET_ACTIVE_CELL_AND_SELECT_TASK',
         ];
 
         if (action.type === '_APPLY_STATE_CHANGE') {
