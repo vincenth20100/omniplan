@@ -230,7 +230,6 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
 
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
-        {/* Tools */}
         <Toggle
           variant="outline"
           size="icon"
@@ -483,6 +482,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             dispatch={dispatch}
             onManageThemes={() => setIsThemeManagerOpen(true)}
             isEditor={isEditorOrOwner}
+            baselines={state.baselines}
           />
           <ThemeManagementDialog
             open={isThemeManagerOpen}

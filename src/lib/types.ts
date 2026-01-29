@@ -160,6 +160,7 @@ export interface GanttSettings {
     taskRowLevel1Bg?: string;
     taskRowLevel2PlusBg?: string;
   };
+  comparisonBaselineId?: string | null;
 }
 
 export interface StylePreset {
@@ -170,6 +171,13 @@ export interface StylePreset {
     theme: 'light' | 'dark' | 'sepia';
     customStyles?: GanttSettings['customStyles'];
   };
+}
+
+export interface Baseline {
+  id: string;
+  name: string;
+  createdAt: Date;
+  tasks: Task[];
 }
 
 export interface HistoryEntry {
@@ -188,6 +196,7 @@ export interface ProjectState {
     zones: Zone[];
     calendars: Calendar[];
     defaultCalendarId: string | null;
+    baselines: Baseline[];
     
     // Selection state
     selectionMode: 'row' | 'cell';

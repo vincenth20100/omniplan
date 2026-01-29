@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember, StylePreset } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember, StylePreset, Baseline } from '@/lib/types';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
@@ -30,7 +30,8 @@ const initialGanttSettings: GanttSettings = {
   dateFormat: 'MMM d, yyyy',
   summaryDurationUnit: 'day',
   theme: 'dark',
-  customStyles: {}
+  customStyles: {},
+  comparisonBaselineId: null,
 };
 
 const defaultStylePresets: StylePreset[] = [
@@ -88,6 +89,7 @@ const initialState: ProjectState = {
   zones: [],
   calendars: [],
   defaultCalendarId: null,
+  baselines: [],
   
   // Selection
   selectionMode: 'row',
@@ -115,7 +117,7 @@ const initialState: ProjectState = {
 };
 
 type Action =
-  | { type: 'SET_PROJECT_DATA', payload: { tasks: Task[], links: Link[], resources: Resource[], assignments: Assignment[], calendars: Calendar[] } }
+  | { type: 'SET_PROJECT_DATA', payload: { tasks: Task[], links: Link[], resources: Resource[], assignments: Assignment[], calendars: Calendar[], baselines: Baseline[] } }
   | { type: 'SET_PERSISTED_STATE', payload: { views: View[], sharedSettings: typeof defaultAppSettings | null, userPreferences: typeof defaultUserPreferences | null, member: ProjectMember | null } }
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
@@ -166,6 +168,8 @@ type Action =
   | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
   | { type: 'SET_STYLE_PRESETS', payload: StylePreset[] }
   | { type: 'SET_ACTIVE_STYLE_PRESET', payload: { id: string } }
+  | { type: 'ADD_BASELINE', payload: { name: string } }
+  | { type: 'DELETE_BASELINE', payload: { baselineId: string } }
   | { type: '_APPLY_STATE_CHANGE', payload: { newState: ProjectState, originalAction: Action } }
   | { type: 'UNDO' }
   | { type: 'REDO' }
@@ -428,7 +432,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     
   switch (action.type) {
     case 'SET_PROJECT_DATA': {
-      const { tasks, links, resources, assignments, calendars } = action.payload;
+      const { tasks, links, resources, assignments, calendars, baselines } = action.payload;
       const defaultCalendarId = state.defaultCalendarId || calendars.find(c => c.name === "Standard")?.id || calendars[0]?.id || null;
       const scheduledTasks = runScheduler(tasks, links, state.columns, calendars, defaultCalendarId);
       return {
@@ -438,6 +442,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         resources,
         assignments,
         calendars,
+        baselines: baselines || [],
         defaultCalendarId,
       };
     }
@@ -1082,6 +1087,26 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         }
         return state;
     }
+    case 'ADD_BASELINE': {
+        const { name } = action.payload;
+        const baselineTasks = state.tasks.map(t => toFirestoreTask(t) as Task);
+        const newBaseline: Baseline = {
+            id: `baseline-${Date.now()}`,
+            name,
+            createdAt: new Date(),
+            tasks: baselineTasks,
+        };
+        return { ...state, baselines: [...state.baselines, newBaseline] };
+    }
+    case 'DELETE_BASELINE': {
+        const { baselineId } = action.payload;
+        const newBaselines = state.baselines.filter(b => b.id !== baselineId);
+        let newGanttSettings = state.ganttSettings;
+        if (state.ganttSettings.comparisonBaselineId === baselineId) {
+            newGanttSettings = { ...state.ganttSettings, comparisonBaselineId: null };
+        }
+        return { ...state, baselines: newBaselines, ganttSettings: newGanttSettings };
+    }
     case 'LOAD_PROJECT': {
         const loaded = action.payload;
         const ganttSettings = { ...initialState.ganttSettings, ...(loaded.ganttSettings || {}) };
@@ -1670,7 +1695,7 @@ export function useProject(user: User, projectId: string | null) {
             'UPDATE_LINK', 'ADD_TASK', 'REMOVE_TASK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK',
             'UPDATE_RELATIONSHIPS', 'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
             'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
-            'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE',
+            'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE', 'ADD_BASELINE', 'DELETE_BASELINE',
           ];
     
           const sharedSettingsActions: Action['type'][] = [
@@ -1807,6 +1832,26 @@ export function useProject(user: User, projectId: string | null) {
         const newState = projectReducer(currentState, action);
         const batch = writeBatch(firestore);
 
+        // ... existing batch logic for tasks, links ...
+
+        if (action.type === 'ADD_BASELINE') {
+            const newBaseline = newState.baselines.find(b => !currentState.baselines.some(cb => cb.id === b.id));
+            if (newBaseline) {
+                batch.set(doc(firestore, 'projects', projectId, 'baselines', newBaseline.id), {
+                    ...newBaseline,
+                    createdAt: newBaseline.createdAt,
+                    tasks: newBaseline.tasks.map(t => toFirestoreTask(t))
+                });
+            }
+        }
+
+        if (action.type === 'DELETE_BASELINE') {
+            const deletedBaseline = currentState.baselines.find(b => !newState.baselines.some(nb => nb.id === b.id));
+            if (deletedBaseline) {
+                batch.delete(doc(firestore, 'projects', projectId, 'baselines', deletedBaseline.id));
+            }
+        }
+
         newState.tasks.forEach(newTask => {
             const oldTask = currentState.tasks.find(t => t.id === newTask.id);
             if (!oldTask) {
@@ -1889,6 +1934,7 @@ export function useProject(user: User, projectId: string | null) {
     views: useCollection<View>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId])),
     sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId])),
     userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
+    baselines: useCollection<Baseline>(useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId])),
   };
   
   // Effect 1: Data Synchronization from Firestore
@@ -1900,7 +1946,7 @@ export function useProject(user: User, projectId: string | null) {
   }, [projectId]);
 
   useEffect(() => {
-    const allCollectionsLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading;
+    const allCollectionsLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading || collections.baselines.isLoading;
     const allLoading = allCollectionsLoading || isMemberLoading || isCheckingAdmin;
 
     if (!projectId || allLoading) {
@@ -1937,6 +1983,17 @@ export function useProject(user: User, projectId: string | null) {
                     finish: safeToDate(e.finish)!
                 }))
             })),
+            baselines: (collections.baselines.data || []).map(b => ({
+                ...b,
+                createdAt: safeToDate(b.createdAt)!,
+                tasks: (b.tasks || []).map(t => ({
+                    ...t,
+                    start: safeToDate(t.start)!,
+                    finish: safeToDate(t.finish)!,
+                    constraintDate: safeToDate(t.constraintDate),
+                    deadline: safeToDate(t.deadline),
+                }))
+            }))
         }
     });
 
@@ -1950,6 +2007,7 @@ export function useProject(user: User, projectId: string | null) {
     collections.resources.data, collections.resources.isLoading,
     collections.assignments.data, collections.assignments.isLoading,
     collections.calendars.data, collections.calendars.isLoading,
+    collections.baselines.data, collections.baselines.isLoading,
   ]);
 
   // Effect 2: Sync Settings Data

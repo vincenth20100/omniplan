@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import type { Task, Link, UiDensity, Calendar, GanttSettings } from '@/lib/types';
+import type { Task, Link, UiDensity, Calendar, GanttSettings, Baseline } from '@/lib/types';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { TimelineHeader } from './timeline-header';
@@ -125,7 +125,8 @@ export function Timeline({
     onScroll,
     uiDensity,
     defaultCalendar,
-    ganttSettings
+    ganttSettings,
+    baselines,
 }: { 
     allTasks: Task[],
     renderableRows: RenderableRow[], 
@@ -136,12 +137,27 @@ export function Timeline({
     onScroll: () => void,
     uiDensity: UiDensity,
     defaultCalendar: Calendar | null,
-    ganttSettings: GanttSettings
+    ganttSettings: GanttSettings,
+    baselines: Baseline[],
 }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
 
   const pendingElementsRef = useRef<Map<string, HTMLDivElement | null>>(new Map());
+
+  const comparisonBaseline = useMemo(() => {
+    if (!ganttSettings.comparisonBaselineId) return null;
+    return baselines.find(b => b.id === ganttSettings.comparisonBaselineId);
+  }, [baselines, ganttSettings.comparisonBaselineId]);
+
+  const baselineTaskMap = useMemo(() => {
+      if (!comparisonBaseline) return null;
+      const map = new Map<string, Task>();
+      comparisonBaseline.tasks.forEach(task => {
+          map.set(task.id, task);
+      });
+      return map;
+  }, [comparisonBaseline]);
 
   // This effect collects all ref changes from a render pass and applies them in a single batch.
   // It runs after every render to ensure the state is up-to-date.
@@ -170,7 +186,7 @@ export function Timeline({
     });
   });
 
-  const { rowHeight } = DENSITY_SETTINGS[uiDensity];
+  const { rowHeight, barHeight } = DENSITY_SETTINGS[uiDensity];
 
   const scale = useMemo(() => {
     switch (ganttSettings.viewMode) {
@@ -284,16 +300,12 @@ export function Timeline({
                     const task = row.data;
                     const isSplit = task.isSummary && ganttSettings.renderSplitTasks;
 
-                    if (isSplit) {
-                        const children = allTasks.filter(t => t.parentId === task.id);
-                        if (children.length === 0) {
-                             // Render as normal task bar if no children, it will become a milestone
-                            return <TaskBar key={task.id} task={task} ganttStartDate={viewStartDate} scale={scale} dispatch={dispatch} row={index} isSelected={selectedTaskIds.includes(task.id)} onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })} registerBarElement={registerBarElement} uiDensity={uiDensity} showProgress={ganttSettings.showProgress} showTaskLabels={ganttSettings.showTaskLabels} highlightCriticalPath={ganttSettings.highlightCriticalPath} defaultCalendar={defaultCalendar} dateFormat={dateFormat} />;
-                        }
-
-                        return (
+                    const baselineTask = baselineTaskMap ? baselineTaskMap.get(task.id) : undefined;
+                    
+                    return (
+                        <React.Fragment key={task.id}>
+                          {isSplit ? (
                             <SplitSummaryTaskBar
-                                key={task.id}
                                 task={task}
                                 ganttSettings={ganttSettings}
                                 allTasks={allTasks}
@@ -305,27 +317,37 @@ export function Timeline({
                                 viewStartDate={viewStartDate}
                                 scale={scale}
                             />
-                        );
-                    }
-                    
-                    return (
-                        <TaskBar
-                        key={task.id}
-                        task={task}
-                        ganttStartDate={viewStartDate}
-                        scale={scale}
-                        dispatch={dispatch}
-                        row={index}
-                        isSelected={selectedTaskIds.includes(task.id)}
-                        onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
-                        registerBarElement={registerBarElement}
-                        uiDensity={uiDensity}
-                        showProgress={ganttSettings.showProgress}
-                        showTaskLabels={ganttSettings.showTaskLabels}
-                        highlightCriticalPath={ganttSettings.highlightCriticalPath}
-                        defaultCalendar={defaultCalendar}
-                        dateFormat={dateFormat}
-                        />
+                          ) : (
+                            <TaskBar
+                              task={task}
+                              ganttStartDate={viewStartDate}
+                              scale={scale}
+                              dispatch={dispatch}
+                              row={index}
+                              isSelected={selectedTaskIds.includes(task.id)}
+                              onSelect={(e) => dispatch({ type: 'SELECT_TASK', payload: { taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
+                              registerBarElement={registerBarElement}
+                              uiDensity={uiDensity}
+                              showProgress={ganttSettings.showProgress}
+                              showTaskLabels={ganttSettings.showTaskLabels}
+                              highlightCriticalPath={ganttSettings.highlightCriticalPath}
+                              defaultCalendar={defaultCalendar}
+                              dateFormat={dateFormat}
+                            />
+                          )}
+                          {baselineTask && !task.isSummary && (
+                              <div
+                                  className="absolute rounded-sm bg-muted-foreground/60 pointer-events-none"
+                                  style={{
+                                      top: `${index * rowHeight + (rowHeight - barHeight) / 2 + barHeight - 4}px`,
+                                      left: `${differenceInCalendarDays(baselineTask.start, viewStartDate) * scale}px`,
+                                      width: `${(differenceInCalendarDays(baselineTask.finish, baselineTask.start) + 1) * scale}px`,
+                                      height: '4px',
+                                  }}
+                                  title={`Baseline: ${baselineTask.name}\n${format(baselineTask.start, dateFormat)} - ${format(baselineTask.finish, dateFormat)}`}
+                              />
+                          )}
+                        </React.Fragment>
                     );
                 }
                 return null;

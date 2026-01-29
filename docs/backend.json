@@ -669,6 +669,35 @@
       "required": [
         "id"
       ]
+    },
+    "Baseline": {
+      "title": "Baseline",
+      "description": "Represents a snapshot of the project schedule.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/entities/Task"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "createdAt",
+        "tasks"
+      ]
     }
   },
   "auth": {
@@ -799,6 +828,15 @@
             "$ref": "#/entities/UserSettings"
           },
           "description": "This now stores project-specific settings, but shared among users of the project. A single doc 'app_settings' is used."
+        }
+      },
+      {
+        "path": "/projects/{projectId}/baselines/{baselineId}",
+        "definition": {
+          "entityName": "Baseline",
+          "schema": {
+            "$ref": "#/entities/Baseline"
+          }
         }
       }
     ]

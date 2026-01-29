@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,12 +19,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import type { Project, ProjectMember, ColumnSpec, Invitation } from "@/lib/types";
+import type { Project, ProjectMember, ColumnSpec, Invitation, Baseline } from "@/lib/types";
 import { useState, useEffect, useMemo } from 'react';
 import { collection, doc, writeBatch, updateDoc, arrayUnion, arrayRemove, addDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/firebase";
+import { format } from "date-fns";
 
 type EditableMember = ProjectMember & {
     originalRole: ProjectMember['role'];
@@ -34,14 +36,18 @@ export function ProjectSettingsDialog({
     open,
     onOpenChange,
     project,
+    projectState,
     allColumns,
     onProjectUpdate,
+    dispatch,
 }: {
     open: boolean,
     onOpenChange: (open: boolean) => void,
     project: Project,
+    projectState: any,
     allColumns: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[],
-    onProjectUpdate: (updatedProject: Partial<Project>) => void
+    onProjectUpdate: (updatedProject: Partial<Project>) => void,
+    dispatch: any,
 }) {
     const firestore = useFirestore();
     const { currentUser } = useAuth();
@@ -64,6 +70,10 @@ export function ProjectSettingsDialog({
     const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('viewer');
     const [isAddingUser, setIsAddingUser] = useState(false);
     const [isRemovingInvitation, setIsRemovingInvitation] = useState<string | null>(null);
+
+    const [isSaveBaselineOpen, setIsSaveBaselineOpen] = useState(false);
+    const [newBaselineName, setNewBaselineName] = useState("");
+    const [baselineToDelete, setBaselineToDelete] = useState<Baseline | null>(null);
 
     const originalMembers = useMemo(() => {
         return fetchedMembers?.map(m => ({
@@ -177,6 +187,21 @@ export function ProjectSettingsDialog({
         }
     };
 
+    const handleSaveBaseline = () => {
+        if (!newBaselineName.trim()) return;
+        dispatch({ type: "ADD_BASELINE", payload: { name: newBaselineName } });
+        setIsSaveBaselineOpen(false);
+        setNewBaselineName("");
+        toast({ title: "Baseline Saved" });
+    };
+
+    const handleDeleteBaseline = () => {
+        if (!baselineToDelete) return;
+        dispatch({ type: "DELETE_BASELINE", payload: { baselineId: baselineToDelete.id } });
+        setBaselineToDelete(null);
+        toast({ title: "Baseline Deleted" });
+    };
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
@@ -198,117 +223,148 @@ export function ProjectSettingsDialog({
                     </div>
                     <Separator />
 
-                     {/* Members Section */}
+                     {/* Members & Baselines Section */}
                     <div className="space-y-4 flex-grow flex flex-col min-h-0">
-                        <h3 className="font-semibold">Members</h3>
-                        <div className="flex-grow border rounded-md overflow-hidden">
-                             <ScrollArea className="h-full">
-                                <div className="p-2">
-                                     <Accordion type="multiple" className="w-full">
-                                        {members.map(member => (
-                                            <AccordionItem value={member.userId} key={member.userId}>
-                                                <div className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md">
-                                                    <AccordionTrigger className="flex-1 py-2 px-2">
-                                                        <div className="flex items-center gap-3">
-                                                            <Avatar className="h-8 w-8">
-                                                                <AvatarImage src={member.photoURL} alt={member.displayName} />
-                                                                <AvatarFallback>{member.displayName?.charAt(0) || 'U'}</AvatarFallback>
-                                                            </Avatar>
-                                                            <span>{member.displayName}</span>
-                                                        </div>
-                                                    </AccordionTrigger>
-                                                    <div className="flex items-center gap-4 pr-4" onClick={(e) => e.stopPropagation()}>
-                                                            <Select
-                                                            value={member.role}
-                                                            onValueChange={(newRole: 'editor' | 'viewer') => handleMemberChange(member.userId, { role: newRole })}
-                                                            disabled={member.role === 'owner' || project.ownerId !== currentUser?.uid}
-                                                            >
-                                                            <SelectTrigger className="w-[120px] h-8">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="owner" disabled>Owner</SelectItem>
-                                                                <SelectItem value="editor">Editor</SelectItem>
-                                                                <SelectItem value="viewer">Viewer</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                </div>
-                                                <AccordionContent>
-                                                    <div className="p-4 bg-muted/50 rounded-md">
-                                                        <h4 className="font-semibold text-sm mb-2">Column Permissions</h4>
-                                                        <p className="text-xs text-muted-foreground mb-4">Uncheck columns to HIDE them for this user.</p>
-                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                                             {allColumns.filter(c => c.id !== 'wbs' && c.id !== 'name').map(col => (
-                                                                <div key={col.id} className="flex items-center space-x-2">
-                                                                    <Checkbox
-                                                                        id={`col-vis-${member.userId}-${col.id}`}
-                                                                        checked={!member.permissions?.hiddenColumns?.includes(col.id)}
-                                                                        onCheckedChange={(checked) => handleColumnVisibilityChange(member.userId, col.id, !!checked)}
-                                                                        disabled={member.userId === currentUser?.uid}
-                                                                    />
-                                                                    <label
-                                                                        htmlFor={`col-vis-${member.userId}-${col.id}`}
-                                                                        className="text-sm font-medium leading-none"
-                                                                    >
-                                                                        {col.name}
-                                                                    </label>
+                        <Accordion type="multiple" className="w-full" defaultValue={["members"]}>
+                            <AccordionItem value="members">
+                                <AccordionTrigger>Members & Permissions</AccordionTrigger>
+                                <AccordionContent>
+                                    <div className="flex-grow border rounded-md overflow-hidden min-h-[200px]">
+                                        <ScrollArea className="h-[200px]">
+                                            <div className="p-2">
+                                                {/* Pending Invitations List */}
+                                                {fetchedInvitations && fetchedInvitations.length > 0 && (
+                                                    <div className="mb-4">
+                                                        <h4 className="font-semibold text-sm px-2 mb-2">Pending Invitations</h4>
+                                                        <div className="space-y-1">
+                                                            {fetchedInvitations.map(invitation => (
+                                                                <div key={invitation.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent/50">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <Avatar className="h-8 w-8">
+                                                                            <AvatarFallback>?</AvatarFallback>
+                                                                        </Avatar>
+                                                                        <span className="text-sm text-muted-foreground">{invitation.email}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-4">
+                                                                        <span className="text-sm capitalize text-muted-foreground">{invitation.role}</span>
+                                                                        <Button variant="ghost" size="icon" onClick={() => handleRemoveInvitation(invitation.id)} disabled={isRemovingInvitation === invitation.id}>
+                                                                            {isRemovingInvitation === invitation.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                                        </Button>
+                                                                    </div>
                                                                 </div>
                                                             ))}
                                                         </div>
                                                     </div>
-                                                </AccordionContent>
-                                            </AccordionItem>
-                                        ))}
-                                     </Accordion>
+                                                )}
 
-                                     {/* Pending Invitations List */}
-                                     {fetchedInvitations && fetchedInvitations.length > 0 && (
-                                         <div className="mt-4">
-                                            <h4 className="font-semibold text-sm px-2 mb-2">Pending Invitations</h4>
-                                            <div className="space-y-1">
-                                                {fetchedInvitations.map(invitation => (
-                                                    <div key={invitation.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent/50">
-                                                        <div className="flex items-center gap-3">
-                                                            <Avatar className="h-8 w-8">
-                                                                <AvatarFallback>?</AvatarFallback>
-                                                            </Avatar>
-                                                            <span className="text-sm text-muted-foreground">{invitation.email}</span>
+                                                {/* Confirmed Members List */}
+                                                <Accordion type="multiple" className="w-full">
+                                                    {members.map(member => (
+                                                        <AccordionItem value={member.userId} key={member.userId}>
+                                                            <div className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md">
+                                                                <AccordionTrigger className="flex-1 py-2 px-2">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <Avatar className="h-8 w-8">
+                                                                            <AvatarImage src={member.photoURL} alt={member.displayName} />
+                                                                            <AvatarFallback>{member.displayName?.charAt(0) || 'U'}</AvatarFallback>
+                                                                        </Avatar>
+                                                                        <span>{member.displayName}</span>
+                                                                    </div>
+                                                                </AccordionTrigger>
+                                                                <div className="flex items-center gap-4 pr-4" onClick={(e) => e.stopPropagation()}>
+                                                                    <Select
+                                                                        value={member.role}
+                                                                        onValueChange={(newRole: 'editor' | 'viewer') => handleMemberChange(member.userId, { role: newRole })}
+                                                                        disabled={member.role === 'owner' || project.ownerId !== currentUser?.uid}
+                                                                    >
+                                                                        <SelectTrigger className="w-[120px] h-8">
+                                                                            <SelectValue />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="owner" disabled>Owner</SelectItem>
+                                                                            <SelectItem value="editor">Editor</SelectItem>
+                                                                            <SelectItem value="viewer">Viewer</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </div>
+                                                            </div>
+                                                            <AccordionContent>
+                                                                <div className="p-4 bg-muted/50 rounded-md">
+                                                                    <h4 className="font-semibold text-sm mb-2">Column Permissions</h4>
+                                                                    <p className="text-xs text-muted-foreground mb-4">Uncheck columns to HIDE them for this user.</p>
+                                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                                        {allColumns.filter(c => c.id !== 'wbs' && c.id !== 'name').map(col => (
+                                                                            <div key={col.id} className="flex items-center space-x-2">
+                                                                                <Checkbox
+                                                                                    id={`col-vis-${member.userId}-${col.id}`}
+                                                                                    checked={!member.permissions?.hiddenColumns?.includes(col.id)}
+                                                                                    onCheckedChange={(checked) => handleColumnVisibilityChange(member.userId, col.id, !!checked)}
+                                                                                    disabled={member.userId === currentUser?.uid}
+                                                                                />
+                                                                                <label
+                                                                                    htmlFor={`col-vis-${member.userId}-${col.id}`}
+                                                                                    className="text-sm font-medium leading-none"
+                                                                                >
+                                                                                    {col.name}
+                                                                                </label>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </AccordionContent>
+                                                        </AccordionItem>
+                                                    ))}
+                                                </Accordion>
+                                            </div>
+                                        </ScrollArea>
+                                    </div>
+                                    <div className="mt-4 space-y-2">
+                                        <h3 className="font-semibold text-sm">Add New Member</h3>
+                                        <div className="flex items-center gap-2">
+                                            <Input placeholder="user@example.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
+                                            <Select value={inviteRole} onValueChange={(value: 'editor' | 'viewer') => setInviteRole(value)}>
+                                                <SelectTrigger className="w-[180px]">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="editor">Editor</SelectItem>
+                                                    <SelectItem value="viewer">Viewer</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <Button onClick={handleAddUser} disabled={isAddingUser || !inviteEmail.trim()}>
+                                                {isAddingUser ? <Loader2 className="animate-spin" /> : 'Add User'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                            <AccordionItem value="baselines">
+                                <AccordionTrigger>Baselines</AccordionTrigger>
+                                <AccordionContent>
+                                     <div className="flex-grow border rounded-md overflow-hidden min-h-[200px]">
+                                         <ScrollArea className="h-[200px]">
+                                             <div className="p-2 space-y-2">
+                                                {projectState.baselines.map((b: Baseline) => (
+                                                    <div key={b.id} className="flex justify-between items-center p-2 rounded-md hover:bg-muted/50">
+                                                        <div>
+                                                            <p className="font-medium">{b.name}</p>
+                                                            <p className="text-xs text-muted-foreground">Saved on {format(new Date(b.createdAt), 'PPp')}</p>
                                                         </div>
-                                                        <div className="flex items-center gap-4">
-                                                            <span className="text-sm capitalize text-muted-foreground">{invitation.role}</span>
-                                                            <Button variant="ghost" size="icon" onClick={() => handleRemoveInvitation(invitation.id)} disabled={isRemovingInvitation === invitation.id}>
-                                                                {isRemovingInvitation === invitation.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                                            </Button>
-                                                        </div>
+                                                        <Button variant="ghost" size="icon" onClick={() => setBaselineToDelete(b)}>
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
                                                     </div>
                                                 ))}
-                                            </div>
-                                         </div>
-                                     )}
-                                </div>
-                             </ScrollArea>
-                        </div>
-                    </div>
-                    <Separator />
-                    {/* Add New Member Section */}
-                    <div className="space-y-2">
-                        <h3 className="font-semibold">Add New Member</h3>
-                        <div className="flex items-center gap-2">
-                            <Input placeholder="user@example.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
-                            <Select value={inviteRole} onValueChange={(value: 'editor' | 'viewer') => setInviteRole(value)}>
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue/>
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="editor">Editor</SelectItem>
-                                    <SelectItem value="viewer">Viewer</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Button onClick={handleAddUser} disabled={isAddingUser || !inviteEmail.trim()}>
-                                {isAddingUser ? <Loader2 className="animate-spin" /> : 'Add User'}
-                            </Button>
-                        </div>
+                                                {projectState.baselines.length === 0 && (
+                                                    <p className="p-4 text-center text-sm text-muted-foreground">No baselines have been saved.</p>
+                                                )}
+                                             </div>
+                                         </ScrollArea>
+                                     </div>
+                                     <Button className="mt-4" variant="outline" onClick={() => setIsSaveBaselineOpen(true)}>Set Current Schedule as Baseline</Button>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
                     </div>
                 </div>
 
@@ -319,6 +375,40 @@ export function ProjectSettingsDialog({
                         Save
                     </Button>
                 </DialogFooter>
+
+                {/* Save Baseline Dialog */}
+                <Dialog open={isSaveBaselineOpen} onOpenChange={setIsSaveBaselineOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Save New Baseline</DialogTitle>
+                        </DialogHeader>
+                        <div className="py-4">
+                            <Label htmlFor="baseline-name">Baseline Name</Label>
+                            <Input id="baseline-name" value={newBaselineName} onChange={e => setNewBaselineName(e.target.value)} autoFocus />
+                        </div>
+                        <DialogFooter>
+                            <Button variant="secondary" onClick={() => setIsSaveBaselineOpen(false)}>Cancel</Button>
+                            <Button onClick={handleSaveBaseline} disabled={!newBaselineName.trim()}>Save</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Delete Baseline Confirmation */}
+                <AlertDialog open={!!baselineToDelete} onOpenChange={() => setBaselineToDelete(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will permanently delete the baseline "{baselineToDelete?.name}". This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteBaseline} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+
             </DialogContent>
         </Dialog>
     );

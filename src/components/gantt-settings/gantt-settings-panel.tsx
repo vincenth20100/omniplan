@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { GanttSettings, StylePreset } from "@/lib/types";
+import type { GanttSettings, StylePreset, Baseline } from "@/lib/types";
 import { Input } from "../ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -58,6 +58,7 @@ export function GanttSettingsPanel({
   settings,
   stylePresets,
   activeStylePresetId,
+  baselines,
   dispatch,
   onManageThemes,
   isEditor,
@@ -67,6 +68,7 @@ export function GanttSettingsPanel({
   settings: GanttSettings;
   stylePresets: StylePreset[];
   activeStylePresetId: string | null;
+  baselines: Baseline[];
   dispatch: any;
   onManageThemes: () => void;
   isEditor: boolean;
@@ -266,6 +268,32 @@ export function GanttSettingsPanel({
                           disabled={!isEditor}
                       />
                   </div>
+              </div>
+            </div>
+
+             <Separator />
+
+            <div>
+              <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Baseline Comparison</h4>
+              <div className="flex items-center justify-between">
+                  <Label htmlFor="baseline-select">Show Baseline</Label>
+                  <Select
+                      value={settings.comparisonBaselineId || 'none'}
+                      onValueChange={(value) => handleSettingChange('comparisonBaselineId', value === 'none' ? null : value)}
+                      disabled={!isEditor}
+                  >
+                      <SelectTrigger id="baseline-select" className="w-[180px]">
+                          <SelectValue placeholder="Select Baseline" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {baselines.map(b => (
+                              <SelectItem key={b.id} value={b.id}>
+                                  {b.name}
+                              </SelectItem>
+                          ))}
+                      </SelectContent>
+                  </Select>
               </div>
             </div>
             

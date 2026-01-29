@@ -79,6 +79,13 @@ service cloud.firestore {
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
+      // Baselines
+      match /baselines/{baselineId} {
+        allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
+      }
+
       // Resources
       match /resources/{resourceId} {
         allow read, list: if isProjectMember(projectId) || isGlobalAdmin();
