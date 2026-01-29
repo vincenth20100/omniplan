@@ -1059,7 +1059,7 @@ export function TaskTable({
                                         "cursor-pointer", 
                                         "transition-all duration-150",
                                         "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                        selectedTaskIds.includes(task.id) && "bg-accent/50 hover:bg-accent/50",
+                                        selectedTaskIds.includes(task.id) && "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground",
                                         !selectedTaskIds.includes(task.id) && "hover:bg-muted/50",
                                         draggedIds?.includes(task.id) && "opacity-30",
                                         !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && grouping.length === 0 && {
@@ -1091,11 +1091,12 @@ export function TaskTable({
                                                             });
                                                         } else {
                                                             dispatch({
-                                                                type: 'UPDATE_SELECTION',
+                                                                type: 'SET_ACTIVE_CELL_AND_SELECT_TASK',
                                                                 payload: {
-                                                                    mode: 'cell',
                                                                     taskId: task.id,
                                                                     columnId: column.id,
+                                                                    ctrlKey: false,
+                                                                    shiftKey: false
                                                                 }
                                                             });
                                                         }
