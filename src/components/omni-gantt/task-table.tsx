@@ -485,12 +485,12 @@ export function TaskTable({
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
 }) {
-    const stateRef = useRef({ tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping });
+    const stateRef = useRef({ tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode });
     const isMobile = useIsMobile();
 
     useEffect(() => {
-        stateRef.current = { tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping };
-    }, [tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping]);
+        stateRef.current = { tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode };
+    }, [tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode]);
 
     const idToWbsMap = React.useMemo(() => new Map(tasks.map(t => [t.id, t.wbs || ''])), [tasks]);
     
@@ -632,8 +632,8 @@ export function TaskTable({
                 const { taskId, columnId } = activeCell;
 
                 if (event.key === 'Delete') {
-                    // If WBS column is active, delete the whole task
-                    if (columnId === 'wbs') {
+                    // If WBS column is active, or selection mode is 'row', delete the whole task
+                    if (columnId === 'wbs' || stateRef.current.selectionMode === 'row') {
                         dispatch({ type: 'REMOVE_TASK' });
                         return; // Action handled
                     }
@@ -709,12 +709,11 @@ export function TaskTable({
 
                 if (nextTaskId !== activeCell.taskId || nextColId !== activeCell.columnId) {
                      dispatch({
-                        type: 'SET_ACTIVE_AND_SELECT_TASK',
+                        type: 'SET_CELL_SELECTION',
                         payload: {
                             taskId: nextTaskId,
                             columnId: nextColId,
                             shiftKey: event.shiftKey,
-                            ctrlKey: event.ctrlKey,
                         }
                     });
                 }
@@ -722,42 +721,24 @@ export function TaskTable({
         };
 
         const handleCopy = (e: ClipboardEvent) => {
-            const { selectedTaskIds, tasks, links, editingCell } = stateRef.current;
-            if (selectedTaskIds.length === 0 || editingCell) return;
+            const { editingCell } = stateRef.current;
+            if (editingCell) return;
+
+            const selectedTaskIds = getTaskIdsInSelection(stateRef.current);
+            if (selectedTaskIds.size === 0) return;
 
             e.preventDefault();
-
-            const taskMap = new Map(tasks.map(t => [t.id, t]));
-            const tasksToCopyIds = new Set<string>();
-
-            const getChildrenRecursive = (parentId: string) => {
-                tasks.forEach(t => {
-                    if (t.parentId === parentId) {
-                        tasksToCopyIds.add(t.id);
-                        if (t.isSummary) {
-                            getChildrenRecursive(t.id);
-                        }
-                    }
-                });
-            };
-
-            const sortedSelectedTasks = tasks.filter(t => selectedTaskIds.includes(t.id));
-            sortedSelectedTasks.forEach(task => {
-                tasksToCopyIds.add(task.id);
-                if (task.isSummary) {
-                    getChildrenRecursive(task.id);
-                }
-            });
+            const { tasks, links } = stateRef.current;
             
             const tasksToCopy = tasks
-                .filter(t => tasksToCopyIds.has(t.id))
+                .filter(t => selectedTaskIds.has(t.id))
                 .map(t => {
                     // eslint-disable-next-line @typescript-eslint/no-unused-vars
                     const { isCritical, totalFloat, lateStart, lateFinish, ...rest } = t;
                     return rest;
                 });
             
-            const linksToCopy = links.filter(l => tasksToCopyIds.has(l.source) && tasksToCopyIds.has(l.target));
+            const linksToCopy = links.filter(l => selectedTaskIds.has(l.source) && selectedTaskIds.has(l.target));
 
             const data = {
                 type: 'omniplan-tasks',
@@ -844,31 +825,11 @@ export function TaskTable({
 
     // Row Drag & Drop
     const handleDragStart = (e: React.DragEvent, taskId: string) => {
-        let sourceIds = [...selectedTaskIds];
-
-        if (selectionMode === 'cell' && selectionRange) {
-             const visibleTaskIndex = taskIdToVisibleIndex.get(taskId);
-
-             if (visibleTaskIndex !== undefined && visibleTaskIndex >= selectionRange.rowStart && visibleTaskIndex <= selectionRange.rowEnd) {
-                 const tasksInRange: string[] = [];
-                 let count = 0;
-                 renderableRows.forEach(r => {
-                     if (r.itemType === 'task') {
-                         if (count >= selectionRange.rowStart && count <= selectionRange.rowEnd) {
-                             tasksInRange.push(r.data.id);
-                         }
-                         count++;
-                     }
-                 });
-                 sourceIds = tasksInRange;
-             } else {
-                 sourceIds = [taskId];
-             }
+        let sourceIds: string[] = [];
+        if (selectionMode === 'row') {
+            sourceIds = selectedTaskIds.includes(taskId) ? [...selectedTaskIds] : [taskId];
         } else {
-            if (!sourceIds.includes(taskId)) {
-                sourceIds = [taskId];
-                dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: false, shiftKey: false }});
-            }
+            sourceIds = [taskId];
         }
         
         e.dataTransfer.setData('application/json', JSON.stringify(sourceIds));
@@ -1142,8 +1103,8 @@ export function TaskTable({
                                         "cursor-pointer", 
                                         "transition-all duration-150",
                                         "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                        selectedTaskIds.includes(task.id) && "bg-primary/20",
-                                        !selectedTaskIds.includes(task.id) && "hover:bg-muted/50",
+                                        selectionMode === 'row' && selectedTaskIds.includes(task.id) && "bg-accent text-accent-foreground",
+                                        selectionMode !== 'row' || !selectedTaskIds.includes(task.id) ? "hover:bg-muted/50" : "hover:bg-accent/80",
                                         draggedIds?.includes(task.id) && "opacity-30",
                                         !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && grouping.length === 0 && {
                                             "border-t-2 border-primary": dropIndicator.position === 'top',
@@ -1154,6 +1115,17 @@ export function TaskTable({
                                 >
                                     <TableCell className="p-0 align-middle">
                                         <div 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                dispatch({
+                                                    type: 'SET_ROW_SELECTION',
+                                                    payload: {
+                                                        taskId: task.id,
+                                                        shiftKey: e.shiftKey,
+                                                        ctrlKey: e.ctrlKey,
+                                                    }
+                                                });
+                                            }}
                                             draggable={grouping.length === 0}
                                             onDragStart={(e) => handleDragStart(e, task.id)}
                                             className="flex h-full items-center justify-center cursor-grab text-muted-foreground"
@@ -1163,21 +1135,24 @@ export function TaskTable({
                                     </TableCell>
                                     {orderedAndVisibleColumns.map((column, colIndex) => {
                                         const isEditing = editingCell?.taskId === task.id && editingCell?.columnId === column.id;
+                                        const isFocusCell = focusCell?.taskId === task.id && focusCell?.columnId === column.id;
                                         
                                         const isCellSelected = selectionMode === 'cell' && selectionRange && visibleTaskIndex !== -1 &&
                                             visibleTaskIndex >= selectionRange.rowStart && visibleTaskIndex <= selectionRange.rowEnd &&
                                             colIndex >= selectionRange.colStart && colIndex <= selectionRange.colEnd;
 
-                                        const isTopEdge = isCellSelected && selectionRange && visibleTaskIndex === selectionRange.rowStart;
-                                        const isBottomEdge = isCellSelected && selectionRange && visibleTaskIndex === selectionRange.rowEnd;
-                                        const isLeftEdge = isCellSelected && selectionRange && colIndex === selectionRange.colStart;
-                                        const isRightEdge = isCellSelected && selectionRange && colIndex === selectionRange.colEnd;
+                                        const isTopEdge = isCellSelected && visibleTaskIndex === selectionRange.rowStart;
+                                        const isBottomEdge = isCellSelected && visibleTaskIndex === selectionRange.rowEnd;
+                                        const isLeftEdge = isCellSelected && colIndex === selectionRange.colStart;
+                                        const isRightEdge = isCellSelected && colIndex === selectionRange.colEnd;
 
                                         const shadows: string[] = [];
-                                        if (isTopEdge) shadows.push('inset 0 2px 0 0 hsl(var(--primary))');
-                                        if (isBottomEdge) shadows.push('inset 0 -2px 0 0 hsl(var(--primary))');
-                                        if (isLeftEdge) shadows.push('inset 2px 0 0 0 hsl(var(--primary))');
-                                        if (isRightEdge) shadows.push('inset -2px 0 0 0 hsl(var(--primary))');
+                                        if (isCellSelected) {
+                                            if (isTopEdge) shadows.push('inset 0 1px 0 0 hsl(var(--ring))');
+                                            if (isBottomEdge) shadows.push('inset 0 -1px 0 0 hsl(var(--ring))');
+                                            if (isLeftEdge) shadows.push('inset 1px 0 0 0 hsl(var(--ring))');
+                                            if (isRightEdge) shadows.push('inset -1px 0 0 0 hsl(var(--ring))');
+                                        }
 
                                         return (
                                             <TableCell 
@@ -1187,19 +1162,18 @@ export function TaskTable({
                                                 onDragStart={(e) => handleDragStart(e, task.id)}
                                                 style={{ boxShadow: shadows.join(', ') }}
                                                 className={cn(
-                                                    "font-medium truncate p-0",
+                                                    "font-medium truncate p-0 relative",
                                                     "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                                    isCellSelected && "bg-primary/10",
-                                                    focusCell?.taskId === task.id && focusCell?.columnId === column.id && !isEditing && "ring-2 ring-inset ring-primary"
+                                                    isCellSelected && "bg-primary/5",
+                                                    isFocusCell && !isEditing && "ring-2 ring-inset ring-primary"
                                                 )}
                                                 onClick={(e) => {
                                                     dispatch({
-                                                        type: 'SET_ACTIVE_CELL_AND_SELECT_TASK',
+                                                        type: 'SET_CELL_SELECTION',
                                                         payload: {
                                                             taskId: task.id,
                                                             columnId: column.id,
-                                                            ctrlKey: e.ctrlKey,
-                                                            shiftKey: e.shiftKey
+                                                            shiftKey: e.shiftKey,
                                                         }
                                                     });
                                                     if (isMobile) {

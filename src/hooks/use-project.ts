@@ -122,8 +122,8 @@ type Action =
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
-  | { type: 'UPDATE_SELECTION', payload: { mode: 'row' | 'cell', taskId: string, columnId?: string, shiftKey?: boolean, ctrlKey?: boolean } }
-  | { type: 'SET_ACTIVE_AND_SELECT_TASK', payload: { taskId: string, columnId: string, shiftKey?: boolean, ctrlKey?: boolean } }
+  | { type: 'SET_ROW_SELECTION', payload: { taskId: string, shiftKey?: boolean, ctrlKey?: boolean } }
+  | { type: 'SET_CELL_SELECTION', payload: { taskId: string, columnId: string, shiftKey?: boolean } }
   | { type: 'LINK_TASKS' }
   | { type: 'ADD_LINK'; payload: { source: string, target: string, type: LinkType, lag: number } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
@@ -273,8 +273,8 @@ function getTaskIdsInSelection(state: ProjectState): Set<string> {
         const visibleTasks = getVisibleTasks(state.tasks);
         const taskIds = new Set<string>();
         
-        const r1 = visibleTasks.findIndex(t => t.id === state.anchorCell.taskId);
-        const r2 = visibleTasks.findIndex(t => t.id === state.focusCell.taskId);
+        const r1 = visibleTasks.findIndex(t => t.id === state.anchorCell!.taskId);
+        const r2 = visibleTasks.findIndex(t => t.id === state.focusCell!.taskId);
 
         if (r1 === -1 || r2 === -1) return taskIds;
 
@@ -595,109 +595,62 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         );
         return { ...state, tasks: updatedTasks };
     }
-    case 'UPDATE_SELECTION': {
-        const { mode, taskId, columnId, shiftKey, ctrlKey } = action.payload;
-        
-        if (mode === 'row') {
-            const visibleTasks = getVisibleTasks(state.tasks);
-            const anchorId = state.selectionAnchor || state.selectedTaskIds[0] || null;
-            let newSelectedIds = [taskId];
-            let newAnchorId = taskId;
+    case 'SET_ROW_SELECTION': {
+        const { taskId, shiftKey, ctrlKey } = action.payload;
+        const visibleTasks = getVisibleTasks(state.tasks);
+        // If we are switching from cell mode, the anchor is null.
+        const anchorId = state.selectionMode === 'row' ? (state.selectionAnchor || state.selectedTaskIds[0] || null) : taskId;
 
-            if (shiftKey && anchorId) {
-                 const anchorIndex = visibleTasks.findIndex(t => t.id === anchorId);
-                 const currentSelectedIndex = visibleTasks.findIndex(t => t.id === taskId);
-                 if (anchorIndex !== -1 && currentSelectedIndex !== -1) {
-                    const start = Math.min(anchorIndex, currentSelectedIndex);
-                    const end = Math.max(anchorIndex, currentSelectedIndex);
-                    newSelectedIds = visibleTasks.slice(start, end + 1).map(t => t.id);
-                    newAnchorId = anchorId;
-                 }
-            } else if (ctrlKey || state.multiSelectMode) {
-                 const currentSelection = [...state.selectedTaskIds];
-                 const existingIndex = currentSelection.indexOf(taskId);
-                 if (existingIndex > -1) {
-                     currentSelection.splice(existingIndex, 1);
-                 } else {
-                     currentSelection.push(taskId);
-                 }
-                 newSelectedIds = currentSelection;
-                 newAnchorId = taskId;
-            }
-
-            return {
-                ...state,
-                selectionMode: 'row',
-                selectedTaskIds: newSelectedIds,
-                selectionAnchor: newAnchorId,
-                focusCell: columnId ? { taskId, columnId } : state.focusCell,
-                anchorCell: null
-            }
-        }
-        
-        if (mode === 'cell' && columnId) {
-            const newFocusCell = { taskId, columnId };
-            let newAnchorCell = state.anchorCell;
-
-            if (!shiftKey) {
-                newAnchorCell = newFocusCell;
-            } else if (!newAnchorCell) {
-                // If there's no anchor, the focus cell becomes the anchor on first shift-click
-                newAnchorCell = state.focusCell || newFocusCell;
-            }
-            
-            return {
-                ...state,
-                selectionMode: 'cell',
-                focusCell: newFocusCell,
-                anchorCell: newAnchorCell,
-                selectedTaskIds: [],
-                selectionAnchor: null
-            };
-        }
-
-        return state;
-    }
-    case 'SET_ACTIVE_AND_SELECT_TASK': {
-      const { taskId, columnId, shiftKey, ctrlKey } = action.payload;
-      const newState: ProjectState = {
-        ...state,
-        focusCell: { taskId, columnId },
-        editingCell: null,
-      };
-
-      if (shiftKey) {
-        // If shift is held, we are in cell selection mode.
-        // We ensure anchorCell exists.
-        newState.selectionMode = 'cell';
-        if (!newState.anchorCell) {
-          newState.anchorCell = state.focusCell || { taskId, columnId };
-        }
-        // Row selection is cleared in cell mode.
-        newState.selectedTaskIds = [];
-        newState.selectionAnchor = null;
-      } else {
-        // Not holding shift means we switch to row selection mode.
-        newState.selectionMode = 'row';
-        newState.anchorCell = null; // Clear cell selection anchor
-        
         let newSelectedIds = [taskId];
-        if (ctrlKey || state.multiSelectMode) {
-          const currentSelection = [...state.selectedTaskIds];
-          const existingIndex = currentSelection.indexOf(taskId);
-          if (existingIndex > -1) {
-            currentSelection.splice(existingIndex, 1);
-          } else {
-            currentSelection.push(taskId);
-          }
-          newSelectedIds = currentSelection;
+        let newAnchorId = taskId;
+
+        if (shiftKey && anchorId) {
+            const anchorIndex = visibleTasks.findIndex(t => t.id === anchorId);
+            const currentIndex = visibleTasks.findIndex(t => t.id === taskId);
+            if (anchorIndex !== -1 && currentIndex !== -1) {
+                const start = Math.min(anchorIndex, currentIndex);
+                const end = Math.max(anchorIndex, currentIndex);
+                newSelectedIds = visibleTasks.slice(start, end + 1).map(t => t.id);
+                newAnchorId = anchorId; // Keep original anchor
+            }
+        } else if (ctrlKey || state.multiSelectMode) {
+            const currentSelection = state.selectionMode === 'row' ? [...state.selectedTaskIds] : [];
+            const existingIndex = currentSelection.indexOf(taskId);
+            if (existingIndex > -1) {
+                currentSelection.splice(existingIndex, 1);
+            } else {
+                currentSelection.push(taskId);
+            }
+            newSelectedIds = currentSelection;
+            newAnchorId = taskId;
         }
         
-        newState.selectedTaskIds = newSelectedIds;
-        newState.selectionAnchor = taskId;
-      }
+        return {
+            ...state,
+            selectionMode: 'row',
+            selectedTaskIds: newSelectedIds,
+            selectionAnchor: newAnchorId,
+            focusCell: null,
+            anchorCell: null,
+        };
+    }
+    case 'SET_CELL_SELECTION': {
+        const { taskId, columnId, shiftKey } = action.payload;
+        const newFocusCell = { taskId, columnId };
+        
+        // If not shift-clicking or if we were in row mode, the anchor becomes the new focus.
+        const newAnchorCell = (!shiftKey || state.selectionMode !== 'cell')
+            ? newFocusCell
+            : state.anchorCell || state.focusCell || newFocusCell;
 
-      return newState;
+        return {
+            ...state,
+            selectionMode: 'cell',
+            focusCell: newFocusCell,
+            anchorCell: newAnchorCell,
+            selectedTaskIds: [],
+            selectionAnchor: null,
+        };
     }
     case 'TOGGLE_TASK_COLLAPSE': {
       const newTasks = state.tasks.map(task => 
@@ -1588,8 +1541,8 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
         const nonHistoricActions: Action['type'][] = [
             'SET_PROJECT_DATA', 
             'SET_PERSISTED_STATE',
-            'UPDATE_SELECTION',
-            'SET_ACTIVE_AND_SELECT_TASK',
+            'SET_ROW_SELECTION',
+            'SET_CELL_SELECTION',
             'START_EDITING_CELL', 
             'STOP_EDITING_CELL',
             'CLEAR_NOTIFICATIONS',
