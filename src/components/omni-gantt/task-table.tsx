@@ -1,6 +1,7 @@
 'use client';
-import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings, Baseline, SelectionMode } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings, Baseline, SelectionMode, Filter } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from "@/components/ui/input";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
@@ -446,6 +447,7 @@ export function TaskTable({
     columns,
     visibleColumns,
     grouping,
+    filters,
     selectedTaskIds,
     focusCell,
     anchorCell,
@@ -469,6 +471,7 @@ export function TaskTable({
     columns: ColumnSpec[];
     visibleColumns: string[];
     grouping: string[];
+    filters: Filter[];
     selectedTaskIds: string[];
     focusCell: { taskId: string, columnId: string } | null;
     anchorCell: { taskId: string, columnId: string } | null;
@@ -485,12 +488,25 @@ export function TaskTable({
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
 }) {
-    const stateRef = useRef({ tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode });
+    const stateRef = useRef({ tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode, anchorCell });
     const isMobile = useIsMobile();
 
+    const handleFilterChange = useCallback((columnId: string, value: string) => {
+        const newFilters = filters.filter(f => f.columnId !== columnId);
+        if (value !== '') {
+            newFilters.push({
+                id: `filter-${columnId}-${Date.now()}`,
+                columnId,
+                operator: 'contains',
+                value: value
+            });
+        }
+        dispatch({ type: 'SET_FILTERS', payload: newFilters });
+    }, [filters, dispatch]);
+
     useEffect(() => {
-        stateRef.current = { tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode };
-    }, [tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode]);
+        stateRef.current = { tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode, anchorCell };
+    }, [tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode, anchorCell]);
 
     const idToWbsMap = React.useMemo(() => new Map(tasks.map(t => [t.id, t.wbs || ''])), [tasks]);
     
@@ -538,6 +554,31 @@ export function TaskTable({
     }, [idToWbsMap]);
 
     useEffect(() => {
+        const getTaskIdsInSelection = (state: typeof stateRef.current): Set<string> => {
+            if (state.selectionMode === 'row') {
+                return new Set(state.selectedTaskIds);
+            }
+            if (state.selectionMode === 'cell' && state.anchorCell && state.focusCell) {
+                const taskRows = renderableRows.filter((r): r is TaskRow => r.itemType === 'task');
+                const taskIds = taskRows.map(r => r.data.id);
+
+                const r1 = taskIds.indexOf(state.anchorCell.taskId);
+                const r2 = taskIds.indexOf(state.focusCell.taskId);
+
+                if (r1 === -1 || r2 === -1) return new Set();
+
+                const start = Math.min(r1, r2);
+                const end = Math.max(r1, r2);
+
+                const selected = new Set<string>();
+                for (let i = start; i <= end; i++) {
+                    selected.add(taskIds[i]);
+                }
+                return selected;
+            }
+            return new Set();
+        };
+
         const handleKeyDown = (event: KeyboardEvent) => {
             const { focusCell: activeCell, columns, visibleColumns, editingCell } = stateRef.current;
 
@@ -1011,7 +1052,7 @@ export function TaskTable({
                             <col key={col.id} style={{ width: `${col.width}px` }} />
                         ))}
                     </colgroup>
-                    <TableHeader className="sticky top-0 bg-card z-10">
+                    <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
                         <TableRow>
                             <TableHead className="p-0"></TableHead>
                             {orderedAndVisibleColumns.map(column => {
@@ -1063,6 +1104,23 @@ export function TaskTable({
                                     </TableHead>
                                 )
                             })}
+                        </TableRow>
+                        <TableRow>
+                             <TableHead className="p-0 bg-card border-b border-border"></TableHead>
+                             {orderedAndVisibleColumns.map(column => {
+                                 const currentFilter = filters.find(f => f.columnId === column.id);
+                                 return (
+                                     <TableHead key={`${column.id}-filter`} className="p-1 bg-card border-b border-border">
+                                         <Input
+                                             className="h-7 text-xs px-2"
+                                             placeholder="Filter..."
+                                             value={currentFilter?.value || ''}
+                                             onChange={(e) => handleFilterChange(column.id, e.target.value)}
+                                             onKeyDown={(e) => e.stopPropagation()}
+                                         />
+                                     </TableHead>
+                                 )
+                             })}
                         </TableRow>
                     </TableHeader>
                     <TableBody onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragLeave}>
