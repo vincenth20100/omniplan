@@ -799,6 +799,40 @@ export function TaskTable({
     const [dropColIndicator, setDropColIndicator] = React.useState<{ targetId: string } | null>(null);
     const [editingColumn, setEditingColumn] = React.useState<ColumnSpec | null>(null);
 
+    const orderedAndVisibleColumns = React.useMemo(() => {
+        return columns.filter(c => visibleColumns.includes(c.id));
+    }, [columns, visibleColumns]);
+
+    const taskIdToVisibleIndex = React.useMemo(() => {
+        const map = new Map<string, number>();
+        let taskCount = 0;
+        renderableRows.forEach(r => {
+             if (r.itemType === 'task') {
+                 map.set(r.data.id, taskCount++);
+             }
+        });
+        return map;
+    }, [renderableRows]);
+
+    const selectionRange = useMemo(() => {
+        if (selectionMode !== 'cell' || !anchorCell || !focusCell) return null;
+
+        const r1 = taskIdToVisibleIndex.get(anchorCell.taskId);
+        const r2 = taskIdToVisibleIndex.get(focusCell.taskId);
+
+        const c1 = orderedAndVisibleColumns.findIndex(c => c.id === anchorCell.columnId);
+        const c2 = orderedAndVisibleColumns.findIndex(c => c.id === focusCell.columnId);
+
+        if (r1 === undefined || r2 === undefined || c1 === -1 || c2 === -1) return null;
+
+        return {
+            rowStart: Math.min(r1, r2),
+            rowEnd: Math.max(r1, r2),
+            colStart: Math.min(c1, c2),
+            colEnd: Math.max(c1, c2),
+        };
+    }, [selectionMode, anchorCell, focusCell, taskIdToVisibleIndex, orderedAndVisibleColumns]);
+
     const handleToggle = React.useCallback((e: React.MouseEvent, taskId: string) => {
       e.stopPropagation();
       dispatch({ type: 'TOGGLE_TASK_COLLAPSE', payload: { taskId } });
@@ -811,9 +845,30 @@ export function TaskTable({
     // Row Drag & Drop
     const handleDragStart = (e: React.DragEvent, taskId: string) => {
         let sourceIds = [...selectedTaskIds];
-        if (!sourceIds.includes(taskId)) {
-            sourceIds = [taskId];
-            dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: false, shiftKey: false }});
+
+        if (selectionMode === 'cell' && selectionRange) {
+             const visibleTaskIndex = taskIdToVisibleIndex.get(taskId);
+
+             if (visibleTaskIndex !== undefined && visibleTaskIndex >= selectionRange.rowStart && visibleTaskIndex <= selectionRange.rowEnd) {
+                 const tasksInRange: string[] = [];
+                 let count = 0;
+                 renderableRows.forEach(r => {
+                     if (r.itemType === 'task') {
+                         if (count >= selectionRange.rowStart && count <= selectionRange.rowEnd) {
+                             tasksInRange.push(r.data.id);
+                         }
+                         count++;
+                     }
+                 });
+                 sourceIds = tasksInRange;
+             } else {
+                 sourceIds = [taskId];
+             }
+        } else {
+            if (!sourceIds.includes(taskId)) {
+                sourceIds = [taskId];
+                dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: false, shiftKey: false }});
+            }
         }
         
         e.dataTransfer.setData('application/json', JSON.stringify(sourceIds));
@@ -979,32 +1034,8 @@ export function TaskTable({
 
     const resourceMap = React.useMemo(() => new Map(resources.map(r => [r.id, r.name])), [resources]);
 
-    const orderedAndVisibleColumns = React.useMemo(() => {
-        return columns.filter(c => visibleColumns.includes(c.id));
-    }, [columns, visibleColumns]);
-
     const defaultCalendar = React.useMemo(() => calendars.find(c => c.id === defaultCalendarId) || calendars[0] || null, [calendars, defaultCalendarId]);
     const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
-
-    const selectionRange = useMemo(() => {
-        if (selectionMode !== 'cell' || !anchorCell || !focusCell) return null;
-
-        const visibleTasks = renderableRows.filter((r): r is TaskRow => r.itemType === 'task');
-        const r1 = visibleTasks.findIndex(t => t.data.id === anchorCell.taskId);
-        const r2 = visibleTasks.findIndex(t => t.data.id === focusCell.taskId);
-
-        const c1 = orderedAndVisibleColumns.findIndex(c => c.id === anchorCell.columnId);
-        const c2 = orderedAndVisibleColumns.findIndex(c => c.id === focusCell.columnId);
-        
-        if (r1 === -1 || r2 === -1 || c1 === -1 || c2 === -1) return null;
-
-        return {
-            rowStart: Math.min(r1, r2),
-            rowEnd: Math.max(r1, r2),
-            colStart: Math.min(c1, c2),
-            colEnd: Math.max(c1, c2),
-        };
-    }, [selectionMode, anchorCell, focusCell, renderableRows, orderedAndVisibleColumns]);
 
 
     return (
@@ -1098,7 +1129,7 @@ export function TaskTable({
                             const level = task.level || 0;
                             const levelClass = level === 0 ? 'bg-task-row-level-0' : level === 1 ? 'bg-task-row-level-1' : 'bg-task-row-level-2-plus';
 
-                            const visibleTaskIndex = renderableRows.filter(r => r.itemType === 'task').findIndex(r => r.itemType === 'task' && r.data.id === item.data.id);
+                            const visibleTaskIndex = taskIdToVisibleIndex.get(task.id) ?? -1;
 
                             return (
                                 <TableRow
@@ -1137,10 +1168,24 @@ export function TaskTable({
                                             visibleTaskIndex >= selectionRange.rowStart && visibleTaskIndex <= selectionRange.rowEnd &&
                                             colIndex >= selectionRange.colStart && colIndex <= selectionRange.colEnd;
 
+                                        const isTopEdge = isCellSelected && selectionRange && visibleTaskIndex === selectionRange.rowStart;
+                                        const isBottomEdge = isCellSelected && selectionRange && visibleTaskIndex === selectionRange.rowEnd;
+                                        const isLeftEdge = isCellSelected && selectionRange && colIndex === selectionRange.colStart;
+                                        const isRightEdge = isCellSelected && selectionRange && colIndex === selectionRange.colEnd;
+
+                                        const shadows: string[] = [];
+                                        if (isTopEdge) shadows.push('inset 0 2px 0 0 hsl(var(--primary))');
+                                        if (isBottomEdge) shadows.push('inset 0 -2px 0 0 hsl(var(--primary))');
+                                        if (isLeftEdge) shadows.push('inset 2px 0 0 0 hsl(var(--primary))');
+                                        if (isRightEdge) shadows.push('inset -2px 0 0 0 hsl(var(--primary))');
+
                                         return (
                                             <TableCell 
                                                 key={column.id} 
                                                 data-density={uiDensity}
+                                                draggable={true}
+                                                onDragStart={(e) => handleDragStart(e, task.id)}
+                                                style={{ boxShadow: shadows.join(', ') }}
                                                 className={cn(
                                                     "font-medium truncate p-0",
                                                     "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
