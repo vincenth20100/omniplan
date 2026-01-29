@@ -34,10 +34,11 @@ import { PrintPreviewDialog } from './print-preview';
 import { ProjectMembers } from './project-members';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { ThemeManagementDialog } from './gantt-settings/theme-management-dialog';
+import { DetailedThemeEditor } from './gantt-settings/detailed-theme-editor';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 import { ALL_COLUMNS } from '@/lib/columns';
 import { SetBaselineDialog } from './set-baseline-dialog';
+import { THEME_VARIABLES } from '@/lib/theme-config';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,7 +93,7 @@ const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], 
   const css = useMemo(() => {
     if (!customStyles) return '';
     
-    const varMap: { [key: string]: string } = {
+    const legacyVarMap: { [key: string]: string } = {
         ganttBarDefault: '--gantt-bar-default',
         ganttBarCritical: '--gantt-bar-critical',
         milestoneDefault: '--milestone-default',
@@ -104,14 +105,26 @@ const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], 
     
     const styleEntries = Object.entries(customStyles)
       .map(([key, value]) => {
-        const cssVarName = varMap[key];
-        if (cssVarName && value) {
-            if (['ganttBarDefault', 'ganttBarCritical', 'milestoneDefault', 'milestoneCritical'].includes(key) && value.startsWith('#')) {
-                return `${cssVarName}: ${hexToHsl(value)};`;
-            }
-            return `${cssVarName}: ${value};`;
+        let cssVarName = key;
+
+        // Handle legacy keys
+        if (legacyVarMap[key]) {
+            cssVarName = legacyVarMap[key];
         }
-        return null;
+
+        if (!cssVarName.startsWith('--')) return null;
+        if (!value) return null;
+
+        const config = THEME_VARIABLES.find(v => v.key === cssVarName);
+
+        // If it's a legacy key or a variable requiring HSL, and value is Hex, convert it
+        // Note: THEME_VARIABLES tells us if it needs HSL.
+        // Legacy keys mapped to vars also need checking.
+        if (config?.type === 'color-hsl' && value.startsWith('#')) {
+             return `${cssVarName}: ${hexToHsl(value)};`;
+        }
+
+        return `${cssVarName}: ${value};`;
       })
       .filter(Boolean);
 
@@ -571,11 +584,12 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             isEditor={isEditorOrOwner}
             baselines={state.baselines}
           />
-          <ThemeManagementDialog
+          <DetailedThemeEditor
             open={isThemeManagerOpen}
             onOpenChange={setIsThemeManagerOpen}
+            settings={state.ganttSettings}
             stylePresets={state.stylePresets}
-            currentSettings={state.ganttSettings}
+            onSave={(newSettings) => dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: newSettings })}
             dispatch={dispatch}
            />
           <HistoryPanel

@@ -158,15 +158,7 @@ export interface GanttSettings {
   dateFormat?: string;
   summaryDurationUnit?: 'day' | 'week' | 'month';
   theme?: 'light' | 'dark' | 'sepia';
-  customStyles?: {
-    ganttBarDefault?: string;
-    ganttBarCritical?: string;
-    milestoneDefault?: string;
-    milestoneCritical?: string;
-    taskRowLevel0Bg?: string;
-    taskRowLevel1Bg?: string;
-    taskRowLevel2PlusBg?: string;
-  };
+  customStyles?: Record<string, string>;
   comparisonBaselineId?: string | null;
 }
 

@@ -12,6 +12,7 @@ import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlo
 import type { User } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
 import { ALL_COLUMNS, initialColumns, initialVisibleColumns } from '@/lib/columns';
+import { THEME_PRESETS } from '@/lib/theme-config';
 
 
 const defaultViews: View[] = [
@@ -34,35 +35,7 @@ const initialGanttSettings: GanttSettings = {
   comparisonBaselineId: null,
 };
 
-const defaultStylePresets: StylePreset[] = [
-    {
-        id: 'default-dark',
-        name: 'Default Dark',
-        isDefault: true,
-        settings: {
-            theme: 'dark',
-            customStyles: {}
-        }
-    },
-    {
-        id: 'default-light',
-        name: 'Default Light',
-        isDefault: true,
-        settings: {
-            theme: 'light',
-            customStyles: {}
-        }
-    },
-    {
-        id: 'default-sepia',
-        name: 'Default Sepia',
-        isDefault: true,
-        settings: {
-            theme: 'sepia',
-            customStyles: {}
-        }
-    }
-];
+const defaultStylePresets: StylePreset[] = THEME_PRESETS;
 
 const defaultAppSettings = {
     id: 'app_settings',
