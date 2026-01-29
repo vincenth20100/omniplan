@@ -10,7 +10,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, FolderTree } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect, useMemo } from 'react';
@@ -37,6 +37,17 @@ import { doc } from 'firebase/firestore';
 import { ThemeManagementDialog } from './gantt-settings/theme-management-dialog';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 import { ALL_COLUMNS } from '@/lib/columns';
+import { SetBaselineDialog } from './set-baseline-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu"
 
 
 const hexToHsl = (hex: string): string => {
@@ -129,6 +140,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
+  const [isSetBaselineOpen, setIsSetBaselineOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -198,6 +210,22 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
           const newViewMode = zoomLevels[currentZoomIndex + 1];
           dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, viewMode: newViewMode }});
       }
+  };
+
+  const handleSetComparisonBaseline = (baselineId: string | null) => {
+    dispatch({
+        type: 'UPDATE_GANTT_SETTINGS',
+        payload: {
+            ...state.ganttSettings,
+            comparisonBaselineId: baselineId
+        }
+    });
+  };
+
+  const handleSaveBaseline = (name: string) => {
+      dispatch({ type: "ADD_BASELINE", payload: { name } });
+      setIsSetBaselineOpen(false);
+      toast({ title: "Baseline Saved" });
   };
 
   const sidebarContent = (
@@ -329,8 +357,40 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
               data-state={state.grouping.length > 0 ? 'on' : 'off'}
               className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
             >
-                <Layers className="h-4 w-4" />
+                <FolderTree className="h-4 w-4" />
             </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        title="Manage Baselines"
+                        data-state={state.ganttSettings.comparisonBaselineId ? 'on' : 'off'}
+                        className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+                    >
+                        <Layers />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuLabel>Compare to Baseline</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                        value={state.ganttSettings.comparisonBaselineId || 'none'}
+                        onValueChange={(value) => handleSetComparisonBaseline(value === 'none' ? null : value)}
+                    >
+                        <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
+                        {state.baselines.map(b => (
+                            <DropdownMenuRadioItem key={b.id} value={b.id}>{b.name}</DropdownMenuRadioItem>
+                        ))}
+                    </DropdownMenuRadioGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setIsSetBaselineOpen(true)} disabled={!isEditorOrOwner}>
+                        Set Current as Baseline...
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setIsProjectSettingsOpen(true)} disabled={!project}>
+                        Manage Baselines...
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
           </>
         )}
         <Separator orientation="vertical" className="h-6 mx-1" />
@@ -537,6 +597,11 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             open={isPrintPreviewOpen}
             onOpenChange={setIsPrintPreviewOpen}
             projectState={state}
+          />
+          <SetBaselineDialog
+              open={isSetBaselineOpen}
+              onOpenChange={setIsSetBaselineOpen}
+              onSave={handleSaveBaseline}
           />
         </>
       )}
