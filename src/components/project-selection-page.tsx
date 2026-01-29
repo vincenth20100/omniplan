@@ -208,9 +208,12 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             if (!sourceProjectDoc.exists()) throw new Error("Source project not found");
 
             const newProjectId = `proj-${Date.now()}`;
-            const batch = writeBatch(firestore);
-
-            batch.set(doc(firestore, 'projects', newProjectId), {
+            
+            // --- Initial Project and User Setup (First Batch) ---
+            const initialBatch = writeBatch(firestore);
+            
+            // 1. Create the new project document
+            initialBatch.set(doc(firestore, 'projects', newProjectId), {
                 id: newProjectId,
                 name: `${sourceProjectDoc.data().name} (Clone)`,
                 ownerId: user.uid,
@@ -218,24 +221,44 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                 memberIds: [user.uid]
             });
 
-            batch.set(doc(firestore, 'projects', newProjectId, 'members', user.uid), {
+            // 2. Create the owner's member document for the new project
+            initialBatch.set(doc(firestore, 'projects', newProjectId, 'members', user.uid), {
                 userId: user.uid,
                 role: 'owner',
                 displayName: user.displayName || 'User',
                 photoURL: user.photoURL || '',
             });
 
-            batch.update(doc(firestore, 'users', user.uid), { projectIds: arrayUnion(newProjectId) });
+            // 3. Add the new project to the user's project list
+            initialBatch.update(doc(firestore, 'users', user.uid), { projectIds: arrayUnion(newProjectId) });
             
+            await initialBatch.commit();
+            
+            // --- Batch Copy Subcollections ---
             const subcollections = ['tasks', 'links', 'resources', 'assignments', 'calendars', 'views', 'settings'];
+            const allWriteOps: { collectionPath: string, docId: string, data: any }[] = [];
+
             for (const sub of subcollections) {
                 const sourceCol = await getDocs(collection(firestore, 'projects', sourceProjectId, sub));
                 sourceCol.forEach(docSnap => {
-                    batch.set(doc(firestore, 'projects', newProjectId, sub, docSnap.id), docSnap.data());
+                    allWriteOps.push({
+                        collectionPath: `projects/${newProjectId}/${sub}`,
+                        docId: docSnap.id,
+                        data: docSnap.data(),
+                    });
                 });
             }
 
-            await batch.commit();
+            const chunkSize = 490; // Firestore batch limit is 500, being safe
+            for (let i = 0; i < allWriteOps.length; i += chunkSize) {
+                const chunk = allWriteOps.slice(i, i + chunkSize);
+                const dataBatch = writeBatch(firestore);
+                chunk.forEach(op => {
+                    const docRef = doc(firestore, op.collectionPath, op.docId);
+                    dataBatch.set(docRef, op.data);
+                });
+                await dataBatch.commit();
+            }
 
             toast({
                 title: "Project Cloned",
@@ -251,7 +274,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             toast({
                 variant: 'destructive',
                 title: "Error Cloning Project",
-                description: "Could not clone the project. Firestore batches have a 500 operation limit.",
+                description: (error as Error).message || "There was an issue cloning the project.",
             });
         } finally {
             setIsCloning(null);
