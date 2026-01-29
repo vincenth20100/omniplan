@@ -48,7 +48,7 @@ service cloud.firestore {
     // --- Projects and Subcollections ---
     match /projects/{projectId} {
       // Project Document
-      allow read: if isProjectMember(projectId) || isGlobalAdmin();
+      allow read: if isProjectMember(projectId) || isGlobalAdmin() || (isSignedIn() && 'memberIds' in resource.data && request.auth.uid in resource.data.memberIds);
       allow list: if isGlobalAdmin();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isProjectEditor(projectId) || isGlobalAdmin();
