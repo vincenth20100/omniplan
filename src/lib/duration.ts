@@ -7,7 +7,7 @@ export interface ParsedDuration {
     unit: DurationUnit;
 }
 
-export function parseDuration(input: string): ParsedDuration | null {
+export function parseDuration(input: string, defaultUnit: DurationUnit = 'd'): ParsedDuration | null {
     if (!input) return null;
     const trimmed = input.trim().toLowerCase();
     const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*([a-z]+)?$/);
@@ -15,7 +15,7 @@ export function parseDuration(input: string): ParsedDuration | null {
     if (!match) return null;
 
     const value = parseFloat(match[1]);
-    let unitStr = match[2] || 'd'; // default to days
+    let unitStr = match[2] || defaultUnit; 
 
     let unit: DurationUnit;
     switch (unitStr) {

@@ -206,7 +206,7 @@ const TaskCellRenderer = React.memo(({
                 <EditableCell
                     value={formatDuration(task.duration, task.durationUnit)}
                     onSave={(newValue) => {
-                        const parsed = parseDuration(newValue);
+                        const parsed = parseDuration(newValue, task.durationUnit);
                         if (parsed) {
                             dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, duration: parsed.value, durationUnit: parsed.unit } });
                         }
@@ -231,6 +231,9 @@ const TaskCellRenderer = React.memo(({
                     }}
                     calendar={defaultCalendar}
                     dateFormat={dateFormat}
+                    isEditing={isEditing}
+                    initialValue={editingInitialValue}
+                    onStopEditing={onStopEditing}
                 />
             );
         }
@@ -247,6 +250,9 @@ const TaskCellRenderer = React.memo(({
                     }}
                     calendar={defaultCalendar}
                     dateFormat={dateFormat}
+                    isEditing={isEditing}
+                    initialValue={editingInitialValue}
+                    onStopEditing={onStopEditing}
                 />
             );
         }
@@ -304,6 +310,9 @@ const TaskCellRenderer = React.memo(({
                     calendar={defaultCalendar}
                     className={cn(isConstraintDriven && "text-blue-500 font-semibold")}
                     dateFormat={dateFormat}
+                    isEditing={isEditing}
+                    initialValue={editingInitialValue}
+                    onStopEditing={onStopEditing}
                 />
             );
         }
@@ -710,10 +719,6 @@ export function TaskTable({
     const [draggedColId, setDraggedColId] = React.useState<string | null>(null);
     const [dropColIndicator, setDropColIndicator] = React.useState<{ targetId: string } | null>(null);
     const [editingColumn, setEditingColumn] = React.useState<ColumnSpec | null>(null);
-    
-    const handleSelectTask = (e: React.MouseEvent, taskId: string) => {
-        dispatch({ type: 'SELECT_TASK', payload: { taskId, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } });
-    };
 
     const handleToggle = React.useCallback((e: React.MouseEvent, taskId: string) => {
       e.stopPropagation();
@@ -1027,22 +1032,25 @@ export function TaskTable({
                                                 )}
                                                 onClick={(e) => {
                                                     const isAlreadyActive = activeCell?.taskId === task.id && activeCell?.columnId === column.id;
-                                                    // On mobile, a second tap on an active cell starts editing.
                                                     if (isMobile && isAlreadyActive && !editingCell) {
                                                         const value = getCellValueForEditing(task.id, column.id);
                                                         dispatch({
                                                             type: 'START_EDITING_CELL',
                                                             payload: { taskId: task.id, columnId: column.id, initialValue: value }
                                                         });
-                                                        // Prevent re-selecting, just start editing.
                                                         return;
                                                     }
-                                                    // Default behavior for desktop or first tap on mobile: select the cell.
-                                                    dispatch({ type: 'SET_ACTIVE_CELL', payload: { taskId: task.id, columnId: column.id } });
-                                                    handleSelectTask(e, task.id);
+                                                     dispatch({
+                                                        type: 'SET_ACTIVE_CELL_AND_SELECT_TASK',
+                                                        payload: {
+                                                            taskId: task.id,
+                                                            columnId: column.id,
+                                                            ctrlKey: e.ctrlKey,
+                                                            shiftKey: e.shiftKey
+                                                        }
+                                                    });
                                                 }}
                                                 onDoubleClick={() => {
-                                                    // Double click only for desktop to prevent conflicts with mobile tap/zoom.
                                                     if (!isMobile) {
                                                         const value = getCellValueForEditing(task.id, column.id);
                                                         dispatch({

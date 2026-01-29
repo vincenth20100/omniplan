@@ -154,6 +154,7 @@ type Action =
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
   | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, activeCell: { taskId: string, columnId: string } | null } }
   | { type: 'SET_ACTIVE_CELL'; payload: { taskId: string; columnId: string } | null }
+  | { type: 'SET_ACTIVE_CELL_AND_SELECT_TASK', payload: { taskId: string, columnId: string, ctrlKey?: boolean, shiftKey?: boolean } }
   | { type: 'SET_ACTIVE_AND_SELECT_TASK', payload: { taskId: string, columnId: string, shiftKey?: boolean, ctrlKey?: boolean } }
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
   | { type: 'STOP_EDITING_CELL' }
@@ -878,7 +879,8 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
                  return projectReducer(state, { type: 'UPDATE_RELATIONSHIPS', payload: { taskId, field: columnId, value } });
             }
             if (columnId === 'duration') {
-                const parsed = parseDuration(value);
+                const task = state.tasks.find(t => t.id === taskId);
+                const parsed = parseDuration(value, task?.durationUnit);
                 if (parsed) {
                     return projectReducer(state, { type: 'UPDATE_TASK', payload: { id: taskId, duration: parsed.value, durationUnit: parsed.unit } });
                 }
@@ -925,11 +927,42 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'SET_ACTIVE_CELL': {
       if (state.editingCell && (action.payload?.taskId !== state.editingCell.taskId || action.payload?.columnId !== state.editingCell.columnId)) {
-          // If we are moving away from an editing cell, stop editing.
-          // The actual save logic is handled by the EditableCell's onBlur.
           return { ...state, activeCell: action.payload, editingCell: null };
       }
       return { ...state, activeCell: action.payload };
+    }
+    case 'SET_ACTIVE_CELL_AND_SELECT_TASK': {
+        const { taskId, columnId, ctrlKey, shiftKey } = action.payload;
+        
+        const stateWithActiveCell = { ...state, activeCell: { taskId, columnId } };
+        
+        const visibleTasks = getVisibleTasks(stateWithActiveCell.tasks);
+        const anchorId = stateWithActiveCell.selectionAnchor || stateWithActiveCell.selectedTaskIds[0] || null;
+
+        if (shiftKey && anchorId) {
+            const anchorIndex = visibleTasks.findIndex(t => t.id === anchorId);
+            const currentSelectedIndex = visibleTasks.findIndex(t => t.id === taskId);
+            
+            if (anchorIndex !== -1 && currentSelectedIndex !== -1) {
+                const start = Math.min(anchorIndex, currentSelectedIndex);
+                const end = Math.max(anchorIndex, currentSelectedIndex);
+                const rangeIds = visibleTasks.slice(start, end + 1).map(t => t.id);
+                return { ...stateWithActiveCell, selectedTaskIds: rangeIds };
+            }
+        }
+
+        if (ctrlKey || stateWithActiveCell.multiSelectMode) {
+            const currentSelection = [...stateWithActiveCell.selectedTaskIds];
+            const existingIndex = currentSelection.indexOf(taskId);
+            if (existingIndex > -1) {
+                currentSelection.splice(existingIndex, 1);
+            } else {
+                currentSelection.push(taskId);
+            }
+            return { ...stateWithActiveCell, selectedTaskIds: currentSelection, selectionAnchor: taskId };
+        }
+
+        return { ...stateWithActiveCell, selectedTaskIds: [taskId], selectionAnchor: taskId };
     }
     case 'SET_ACTIVE_AND_SELECT_TASK': {
         const { taskId, columnId, shiftKey, ctrlKey } = action.payload;
@@ -1461,7 +1494,8 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             'START_EDITING_CELL', 
             'STOP_EDITING_CELL',
             'CLEAR_NOTIFICATIONS',
-            'SET_ACTIVE_AND_SELECT_TASK'
+            'SET_ACTIVE_AND_SELECT_TASK',
+            'SET_ACTIVE_CELL_AND_SELECT_TASK',
         ];
 
         if (action.type === '_APPLY_STATE_CHANGE') {

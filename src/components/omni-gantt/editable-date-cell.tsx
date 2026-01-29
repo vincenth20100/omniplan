@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { format, parse, isValid } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -20,20 +20,36 @@ export function EditableDateCell({
     className,
     calendar,
     dateFormat = 'MMM d, yyyy',
+    isEditing: isEditingProp,
+    onStopEditing,
+    initialValue,
 }: {
     value: Date | null | undefined;
     onSave: (newValue: Date | null) => void;
     className?: string;
     calendar: CalendarType | null;
     dateFormat?: string;
+    isEditing?: boolean;
+    onStopEditing?: () => void;
+    initialValue?: string;
 }) {
     const [popoverOpen, setPopoverOpen] = useState(false);
     const [inputValue, setInputValue] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        // Update input value when the external date `value` changes
-        setInputValue(value ? format(value, dateFormat) : '');
-    }, [value, dateFormat]);
+        // Update input value when the external date `value` changes and we are not editing
+        if (!isEditingProp) {
+            setInputValue(value ? format(value, dateFormat) : '');
+        }
+    }, [value, dateFormat, isEditingProp]);
+    
+    useEffect(() => {
+        if (isEditingProp) {
+            setInputValue(initialValue !== undefined ? initialValue : (value ? format(value, dateFormat) : ''));
+            setTimeout(() => inputRef.current?.focus(), 0);
+        }
+    }, [isEditingProp, initialValue, value, dateFormat]);
 
     const handleSaveFromPicker = (date: Date | undefined | null) => {
         setPopoverOpen(false);
@@ -43,7 +59,6 @@ export function EditableDateCell({
         if (oldTime !== newTime) {
             onSave(newDate);
         }
-        // No need to setInputValue here, useEffect will do it.
     };
 
     const tryParseAndSave = () => {
@@ -56,7 +71,6 @@ export function EditableDateCell({
             return;
         }
 
-        // Use the specified dateFormat for parsing
         const parsedDate = parse(inputValue, dateFormat, new Date());
         
         if (isValid(parsedDate)) {
@@ -65,23 +79,22 @@ export function EditableDateCell({
             if (oldTime !== newTime) {
                 onSave(parsedDate);
             } else {
-                 // Even if time is same, format might have changed, so we reset input
                  if(value) setInputValue(format(value, dateFormat));
             }
         } else {
-            // Invalid date typed, revert to original value
             setInputValue(value ? format(value, dateFormat) : '');
         }
     }
 
     const handleInputBlur = () => {
         tryParseAndSave();
+        onStopEditing?.();
     };
     
     const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             tryParseAndSave();
-            (e.target as HTMLInputElement).blur(); // Remove focus
+            (e.target as HTMLInputElement).blur();
         } else if (e.key === 'Escape') {
              setInputValue(value ? format(value, dateFormat) : '');
              (e.target as HTMLInputElement).blur();
@@ -103,6 +116,7 @@ export function EditableDateCell({
         <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
             <div className={cn("relative w-full h-full flex items-center", className)}>
                 <Input
+                    ref={inputRef}
                     type="text"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
@@ -112,7 +126,7 @@ export function EditableDateCell({
                 />
                 <PopoverTrigger asChild>
                     <button
-                        tabIndex={-1} // prevent tabbing to it
+                        tabIndex={-1}
                         className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
                         aria-label="Open calendar"
                     >
