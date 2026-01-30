@@ -10,7 +10,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, FolderTree } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, FolderTree, ArrowLeft } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect, useMemo } from 'react';
@@ -34,6 +34,7 @@ import { PrintPreviewDialog } from './print-preview';
 import { ProjectMembers } from './project-members';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 import { DetailedThemeEditor } from './gantt-settings/detailed-theme-editor';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 import { ALL_COLUMNS } from '@/lib/columns';
@@ -140,6 +141,7 @@ const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], 
 
 
 export function ProjectPage({ user, projectId }: { user: User, projectId: string }) {
+  const router = useRouter();
   const { state, dispatch, isLoaded, isEditorOrOwner, canUndo, canRedo, history } = useProject(user, projectId);
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
@@ -284,6 +286,10 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
 
   const headerLeftActions = (
     <div className='flex items-center gap-2'>
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} title="Back to Projects">
+            <ArrowLeft />
+        </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
         <Toggle
           variant="outline"
           size="icon"

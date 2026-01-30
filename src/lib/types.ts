@@ -83,9 +83,13 @@ export interface Task {
   schedulingConflict?: boolean;
   deadlineMissed?: boolean;
   isCritical?: boolean;
+  criticalFor?: string[]; // IDs of projects for which this task is critical
   totalFloat?: number; // in working days
   lateStart?: Date;
   lateFinish?: Date;
+
+  // Multi-project support
+  projectId?: string;
 }
 
 export interface Link {
@@ -95,6 +99,10 @@ export interface Link {
   type: LinkType;
   lag: number; // in working days
   
+  // Optional for cross-project links
+  sourceProjectId?: string;
+  targetProjectId?: string;
+
   // Calculated
   isDriving?: boolean;
 }
@@ -233,6 +241,7 @@ export interface Project {
   ownerId: string;
   createdAt: any;
   memberIds: string[];
+  subprojectIds?: string[];
 }
 
 export interface ProjectMember {

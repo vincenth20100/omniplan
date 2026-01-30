@@ -2,7 +2,7 @@
 import React, { useRef, useEffect } from 'react';
 import { differenceInCalendarDays, addDays, format } from 'date-fns';
 import type { Task, UiDensity, Calendar } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { cn, getProjectColor } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
 import { Flame } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
@@ -161,6 +161,25 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
     const top = row * rowHeight + (rowHeight - (isSummary ? summaryBarHeight : barHeight)) / 2;
 
+    const getCriticalStyle = () => {
+        if (!task.isCritical || !highlightCriticalPath || !task.criticalFor || task.criticalFor.length === 0) return {};
+
+        if (task.criticalFor.length === 1) {
+            const color = getProjectColor(task.criticalFor[0]);
+            return isSummary ? { borderColor: color } : { backgroundColor: color };
+        }
+
+        const colors = task.criticalFor.map(id => getProjectColor(id));
+        const gradientStops = colors.map((c, i) => {
+            const step = 100 / colors.length;
+            return `${c} ${i * step}%, ${c} ${(i + 1) * step}%`;
+        }).join(', ');
+
+        return isSummary ? { borderImage: `linear-gradient(to right, ${gradientStops}) 1` } : { background: `linear-gradient(135deg, ${gradientStops})` };
+    };
+
+    const customStyle = getCriticalStyle();
+
     return (
         <div
             ref={barRef}
@@ -176,7 +195,8 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 top: `${top}px`,
                 left: `${left}px`,
                 width: `${width}px`,
-                height: `${isSummary ? summaryBarHeight : barHeight}px`
+                height: `${isSummary ? summaryBarHeight : barHeight}px`,
+                ...customStyle
             }}
             onMouseDown={(e) => handleMouseDown(e, 'move')}
             onTouchStart={(e) => handleTouchStart(e, 'move')}
@@ -188,7 +208,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                         "absolute top-0 left-0 h-full rounded-l-md",
                         task.isCritical && highlightCriticalPath ? "bg-gantt-bar-critical" : "bg-gantt-bar-default"
                     )}
-                    style={{ width: `${task.percentComplete}%`}}
+                    style={{ width: `${task.percentComplete}%`, ...(customStyle.background || customStyle.backgroundColor ? { filter: 'brightness(0.8)', background: customStyle.background || customStyle.backgroundColor } : {}) }}
                 />
             )}
              <div className={cn(
@@ -211,11 +231,11 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 <div className={cn(
                     "absolute -left-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
                     task.isCritical && highlightCriticalPath ? "border-t-[7px] border-t-gantt-bar-critical" : "border-t-[7px] border-t-gantt-bar-default"
-                )}></div>
+                )} style={customStyle.borderColor || (task.criticalFor && task.criticalFor.length > 0) ? { borderTopColor: customStyle.borderColor || getProjectColor(task.criticalFor![0]) } : {}}></div>
                 <div className={cn(
                     "absolute -right-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
                     task.isCritical && highlightCriticalPath ? "border-t-[7px] border-t-gantt-bar-critical" : "border-t-[7px] border-t-gantt-bar-default"
-                )}></div>
+                )} style={customStyle.borderColor || (task.criticalFor && task.criticalFor.length > 0) ? { borderTopColor: customStyle.borderColor || getProjectColor(task.criticalFor![0]) } : {}}></div>
             </>
         )}
         </div>

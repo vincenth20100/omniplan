@@ -7,7 +7,7 @@ import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
 import { parseDuration, formatDuration } from '@/lib/duration';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, writeBatch, query, orderBy, setDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, query, orderBy, setDoc, onSnapshot } from 'firebase/firestore';
 import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { User } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
@@ -162,7 +162,7 @@ type Action =
  * removing calculated fields and converting `undefined` to `null`.
  */
 const toFirestoreTask = (task: Task) => {
-  const { isCritical, totalFloat, lateStart, lateFinish, ...rest } = task;
+  const { isCritical, totalFloat, lateStart, lateFinish, projectId, criticalFor, ...rest } = task;
 
   const cleanTask: Record<string, any> = { ...rest };
 
@@ -179,6 +179,71 @@ const toFirestoreTask = (task: Task) => {
   
   return cleanTask;
 };
+
+function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) {
+    const [data, setData] = useState<{ tasks: Task[], links: Link[] }>({ tasks: [], links: [] });
+
+    useEffect(() => {
+        if (!subprojectIds || subprojectIds.length === 0 || !firestore) {
+            setData({ tasks: [], links: [] });
+            return;
+        }
+
+        const unsubscribes: (() => void)[] = [];
+        const localCache: Record<string, { tasks: Task[], links: Link[] }> = {};
+
+        // Initialize cache
+        subprojectIds.forEach(id => localCache[id] = { tasks: [], links: [] });
+
+        const updateData = () => {
+            const allTasks = Object.values(localCache).flatMap(c => c.tasks);
+            const allLinks = Object.values(localCache).flatMap(c => c.links);
+            setData({ tasks: allTasks, links: allLinks });
+        };
+
+        subprojectIds.forEach(pId => {
+            // Tasks
+            const tasksUnsub = onSnapshot(query(collection(firestore, 'projects', pId, 'tasks'), orderBy('order')), (snap) => {
+                const tasks = snap.docs.map(d => {
+                     const data = d.data();
+                     // Helper to handle Firestore timestamps
+                     const safeToDate = (value: any): Date | null => {
+                        if (!value) return null;
+                        if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
+                            return value.toDate();
+                        }
+                        const d = new Date(value);
+                        return !isNaN(d.getTime()) ? d : null;
+                    }
+
+                     return {
+                         ...data,
+                         id: d.id,
+                         projectId: pId,
+                         start: safeToDate(data.start)!,
+                         finish: safeToDate(data.finish)!,
+                         constraintDate: safeToDate(data.constraintDate),
+                         deadline: safeToDate(data.deadline),
+                     } as Task;
+                });
+                localCache[pId].tasks = tasks;
+                updateData();
+            });
+            unsubscribes.push(tasksUnsub);
+
+            // Links
+            const linksUnsub = onSnapshot(collection(firestore, 'projects', pId, 'links'), (snap) => {
+                localCache[pId].links = snap.docs.map(d => ({ ...d.data(), id: d.id, sourceProjectId: pId } as Link));
+                updateData();
+            });
+            unsubscribes.push(linksUnsub);
+        });
+
+        return () => unsubscribes.forEach(u => u());
+    }, [JSON.stringify(subprojectIds), firestore]);
+
+    return data;
+}
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
     const taskMap = new Map(tasks.map(t => ({ ...t })).map(t => [t.id, t]));
@@ -1664,6 +1729,8 @@ export function useProject(user: User, projectId: string | null) {
   
   const projectDocRef = useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]);
   const { data: projectData } = useDoc<Project>(projectDocRef);
+
+  const subprojectsData = useSubprojectData(projectData?.subprojectIds, firestore);
   
   // Effect to migrate legacy projects by creating member documents if they don't exist
   useEffect(() => {
@@ -1789,9 +1856,11 @@ export function useProject(user: User, projectId: string | null) {
         if (action.type === 'UPDATE_TASK' || action.type === 'ADD_NOTE_TO_TASK') {
             const taskId = (action.payload as { id: string }).id;
             const updatedTask = newState.tasks.find(t => t.id === taskId);
+            const targetProjectId = updatedTask?.projectId || projectId;
+
             if (updatedTask) {
                 const { ...updateData } = toFirestoreTask(updatedTask);
-                batch.update(doc(firestore, 'projects', projectId, 'tasks', taskId), updateData);
+                batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), updateData);
             }
         }
         
@@ -1893,18 +1962,21 @@ export function useProject(user: User, projectId: string | null) {
 
         newState.tasks.forEach(newTask => {
             const oldTask = currentState.tasks.find(t => t.id === newTask.id);
+            const targetProjectId = newTask.projectId || projectId;
+
             if (!oldTask) {
-                batch.set(doc(firestore, 'projects', projectId, 'tasks', newTask.id), toFirestoreTask(newTask));
+                batch.set(doc(firestore, 'projects', targetProjectId, 'tasks', newTask.id), toFirestoreTask(newTask));
             } else {
                  if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
                      const { id, ...updateData } = toFirestoreTask(newTask);
-                     batch.update(doc(firestore, 'projects', projectId, 'tasks', newTask.id), updateData);
+                     batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', newTask.id), updateData);
                  }
             }
         });
         currentState.tasks.forEach(oldTask => {
             if (!newState.tasks.some(t => t.id === oldTask.id)) {
-                batch.delete(doc(firestore, 'projects', projectId, 'tasks', oldTask.id));
+                const targetProjectId = oldTask.projectId || projectId;
+                batch.delete(doc(firestore, 'projects', targetProjectId, 'tasks', oldTask.id));
             }
         });
         
@@ -1981,17 +2053,23 @@ export function useProject(user: User, projectId: string | null) {
         return !isNaN(d.getTime()) ? d : null;
     }
 
+    const mainTasks = (collections.tasks.data || []).map(t => ({
+        ...t,
+        projectId: projectId,
+        start: safeToDate(t.start)!,
+        finish: safeToDate(t.finish)!,
+        constraintDate: safeToDate(t.constraintDate),
+        deadline: safeToDate(t.deadline)
+    }));
+
+    const allTasks = [...mainTasks, ...subprojectsData.tasks];
+    const allLinks = [...(collections.links.data || []), ...subprojectsData.links];
+
     internalDispatch({
         type: 'SET_PROJECT_DATA',
         payload: {
-            tasks: (collections.tasks.data || []).map(t => ({
-                ...t, 
-                start: safeToDate(t.start)!, 
-                finish: safeToDate(t.finish)!, 
-                constraintDate: safeToDate(t.constraintDate), 
-                deadline: safeToDate(t.deadline)
-            })),
-            links: collections.links.data || [],
+            tasks: allTasks,
+            links: allLinks,
             resources: collections.resources.data || [],
             assignments: collections.assignments.data || [],
             calendars: (collections.calendars.data || []).map(c => ({
@@ -2022,6 +2100,7 @@ export function useProject(user: User, projectId: string | null) {
   }, [
     projectId, isMemberLoading, isCheckingAdmin, member,
     collections.tasks.data, collections.tasks.isLoading,
+    subprojectsData.tasks, subprojectsData.links,
     collections.links.data, collections.links.isLoading,
     collections.resources.data, collections.resources.isLoading,
     collections.assignments.data, collections.assignments.isLoading,
