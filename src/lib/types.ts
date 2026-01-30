@@ -114,6 +114,7 @@ export interface Resource {
   costPerHour?: number;
   availability?: number; // e.g. 1 = 100%
   calendarId?: string | null;
+  order?: number;
 }
 
 export interface Assignment {
