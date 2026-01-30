@@ -276,80 +276,190 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     
     // Backward Pass: Calculate Late Start (LS) and Late Finish (LF)
     const reversedSortedTasks = [...sortedTasks].reverse();
-    const relevantTasks = Array.from(taskMap.values()).filter(t => !t.isSummary && t.finish);
-    const projectFinishDate = relevantTasks.length > 0 ? new Date(Math.max(...relevantTasks.map(t => t.finish.getTime()))) : new Date();
+    const allRelevantTasks = Array.from(taskMap.values()).filter(t => !t.isSummary && t.finish);
 
-    // Initialize LF for all tasks.
-    for (const task of taskMap.values()) {
-        task.lateFinish = projectFinishDate;
-    }
-    
-    for (const taskId of reversedSortedTasks) {
-        const task = taskMap.get(taskId)!;
-        if (task.isSummary) continue;
+    // Identify distinct projects
+    const projectIds = Array.from(new Set(allRelevantTasks.map(t => t.projectId || 'default')));
+    const projectFinishDates: Record<string, Date> = {};
 
-        let lateFinish = projectFinishDate; // Start with project end
-
-        const successors = successorsMap.get(taskId) || [];
-        if (successors.length > 0) {
-            const potentialLateFinishes = successors.map(link => {
-                const successorTask = taskMap.get(link.target)!;
-                const successorLateStart = successorTask.lateStart;
-                
-                if (!successorLateStart) {
-                    return projectFinishDate;
-                }
-
-                let constrainedLateFinish: Date;
-                switch (link.type) {
-                    case 'FS': // Finish-to-Start
-                        constrainedLateFinish = calendarService.addWorkingDays(successorLateStart, -(link.lag + 1), calendar);
-                        break;
-                    case 'FF': // Finish-to-Finish
-                        constrainedLateFinish = calendarService.addWorkingDays(successorTask.lateFinish!, -link.lag, calendar);
-                        break;
-                    case 'SS': // Start-to-Start
-                        const tempLS_ss = calendarService.addWorkingDays(successorLateStart, -link.lag, calendar);
-                        constrainedLateFinish = calendarService.calculateFinishDate(tempLS_ss, task.duration, task.durationUnit || 'd', calendar);
-                        break;
-                    case 'SF': // Start-to-Finish - this logic is complex, fallback to avoid errors
-                    default:
-                        constrainedLateFinish = projectFinishDate;
-                }
-                return constrainedLateFinish;
-            });
-            lateFinish = new Date(Math.min(...potentialLateFinishes.map(d => d.getTime())));
+    projectIds.forEach(pid => {
+        const tasksInProject = allRelevantTasks.filter(t => (t.projectId || 'default') === pid);
+        if (tasksInProject.length > 0) {
+            projectFinishDates[pid] = new Date(Math.max(...tasksInProject.map(t => t.finish.getTime())));
+        } else {
+            projectFinishDates[pid] = new Date();
         }
-        
-        // Also constrain by the task's own deadline or late-finish constraints
-        if (task.constraintType && task.constraintDate) {
-            if (task.constraintType === 'Finish No Later Than' || task.constraintType === 'Must Finish On') {
-                lateFinish = new Date(Math.min(lateFinish.getTime(), startOfDay(constraintDate).getTime()));
+    });
+
+    // We calculate "Global" LS/LF (most constrained across all projects)
+    // And "Critical For" list.
+
+    // Initialize global LS/LF to extreme values
+    const MAX_DATE = new Date(8640000000000000);
+    for (const task of taskMap.values()) {
+        task.lateFinish = MAX_DATE;
+        task.lateStart = MAX_DATE;
+        task.criticalFor = [];
+    }
+
+    // Run a backward pass for EACH project to determine criticality
+    for (const targetPid of projectIds) {
+        const targetFinishDate = projectFinishDates[targetPid];
+
+        // Temporary map for this pass
+        const passLFs = new Map<string, Date>();
+
+        // Initialize sink nodes for this project
+        // A sink node for project P is any task in P that finishes at P's finish date
+        for (const task of allRelevantTasks) {
+            if ((task.projectId || 'default') === targetPid && task.finish.getTime() === targetFinishDate.getTime()) {
+                passLFs.set(task.id, targetFinishDate);
+            } else {
+                passLFs.set(task.id, MAX_DATE);
             }
         }
-        if (task.deadline) {
-            lateFinish = new Date(Math.min(lateFinish.getTime(), startOfDay(task.deadline).getTime()));
-        }
 
-        task.lateFinish = lateFinish;
-        const durationForCalc = task.duration > 0 ? task.duration - 1 : 0;
-        task.lateStart = calendarService.addWorkingDays(task.lateFinish!, -durationForCalc, calendar);
-         if (task.constraintType === 'Must Start On' && task.constraintDate) {
-            task.lateStart = new Date(Math.min(task.lateStart.getTime(), startOfDay(task.constraintDate).getTime()));
+        for (const taskId of reversedSortedTasks) {
+            const task = taskMap.get(taskId)!;
+            if (task.isSummary) continue;
+
+            let lateFinish = passLFs.get(taskId) || MAX_DATE;
+
+            const successors = successorsMap.get(taskId) || [];
+            if (successors.length > 0) {
+                const potentialLateFinishes = successors.map(link => {
+                    const successorTask = taskMap.get(link.target)!;
+                    // We need the LS of the successor *for this pass*.
+                    // But we calculate tasks in reverse topological order, so we haven't computed successor's LS yet?
+                    // Wait, reverse topological order means we visit successors BEFORE predecessors.
+                    // So successorTask has already been processed in this loop.
+                    // We need to store LS for this pass.
+
+                    // Let's store passLS as well.
+                    // Re-structure: we calculate LS immediately after LF.
+
+                    // We need to look up the computed LS of the successor from `passLS`.
+                    // But `passLS` is derived from `passLFs`.
+                    // Let's compute it on the fly or store it.
+
+                    // To simplify:
+                    //   Calculate my LF based on successors' LS.
+                    //   Calculate my LS based on my LF.
+                    //   Store my LS for my predecessors.
+
+                    return MAX_DATE; // Placeholder, logic below handles this better
+                });
+            }
+
+            // Re-implement logic: look at successors which have already been processed
+            if (successors.length > 0) {
+                 const potentialLFs = successors.map(link => {
+                     const successorTask = taskMap.get(link.target)!;
+                     // Retrieve successor's LS calculated in this pass.
+                     // We need a map for it.
+                     // Actually, we can just use `passLFs` of successor? No, that's its LF.
+                     // We need its LS.
+                     // Let's calculate its LS from its stored LF.
+                     const sLF = passLFs.get(successorTask.id) || MAX_DATE;
+                     if (sLF.getTime() === MAX_DATE.getTime()) return MAX_DATE;
+
+                     const sDurationCalc = successorTask.duration > 0 ? successorTask.duration - 1 : 0;
+                     let sLS = calendarService.addWorkingDays(sLF, -sDurationCalc, calendar);
+                     if (successorTask.constraintType === 'Must Start On' && successorTask.constraintDate) {
+                        sLS = new Date(Math.min(sLS.getTime(), startOfDay(successorTask.constraintDate).getTime()));
+                     }
+
+                     let constrainedLateFinish: Date;
+                     switch (link.type) {
+                        case 'FS':
+                            constrainedLateFinish = calendarService.addWorkingDays(sLS, -(link.lag + 1), calendar);
+                            break;
+                        case 'FF':
+                            constrainedLateFinish = calendarService.addWorkingDays(sLF, -link.lag, calendar);
+                            break;
+                        case 'SS':
+                            const tempLS_ss = calendarService.addWorkingDays(sLS, -link.lag, calendar);
+                            constrainedLateFinish = calendarService.calculateFinishDate(tempLS_ss, task.duration, task.durationUnit || 'd', calendar);
+                            break;
+                        default:
+                            constrainedLateFinish = MAX_DATE;
+                    }
+                    return constrainedLateFinish;
+                 });
+                 const minSuccLF = new Date(Math.min(...potentialLFs.map(d => d.getTime())));
+                 if (minSuccLF.getTime() < lateFinish.getTime()) {
+                     lateFinish = minSuccLF;
+                 }
+            }
+
+            // Constraints
+            if (task.constraintType && task.constraintDate) {
+                if (task.constraintType === 'Finish No Later Than' || task.constraintType === 'Must Finish On') {
+                    lateFinish = new Date(Math.min(lateFinish.getTime(), startOfDay(task.constraintDate).getTime()));
+                }
+            }
+            if (task.deadline) {
+                lateFinish = new Date(Math.min(lateFinish.getTime(), startOfDay(task.deadline).getTime()));
+            }
+
+            passLFs.set(taskId, lateFinish); // Store for my predecessors (implied via loop order)
+
+            // Update Global Fields (most constrained)
+            if (lateFinish.getTime() < task.lateFinish!.getTime()) {
+                task.lateFinish = lateFinish;
+            }
+
+            // Calculate LS for this pass to check criticality
+            const durationForCalc = task.duration > 0 ? task.duration - 1 : 0;
+            let lateStart: Date;
+
+            if (lateFinish.getTime() === MAX_DATE.getTime()) {
+                lateStart = MAX_DATE;
+            } else {
+                lateStart = calendarService.addWorkingDays(lateFinish, -durationForCalc, calendar);
+                if (task.constraintType === 'Must Start On' && task.constraintDate) {
+                    lateStart = new Date(Math.min(lateStart.getTime(), startOfDay(task.constraintDate).getTime()));
+                }
+            }
+
+            if (lateStart.getTime() < task.lateStart!.getTime()) {
+                task.lateStart = lateStart;
+            }
+
+            // Check Criticality for THIS project
+            if (task.start && lateStart.getTime() !== MAX_DATE.getTime()) {
+                let totalFloat = calendarService.getWorkingDaysDuration(task.start, lateStart, calendar);
+                if (totalFloat > 0) totalFloat -= 1;
+
+                if (totalFloat <= 0) {
+                    if (!task.criticalFor) task.criticalFor = [];
+                    task.criticalFor.push(targetPid);
+                }
+            }
         }
     }
-    
-    // Calculate Float and Critical Path
+
+    // Final clean up of global fields
     for (const taskId of sortedTasks) {
         const task = taskMap.get(taskId)!;
         if (task.isSummary) continue;
+
+        if (task.lateFinish?.getTime() === MAX_DATE.getTime()) {
+             // Not constrained by anything (shouldn't happen if connected to end, but possible for isolated tasks)
+             // Set to project max finish?
+             const maxFinish = new Date(Math.max(...Object.values(projectFinishDates).map(d => d.getTime())));
+             task.lateFinish = maxFinish;
+             const durationForCalc = task.duration > 0 ? task.duration - 1 : 0;
+             task.lateStart = calendarService.addWorkingDays(task.lateFinish, -durationForCalc, calendar);
+        }
+
         if (task.lateStart && task.start) {
             task.totalFloat = calendarService.getWorkingDaysDuration(task.start, task.lateStart, calendar);
              if (task.totalFloat > 0) task.totalFloat -= 1;
         } else {
             task.totalFloat = 0;
         }
-        task.isCritical = task.totalFloat <= 0;
+        task.isCritical = (task.criticalFor && task.criticalFor.length > 0);
     }
 
     // Update driving status on links

@@ -31,9 +31,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import type { Project, ProjectState, ProjectMember, ColumnSpec, Invitation, Baseline } from "@/lib/types";
 import { useState, useEffect, useMemo } from 'react';
-import { collection, doc, writeBatch, updateDoc, arrayUnion, arrayRemove, addDoc, query, where, deleteDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, updateDoc, arrayUnion, arrayRemove, addDoc, query, where, deleteDoc, getDocs } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Plus } from "lucide-react";
 import { useAuth } from "@/firebase";
 import { format } from "date-fns";
 
@@ -88,6 +88,25 @@ export function ProjectSettingsDialog({
     const [baselineToDelete, setBaselineToDelete] = useState<Baseline | null>(null);
     const [accordionValue, setAccordionValue] = useState<string[]>([]);
 
+    const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
+    const [subprojectIds, setSubprojectIds] = useState<string[]>(project.subprojectIds || []);
+    const [selectedSubprojectToAdd, setSelectedSubprojectToAdd] = useState<string>('');
+
+    useEffect(() => {
+        if (!firestore || !currentUser) return;
+        const fetchProjects = async () => {
+            try {
+                const q = query(collection(firestore, 'projects'), where('memberIds', 'array-contains', currentUser.uid));
+                const snap = await getDocs(q);
+                const projs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Project));
+                setAvailableProjects(projs.filter(p => p.id !== project.id));
+            } catch (e) {
+                console.error("Failed to fetch available projects", e);
+            }
+        };
+        fetchProjects();
+    }, [firestore, currentUser, project.id]);
+
     const originalMembers = useMemo(() => {
         return fetchedMembers?.map(m => ({
             ...m,
@@ -101,6 +120,7 @@ export function ProjectSettingsDialog({
             setName(project.name);
             setDescription(project.description || '');
             setMembers(originalMembers);
+            setSubprojectIds(project.subprojectIds || []);
             
             const openSections = ['members'];
             if (initialOpenSection === 'baselines' && projectState) {
@@ -139,6 +159,10 @@ export function ProjectSettingsDialog({
             const projectUpdates: Partial<Project> = {};
             if (name !== project.name) projectUpdates.name = name;
             if (description !== (project.description || '')) projectUpdates.description = description;
+
+            if (JSON.stringify(subprojectIds) !== JSON.stringify(project.subprojectIds || [])) {
+                projectUpdates.subprojectIds = subprojectIds;
+            }
 
             if (Object.keys(projectUpdates).length > 0) {
                 batch.update(projectDocRef, projectUpdates);
@@ -219,6 +243,17 @@ export function ProjectSettingsDialog({
         dispatch({ type: "DELETE_BASELINE", payload: { baselineId: baselineToDelete.id } });
         setBaselineToDelete(null);
         toast({ title: "Baseline Deleted" });
+    };
+
+    const handleAddSubproject = () => {
+        if (selectedSubprojectToAdd && !subprojectIds.includes(selectedSubprojectToAdd)) {
+            setSubprojectIds([...subprojectIds, selectedSubprojectToAdd]);
+            setSelectedSubprojectToAdd('');
+        }
+    };
+
+    const handleRemoveSubproject = (idToRemove: string) => {
+        setSubprojectIds(subprojectIds.filter(id => id !== idToRemove));
     };
 
     return (
@@ -358,6 +393,54 @@ export function ProjectSettingsDialog({
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
+
+                                <AccordionItem value="subprojects">
+                                    <AccordionTrigger>Subprojects</AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="flex-grow border rounded-md overflow-hidden min-h-[200px]">
+                                            <ScrollArea className="h-[200px]">
+                                                <div className="p-2 space-y-2">
+                                                    {subprojectIds.map(subId => {
+                                                        const subProj = availableProjects.find(p => p.id === subId);
+                                                        return (
+                                                            <div key={subId} className="flex justify-between items-center p-2 rounded-md hover:bg-muted/50">
+                                                                <div>
+                                                                    <p className="font-medium">{subProj?.name || 'Unknown Project'}</p>
+                                                                    <p className="text-xs text-muted-foreground">{subId}</p>
+                                                                </div>
+                                                                <Button variant="ghost" size="icon" onClick={() => handleRemoveSubproject(subId)}>
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </Button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {subprojectIds.length === 0 && (
+                                                        <p className="p-4 text-center text-sm text-muted-foreground">No subprojects added.</p>
+                                                    )}
+                                                </div>
+                                            </ScrollArea>
+                                        </div>
+                                        <div className="mt-4 flex items-center gap-2">
+                                            <Select value={selectedSubprojectToAdd} onValueChange={setSelectedSubprojectToAdd}>
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue placeholder="Select project to add..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {availableProjects
+                                                        .filter(p => !subprojectIds.includes(p.id))
+                                                        .map(p => (
+                                                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                                        ))
+                                                    }
+                                                </SelectContent>
+                                            </Select>
+                                            <Button onClick={handleAddSubproject} disabled={!selectedSubprojectToAdd}>
+                                                <Plus className="h-4 w-4 mr-2" /> Add
+                                            </Button>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
                                 {projectState && dispatch && (
                                 <AccordionItem value="baselines">
                                     <AccordionTrigger>Baselines</AccordionTrigger>
