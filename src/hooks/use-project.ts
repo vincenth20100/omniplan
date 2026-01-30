@@ -120,6 +120,7 @@ type Action =
   | { type: 'UPDATE_RELATIONSHIPS', payload: { taskId: string, field: 'predecessors' | 'successors', value: string }}
   | { type: 'ADD_RESOURCE', payload?: { id?: string, name?: string, initials?: string } }
   | { type: 'REMOVE_RESOURCE', payload: { resourceId: string } }
+  | { type: 'REORDER_RESOURCE', payload: { sourceId: string, targetId: string, position: 'top' | 'bottom' } }
   | { type: 'UPDATE_RESOURCE', payload: Partial<Resource> & { id: string } }
   | { type: 'ADD_ASSIGNMENT', payload: { taskId: string, resourceId: string, units?: number } }
   | { type: 'UPDATE_ASSIGNMENT', payload: { id: string, units: number } }
@@ -587,16 +588,51 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
     }
     case 'ADD_RESOURCE': {
         const { id, name, initials } = action.payload || {};
+        const maxOrder = state.resources.length > 0 ? Math.max(...state.resources.map(r => r.order ?? 0)) : -1;
         const newResource: Resource = {
             id: id || `res-${Date.now()}`,
             name: name || 'New Resource',
             initials: initials,
             type: 'Work',
             availability: 1,
-            costPerHour: 0
+            costPerHour: 0,
+            order: maxOrder + 1,
         };
         const newResources = [...state.resources, newResource];
         return { ...state, resources: newResources };
+    }
+    case 'REORDER_RESOURCE': {
+        const { sourceId, targetId, position } = action.payload;
+        const resources = [...state.resources].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        const sourceIndex = resources.findIndex(r => r.id === sourceId);
+        const targetIndex = resources.findIndex(r => r.id === targetId);
+
+        if (sourceIndex === -1 || targetIndex === -1) return state;
+
+        const [movedResource] = resources.splice(sourceIndex, 1);
+        const adjustedTargetIndex = resources.findIndex(r => r.id === targetId); // Re-find index after splice
+
+        const targetResource = resources[adjustedTargetIndex];
+        const effectiveTargetOrder = targetResource.order ?? adjustedTargetIndex;
+
+        // Calculate new order
+        let newOrder: number;
+        if (position === 'top') {
+            const prevResource = resources[adjustedTargetIndex - 1];
+            const orderBefore = prevResource ? (prevResource.order ?? (adjustedTargetIndex - 1)) : effectiveTargetOrder - 1;
+            newOrder = (orderBefore + effectiveTargetOrder) / 2;
+             resources.splice(adjustedTargetIndex, 0, movedResource);
+        } else {
+            const nextResource = resources[adjustedTargetIndex + 1];
+            const orderAfter = nextResource ? (nextResource.order ?? (adjustedTargetIndex + 1)) : effectiveTargetOrder + 1;
+            newOrder = (effectiveTargetOrder + orderAfter) / 2;
+            resources.splice(adjustedTargetIndex + 1, 0, movedResource);
+        }
+
+        movedResource.order = newOrder;
+
+        return { ...state, resources };
     }
     case 'REMOVE_RESOURCE': {
         const { resourceId } = action.payload;
@@ -1789,7 +1825,7 @@ export function useProject(user: User, projectId: string | null) {
             'UPDATE_TASK', 'ADD_NOTE_TO_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
             'UPDATE_LINK', 'ADD_TASK', 'REMOVE_TASK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK',
             'UPDATE_RELATIONSHIPS', 'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
-            'ADD_RESOURCE', 'REMOVE_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
+            'ADD_RESOURCE', 'REMOVE_RESOURCE', 'REORDER_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
             'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE', 'ADD_BASELINE', 'DELETE_BASELINE',
             'ADD_ASSIGNMENT', 'UPDATE_ASSIGNMENT', 'REMOVE_ASSIGNMENT',
           ];
