@@ -179,6 +179,11 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
                 if (task.isSummary) return;
 
                 const isMatch = filters.every(filter => {
+                    if (filter.operator === 'contains') {
+                         const formattedValue = getTaskPropertyValue(task, filter.columnId);
+                         return formattedValue.toLowerCase().includes(String(filter.value).toLowerCase());
+                    }
+
                     const rawValue = getRawTaskPropertyValue(task, filter.columnId);
                     const column = columns.find(c => c.id === filter.columnId);
                     
@@ -325,6 +330,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
             columns={columns}
             visibleColumns={visibleColumns}
             grouping={grouping}
+            filters={filters}
             selectedTaskIds={selectedTaskIds}
             focusCell={focusCell}
             anchorCell={anchorCell}
