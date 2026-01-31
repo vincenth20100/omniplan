@@ -81,6 +81,8 @@ const TaskCellRenderer = React.memo(({
     switch (column.id) {
         case 'wbs':
             return <>{task.wbs}</>;
+        case 'projectSource':
+            return <span className="truncate text-muted-foreground">{task.projectName}</span>;
         case 'schedulingMode': {
             if (task.isSummary) return null;
 

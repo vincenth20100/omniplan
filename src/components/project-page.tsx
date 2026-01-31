@@ -39,6 +39,7 @@ import { DetailedThemeEditor } from './gantt-settings/detailed-theme-editor';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 import { ALL_COLUMNS } from '@/lib/columns';
 import { SetBaselineDialog } from './set-baseline-dialog';
+import { InsertSubprojectDialog } from './insert-subproject-dialog';
 import { THEME_VARIABLES } from '@/lib/theme-config';
 import {
   DropdownMenu,
@@ -157,6 +158,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
   const [projectSettingsSection, setProjectSettingsSection] = useState<'members' | 'baselines'>('members');
   const [isSetBaselineOpen, setIsSetBaselineOpen] = useState(false);
+  const [isInsertSubprojectOpen, setIsInsertSubprojectOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -337,6 +339,9 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         {/* Task Editing */}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK' })} title="Add Task" disabled={!isEditorOrOwner}>
             <Plus />
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => setIsInsertSubprojectOpen(true)} title="Insert Project" disabled={!isEditorOrOwner}>
+            <FolderTree className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REMOVE_TASK' })} disabled={!canRemove || !isEditorOrOwner} title="Remove Selected Tasks">
             <Trash2 />
@@ -624,6 +629,15 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
               onOpenChange={setIsSetBaselineOpen}
               onSave={handleSaveBaseline}
           />
+          {project && (
+            <InsertSubprojectDialog
+                open={isInsertSubprojectOpen}
+                onOpenChange={setIsInsertSubprojectOpen}
+                user={user}
+                currentProjectId={projectId}
+                existingSubprojectIds={project.subprojectIds}
+            />
+          )}
         </>
       )}
     </MainLayout>

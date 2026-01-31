@@ -81,6 +81,8 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
                 return task.constraintDate || null;
             case 'name':
                 return task.name;
+            case 'projectSource':
+                return task.projectName || null;
             default:
                 if (column.id.startsWith('custom-')) {
                     return task.customAttributes?.[column.id] || null;

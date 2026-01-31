@@ -163,7 +163,7 @@ type Action =
  * removing calculated fields and converting `undefined` to `null`.
  */
 const toFirestoreTask = (task: Task) => {
-  const { isCritical, totalFloat, lateStart, lateFinish, projectId, criticalFor, ...rest } = task;
+  const { isCritical, totalFloat, lateStart, lateFinish, projectId, projectName, criticalFor, ...rest } = task;
 
   const cleanTask: Record<string, any> = { ...rest };
 
@@ -182,27 +182,39 @@ const toFirestoreTask = (task: Task) => {
 };
 
 function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) {
-    const [data, setData] = useState<{ tasks: Task[], links: Link[] }>({ tasks: [], links: [] });
+    const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string }[] }>({ subprojects: [] });
 
     useEffect(() => {
         if (!subprojectIds || subprojectIds.length === 0 || !firestore) {
-            setData({ tasks: [], links: [] });
+            setData({ subprojects: [] });
             return;
         }
 
         const unsubscribes: (() => void)[] = [];
-        const localCache: Record<string, { tasks: Task[], links: Link[] }> = {};
+        const localCache: Record<string, { tasks: Task[], links: Link[], projectName: string }> = {};
 
         // Initialize cache
-        subprojectIds.forEach(id => localCache[id] = { tasks: [], links: [] });
+        subprojectIds.forEach(id => localCache[id] = { tasks: [], links: [], projectName: 'Loading...' });
 
         const updateData = () => {
-            const allTasks = Object.values(localCache).flatMap(c => c.tasks);
-            const allLinks = Object.values(localCache).flatMap(c => c.links);
-            setData({ tasks: allTasks, links: allLinks });
+            const allSubprojects = Object.entries(localCache).map(([id, data]) => ({
+                projectId: id,
+                ...data
+            }));
+            setData({ subprojects: allSubprojects });
         };
 
         subprojectIds.forEach(pId => {
+             // Project Metadata
+             const projectUnsub = onSnapshot(doc(firestore, 'projects', pId), (snap) => {
+                const data = snap.data();
+                if (data) {
+                    localCache[pId].projectName = data.name;
+                    updateData();
+                }
+            });
+            unsubscribes.push(projectUnsub);
+
             // Tasks
             const tasksUnsub = onSnapshot(query(collection(firestore, 'projects', pId, 'tasks'), orderBy('order')), (snap) => {
                 const tasks = snap.docs.map(d => {
@@ -2092,14 +2104,53 @@ export function useProject(user: User, projectId: string | null) {
     const mainTasks = (collections.tasks.data || []).map(t => ({
         ...t,
         projectId: projectId,
+        projectName: projectData?.name || 'Current Project',
         start: safeToDate(t.start)!,
         finish: safeToDate(t.finish)!,
         constraintDate: safeToDate(t.constraintDate),
         deadline: safeToDate(t.deadline)
     }));
 
-    const allTasks = [...mainTasks, ...subprojectsData.tasks];
-    const allLinks = [...(collections.links.data || []), ...subprojectsData.links];
+    // Process subprojects
+    const subprojectTasks: Task[] = [];
+    const subprojectLinks: Link[] = [];
+
+    subprojectsData.subprojects.forEach(sub => {
+        const syntheticRootId = `subproject-${sub.projectId}`;
+
+        // Add synthetic summary task
+        const rootTask: Task = {
+            id: syntheticRootId,
+            name: `[Project] ${sub.projectName}`,
+            start: new Date(), // Will be calculated
+            finish: new Date(), // Will be calculated
+            duration: 0,
+            percentComplete: 0,
+            status: 'Active',
+            isSummary: true,
+            isCollapsed: true, // Start collapsed by default
+            level: 0,
+            projectId: projectId, // Belongs to parent container
+            projectName: projectData?.name || 'Current Project',
+        };
+        subprojectTasks.push(rootTask);
+
+        // Add subproject tasks reparented
+        const tasks = sub.tasks.map(t => {
+            const isRootInSub = !t.parentId;
+            return {
+                ...t,
+                projectId: sub.projectId, // Explicitly set projectId to ensure data integrity
+                projectName: sub.projectName,
+                parentId: isRootInSub ? syntheticRootId : t.parentId,
+            };
+        });
+        subprojectTasks.push(...tasks);
+        subprojectLinks.push(...sub.links);
+    });
+
+    const allTasks = [...mainTasks, ...subprojectTasks];
+    const allLinks = [...(collections.links.data || []), ...subprojectLinks];
 
     internalDispatch({
         type: 'SET_PROJECT_DATA',
@@ -2136,7 +2187,7 @@ export function useProject(user: User, projectId: string | null) {
   }, [
     projectId, isMemberLoading, isCheckingAdmin, member,
     collections.tasks.data, collections.tasks.isLoading,
-    subprojectsData.tasks, subprojectsData.links,
+    subprojectsData.subprojects,
     collections.links.data, collections.links.isLoading,
     collections.resources.data, collections.resources.isLoading,
     collections.assignments.data, collections.assignments.isLoading,
