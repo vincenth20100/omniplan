@@ -6,17 +6,19 @@ import { EditableCell } from '@/components/omni-gantt/editable-cell';
 import { EditableSelectCell } from '@/components/omni-gantt/editable-select-cell';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Plus } from 'lucide-react';
 import { AddRelationshipRow } from './add-relationship-row';
 import React from 'react';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RelationshipComboboxContent } from './relationship-combobox';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatch, uiDensity, dateFormat }: { currentTaskId: string, successorLinks: Link[], allTasks: Task[], dispatch: any, uiDensity: UiDensity, dateFormat: string }) {
-
+    const isMobile = useIsMobile();
     const taskMap = new Map(allTasks.map(t => [t.id, t]));
     const [editingLinkId, setEditingLinkId] = React.useState<string | null>(null);
+    const [addPopoverOpen, setAddPopoverOpen] = React.useState(false);
     
     const [colWidths, setColWidths] = React.useState({
         id: 50,
@@ -90,6 +92,110 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
         </TableHead>
     );
 
+    if (isMobile) {
+        return (
+            <div className="flex flex-col gap-3 h-full overflow-y-auto p-1">
+                {successorLinks.map(link => {
+                     const targetTask = taskMap.get(link.target);
+                     if (!targetTask) return null;
+
+                     const getDateForLink = () => {
+                        switch (link.type) {
+                            case 'FS':
+                            case 'SS':
+                                return targetTask.start;
+                            case 'FF':
+                            case 'SF':
+                                return targetTask.finish;
+                            default:
+                                return null;
+                        }
+                    };
+                     const linkDate = getDateForLink();
+
+                     return (
+                         <div key={link.id} className="border rounded-md p-3 bg-card shadow-sm">
+                             <div className="flex justify-between items-start mb-2">
+                                <div className="flex flex-col min-w-0">
+                                     <span className="font-semibold text-sm truncate">{targetTask.name}</span>
+                                     <span className="text-xs text-muted-foreground">ID: {targetTask.wbs}</span>
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 -mr-2 -mt-2" onClick={() => dispatch({ type: 'REMOVE_LINK', payload: { linkId: link.id }})}>
+                                     <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                             </div>
+
+                             <div className="grid grid-cols-3 gap-3">
+                                 <div>
+                                     <span className="text-[10px] uppercase text-muted-foreground font-semibold">Type</span>
+                                     <div className="border rounded h-8 mt-1">
+                                         <EditableSelectCell
+                                             value={link.type}
+                                             onSave={(newValue) => {
+                                                 if (newValue) {
+                                                     dispatch({ type: 'UPDATE_LINK', payload: { id: link.id, type: newValue as LinkType } });
+                                                 }
+                                             }}
+                                             options={linkTypeOptions}
+                                         />
+                                     </div>
+                                 </div>
+                                 <div>
+                                      <span className="text-[10px] uppercase text-muted-foreground font-semibold">Lag</span>
+                                      <div className="border rounded h-8 mt-1 px-2">
+                                        <EditableCell
+                                            value={`${link.lag || 0}`}
+                                            onSave={(newValue) => {
+                                                const newLag = parseInt(newValue, 10);
+                                                if (!isNaN(newLag)) {
+                                                    dispatch({ type: 'UPDATE_LINK', payload: { id: link.id, lag: newLag } });
+                                                }
+                                            }}
+                                            className="text-right w-full text-sm"
+                                        />
+                                      </div>
+                                 </div>
+                                 <div>
+                                      <span className="text-[10px] uppercase text-muted-foreground font-semibold">Date</span>
+                                      <div className="h-8 mt-1 flex items-center text-xs text-muted-foreground truncate">
+                                        {linkDate ? format(linkDate, dateFormat) : '-'}
+                                      </div>
+                                 </div>
+                             </div>
+                         </div>
+                     );
+                })}
+
+                <Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
+                    <PopoverTrigger asChild>
+                         <Button variant="outline" className="w-full border-dashed text-muted-foreground">
+                            <Plus className="h-4 w-4 mr-2" /> Add Successor
+                         </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] sm:w-[400px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                         <RelationshipComboboxContent
+                            allTasks={allTasks}
+                            currentTaskId={currentTaskId}
+                            excludedTaskIds={successorLinks.map(l => l.target)}
+                            onSelectTask={(newTargetId) => {
+                                dispatch({
+                                    type: 'ADD_LINK',
+                                    payload: {
+                                        source: currentTaskId,
+                                        target: newTargetId,
+                                        type: 'FS',
+                                        lag: 0,
+                                    }
+                                });
+                                setAddPopoverOpen(false);
+                            }}
+                         />
+                    </PopoverContent>
+                </Popover>
+            </div>
+        );
+    }
+
     return (
         <ScrollArea className="border rounded-md min-h-0 w-full">
             <div className="min-w-[540px]">
@@ -161,7 +267,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                                                 {targetTask.name}
                                             </div>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-[400px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                        <PopoverContent className="w-[300px] sm:w-[400px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                                                 <RelationshipComboboxContent
                                                 allTasks={allTasks}
                                                 currentTaskId={currentTaskId}
