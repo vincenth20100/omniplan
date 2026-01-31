@@ -131,7 +131,7 @@ export function FilterDialog({
     const renderFilterValueInput = (filter: FilterType) => {
         const column = columns.find(c => c.id === filter.columnId);
         if (!column || filter.operator === 'is_empty' || filter.operator === 'is_not_empty' || filter.operator === 'none') {
-            return <div className="w-[180px]" />;
+            return <div className="w-full sm:w-[180px]" />;
         }
         
         let columnType = column.type;
@@ -141,7 +141,7 @@ export function FilterDialog({
         
         if (columnType === 'date') {
              return (
-                <div className="w-[180px]">
+                <div className="w-full sm:w-[180px]">
                     <EditableDateCell
                         value={filter.value ? new Date(filter.value) : null}
                         onSave={(newValue) => handleUpdateFilter(filter.id, { value: newValue?.toISOString() || '' })}
@@ -154,7 +154,7 @@ export function FilterDialog({
         if (column?.type === 'selection' && column.options) {
             return (
                  <Select value={filter.value} onValueChange={(value) => handleUpdateFilter(filter.id, { value })}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[180px]">
                         <SelectValue placeholder="Select a value" />
                     </SelectTrigger>
                     <SelectContent>
@@ -170,7 +170,7 @@ export function FilterDialog({
             <Input 
                 value={filter.value}
                 onChange={(e) => handleUpdateFilter(filter.id, { value: e.target.value })}
-                className="w-[180px]"
+                className="w-full sm:w-[180px]"
                 type={column?.type === 'number' ? 'number' : 'text'}
             />
         );
@@ -207,7 +207,7 @@ export function FilterDialog({
                         const operatorSet = OPERATORS[columnType || 'default'];
                         
                         return (
-                            <div key={filter.id} className="flex items-center gap-2">
+                            <div key={filter.id} className="flex flex-col items-stretch sm:flex-row sm:items-center gap-2">
                                 <Select value={filter.columnId} onValueChange={(columnId) => {
                                     const newCol = columns.find(c=>c.id===columnId);
                                     let newColType = newCol?.type;
@@ -216,7 +216,7 @@ export function FilterDialog({
                                     }
                                     handleUpdateFilter(filter.id, { columnId, operator: OPERATORS[newColType || 'default'][0].value, value: '' })
                                 }}>
-                                    <SelectTrigger className="w-[180px]">
+                                    <SelectTrigger className="w-full sm:w-[180px]">
                                         <SelectValue placeholder="Select column" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -224,7 +224,7 @@ export function FilterDialog({
                                     </SelectContent>
                                 </Select>
                                 <Select value={filter.operator} onValueChange={(operator: Operator) => handleUpdateFilter(filter.id, { operator })}>
-                                    <SelectTrigger className="w-[150px]">
+                                    <SelectTrigger className="w-full sm:w-[150px]">
                                         <SelectValue placeholder="Select operator" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -232,7 +232,7 @@ export function FilterDialog({
                                     </SelectContent>
                                 </Select>
                                 {renderFilterValueInput(filter)}
-                                <Button variant="ghost" size="icon" onClick={() => handleRemoveFilter(filter.id)}>
+                                <Button variant="ghost" size="icon" onClick={() => handleRemoveFilter(filter.id)} className="self-end sm:self-auto">
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                             </div>

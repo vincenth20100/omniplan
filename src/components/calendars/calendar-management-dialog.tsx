@@ -22,7 +22,7 @@ export function CalendarManagementDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+      <DialogContent className="max-w-4xl h-full sm:h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Calendar Management</DialogTitle>
         </DialogHeader>
