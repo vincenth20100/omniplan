@@ -11,9 +11,11 @@ import { NotesSection } from './notes-section';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { InfoSection } from './info-section';
 import { ResourceSection } from './resource-section';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Separator } from '@/components/ui/separator';
 
 export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDensity, defaultCalendar, dateFormat }: { task: Task, projectState: ProjectState, dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null, dateFormat: string }) {
-
+    const isMobile = useIsMobile();
     const { links, tasks, resources, assignments } = projectState;
     const predecessors = links.filter(l => l.target === task.id);
     const successors = links.filter(l => l.source === task.id);
@@ -71,21 +73,35 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
                             uiDensity === 'medium' && 'p-3',
                             uiDensity === 'compact' && 'p-2'
                         )}>
-                           <ResizablePanelGroup direction="horizontal" className="h-full">
-                                <ResizablePanel>
-                                    <div className="h-full flex flex-col pr-1">
-                                        <h3 className="text-sm font-semibold mb-2 shrink-0">Predecessors</h3>
-                                        <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
-                                    </div>
-                                </ResizablePanel>
-                                <ResizableHandle withHandle />
-                                <ResizablePanel>
-                                    <div className="h-full flex flex-col pl-1">
-                                         <h3 className="text-sm font-semibold mb-2 shrink-0">Successors</h3>
-                                         <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
-                                    </div>
-                                </ResizablePanel>
-                           </ResizablePanelGroup>
+                           {isMobile ? (
+                             <div className="h-full flex flex-col gap-4 overflow-y-auto">
+                                <div className="flex-1 min-h-0 flex flex-col pr-1">
+                                    <h3 className="text-sm font-semibold mb-2 shrink-0">Predecessors</h3>
+                                    <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
+                                </div>
+                                <Separator />
+                                <div className="flex-1 min-h-0 flex flex-col pl-1">
+                                     <h3 className="text-sm font-semibold mb-2 shrink-0">Successors</h3>
+                                     <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
+                                </div>
+                             </div>
+                           ) : (
+                               <ResizablePanelGroup direction="horizontal" className="h-full">
+                                    <ResizablePanel>
+                                        <div className="h-full flex flex-col pr-1">
+                                            <h3 className="text-sm font-semibold mb-2 shrink-0">Predecessors</h3>
+                                            <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
+                                        </div>
+                                    </ResizablePanel>
+                                    <ResizableHandle withHandle />
+                                    <ResizablePanel>
+                                        <div className="h-full flex flex-col pl-1">
+                                             <h3 className="text-sm font-semibold mb-2 shrink-0">Successors</h3>
+                                             <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
+                                        </div>
+                                    </ResizablePanel>
+                               </ResizablePanelGroup>
+                           )}
                         </div>
                     </TabsContent>
                     <TabsContent value="resources" className="m-0 h-full">

@@ -131,7 +131,7 @@ export function GroupingDialog({
                 
                 <Separator />
                 
-                <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-4 items-center">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-4 items-center">
                     {/* Available Fields */}
                     <div className="flex flex-col gap-2">
                         <h3 className="font-semibold text-sm">Available fields:</h3>
@@ -139,12 +139,12 @@ export function GroupingDialog({
                     </div>
                     
                     {/* Add/Remove Buttons */}
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-row justify-center sm:flex-col gap-2">
                         <Button variant="outline" size="icon" onClick={handleAddField} disabled={!selectedAvailable}>
-                            <ArrowRight className="h-4 w-4" />
+                            <ArrowRight className="h-4 w-4 rotate-90 sm:rotate-0" />
                         </Button>
                         <Button variant="outline" size="icon" onClick={handleRemoveField} disabled={!selectedGroupBy}>
-                            <ArrowLeft className="h-4 w-4" />
+                            <ArrowLeft className="h-4 w-4 rotate-90 sm:rotate-0" />
                         </Button>
                     </div>
 
@@ -158,7 +158,7 @@ export function GroupingDialog({
                     </div>
                     
                     {/* Move Buttons */}
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-row justify-center sm:flex-col gap-2">
                          <Button variant="outline" size="icon" onClick={handleMoveUp} disabled={!selectedGroupBy || currentGrouping.indexOf(selectedGroupBy) === 0}>
                             <ChevronsUp className="h-4 w-4" />
                         </Button>
