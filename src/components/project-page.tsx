@@ -337,7 +337,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Separator orientation="vertical" className="h-6 mx-1" />
 
         {/* Task Editing */}
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK' })} title="Add Task" disabled={!isEditorOrOwner}>
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK', payload: { id: crypto.randomUUID() } })} title="Add Task" disabled={!isEditorOrOwner}>
             <Plus />
         </Button>
         <Button variant="outline" size="icon" onClick={() => setIsInsertSubprojectOpen(true)} title="Insert Project" disabled={!isEditorOrOwner}>

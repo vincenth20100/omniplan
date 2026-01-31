@@ -619,7 +619,7 @@ export function TaskTable({
 
             if (event.key === 'Insert') {
                 event.preventDefault();
-                dispatch({ type: 'ADD_TASK' });
+                dispatch({ type: 'ADD_TASK', payload: { id: crypto.randomUUID() } });
                 return;
             }
 
