@@ -7,7 +7,7 @@ import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
 import { parseDuration, formatDuration } from '@/lib/duration';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, writeBatch, query, orderBy, setDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, writeBatch, query, orderBy, setDoc, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { User } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
@@ -41,16 +41,17 @@ const defaultAppSettings = {
     id: 'app_settings',
     columns: initialColumns,
     visibleColumns: initialVisibleColumns,
-    grouping: [],
-    filters: [],
+    grouping: [] as string[],
+    filters: [] as Filter[],
     stylePresets: defaultStylePresets,
+    expandedSubprojectIds: [] as string[],
 };
 
 const defaultUserPreferences = {
     uiDensity: 'compact' as UiDensity,
-    currentViewId: 'default',
+    currentViewId: 'default' as string | null,
     ganttSettings: initialGanttSettings,
-    activeStylePresetId: 'default-dark',
+    activeStylePresetId: 'default-dark' as string | null,
 };
 
 
@@ -1911,12 +1912,19 @@ export function useProject(user: User, projectId: string | null) {
                 taskId = action.payload.taskId;
             }
 
-            const updatedTask = newState.tasks.find(t => t.id === taskId);
-            const targetProjectId = updatedTask?.projectId || projectId;
+            if (action.type === 'TOGGLE_TASK_COLLAPSE' && taskId.startsWith('subproject-')) {
+                const settingsDocRef = doc(firestore, 'projects', projectId, 'settings', 'app_settings');
+                const isCollapsed = newState.tasks.find(t => t.id === taskId)?.isCollapsed;
+                const updateOp = isCollapsed ? arrayRemove(taskId) : arrayUnion(taskId);
+                batch.set(settingsDocRef, { expandedSubprojectIds: updateOp }, { merge: true });
+            } else {
+                const updatedTask = newState.tasks.find(t => t.id === taskId);
+                const targetProjectId = updatedTask?.projectId || projectId;
 
-            if (updatedTask) {
-                const { ...updateData } = toFirestoreTask(updatedTask);
-                batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), updateData);
+                if (updatedTask) {
+                    const { ...updateData } = toFirestoreTask(updatedTask);
+                    batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), updateData);
+                }
             }
         }
         
@@ -2122,6 +2130,7 @@ export function useProject(user: User, projectId: string | null) {
     // Process subprojects
     const subprojectTasks: Task[] = [];
     const subprojectLinks: Link[] = [];
+    const expandedSubprojectIds = collections.sharedSettings.data?.expandedSubprojectIds || [];
 
     subprojectsData.subprojects.forEach(sub => {
         const syntheticRootId = `subproject-${sub.projectId}`;
@@ -2136,7 +2145,7 @@ export function useProject(user: User, projectId: string | null) {
             percentComplete: 0,
             status: 'Active',
             isSummary: true,
-            isCollapsed: true, // Start collapsed by default
+            isCollapsed: !expandedSubprojectIds.includes(syntheticRootId),
             level: 0,
             projectId: projectId, // Belongs to parent container
             projectName: projectData?.name || 'Current Project',
@@ -2201,6 +2210,7 @@ export function useProject(user: User, projectId: string | null) {
     collections.assignments.data, collections.assignments.isLoading,
     collections.calendars.data, collections.calendars.isLoading,
     collections.baselines.data, collections.baselines.isLoading,
+    collections.sharedSettings.data, collections.sharedSettings.isLoading,
   ]);
 
   // Effect 2: Sync Settings Data
