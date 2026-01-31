@@ -259,119 +259,117 @@ export function ProjectSettingsDialog({
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                    <DialogHeader>
+                <DialogContent className="w-full max-w-4xl h-full max-h-[95vh] sm:max-h-[90vh] flex flex-col p-0 gap-0">
+                    <DialogHeader className="px-6 py-4">
                         <DialogTitle>Project Settings</DialogTitle>
                     </DialogHeader>
 
-                    <div className="flex-grow overflow-hidden flex flex-col gap-6">
-                        {/* Project Details */}
-                        <div className="space-y-4">
-                            <div>
-                                <Label htmlFor="project-name">Project Name</Label>
-                                <Input id="project-name" value={name} onChange={e => setName(e.target.value)} />
+                    <ScrollArea className="flex-1 px-6">
+                        <div className="flex flex-col gap-6 pb-6">
+                            {/* Project Details */}
+                            <div className="space-y-4">
+                                <div>
+                                    <Label htmlFor="project-name">Project Name</Label>
+                                    <Input id="project-name" value={name} onChange={e => setName(e.target.value)} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="project-description">Description</Label>
+                                    <Textarea id="project-description" value={description} onChange={e => setDescription(e.target.value)} />
+                                </div>
                             </div>
-                            <div>
-                                <Label htmlFor="project-description">Description</Label>
-                                <Textarea id="project-description" value={description} onChange={e => setDescription(e.target.value)} />
-                            </div>
-                        </div>
-                        <Separator />
+                            <Separator />
 
-                        {/* Members & Baselines Section */}
-                        <div className="space-y-4 flex-grow flex flex-col min-h-0">
+                            {/* Members & Baselines Section */}
                             <Accordion type="multiple" className="w-full" value={accordionValue} onValueChange={setAccordionValue}>
                                 <AccordionItem value="members">
                                     <AccordionTrigger>Members & Permissions</AccordionTrigger>
                                     <AccordionContent>
-                                        <div className="flex-grow border rounded-md overflow-hidden min-h-[200px]">
-                                            <ScrollArea className="h-[200px]">
-                                                <div className="p-2">
-                                                    {/* Pending Invitations List */}
-                                                    {fetchedInvitations && fetchedInvitations.length > 0 && (
-                                                        <div className="mb-4">
-                                                            <h4 className="font-semibold text-sm px-2 mb-2">Pending Invitations</h4>
-                                                            <div className="space-y-1">
-                                                                {fetchedInvitations.map(invitation => (
-                                                                    <div key={invitation.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent/50">
-                                                                        <div className="flex items-center gap-3">
-                                                                            <Avatar className="h-8 w-8">
-                                                                                <AvatarFallback>?</AvatarFallback>
-                                                                            </Avatar>
-                                                                            <span className="text-sm text-muted-foreground">{invitation.email}</span>
-                                                                        </div>
-                                                                        <div className="flex items-center gap-4">
-                                                                            <span className="text-sm capitalize text-muted-foreground">{invitation.role}</span>
-                                                                            <Button variant="ghost" size="icon" onClick={() => handleRemoveInvitation(invitation.id)} disabled={isRemovingInvitation === invitation.id}>
-                                                                                {isRemovingInvitation === invitation.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                                                            </Button>
-                                                                        </div>
+                                        <div className="border rounded-md overflow-hidden">
+                                            <div className="p-2">
+                                                {/* Pending Invitations List */}
+                                                {fetchedInvitations && fetchedInvitations.length > 0 && (
+                                                    <div className="mb-4">
+                                                        <h4 className="font-semibold text-sm px-2 mb-2">Pending Invitations</h4>
+                                                        <div className="space-y-1">
+                                                            {fetchedInvitations.map(invitation => (
+                                                                <div key={invitation.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent/50">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <Avatar className="h-8 w-8">
+                                                                            <AvatarFallback>?</AvatarFallback>
+                                                                        </Avatar>
+                                                                        <span className="text-sm text-muted-foreground">{invitation.email}</span>
                                                                     </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Confirmed Members List */}
-                                                    <Accordion type="multiple" className="w-full">
-                                                        {members.map(member => (
-                                                            <AccordionItem value={member.userId} key={member.userId}>
-                                                                <div className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md">
-                                                                    <AccordionTrigger className="flex-1 py-2 px-2">
-                                                                        <div className="flex items-center gap-3">
-                                                                            <Avatar className="h-8 w-8">
-                                                                                <AvatarImage src={member.photoURL} alt={member.displayName} />
-                                                                                <AvatarFallback>{member.displayName?.charAt(0) || 'U'}</AvatarFallback>
-                                                                            </Avatar>
-                                                                            <span>{member.displayName}</span>
-                                                                        </div>
-                                                                    </AccordionTrigger>
-                                                                    <div className="flex items-center gap-4 pr-4" onClick={(e) => e.stopPropagation()}>
-                                                                        <Select
-                                                                            value={member.role}
-                                                                            onValueChange={(newRole: 'editor' | 'viewer') => handleMemberChange(member.userId, { role: newRole })}
-                                                                            disabled={member.role === 'owner' || project.ownerId !== currentUser?.uid}
-                                                                        >
-                                                                            <SelectTrigger className="w-[120px] h-8">
-                                                                                <SelectValue />
-                                                                            </SelectTrigger>
-                                                                            <SelectContent>
-                                                                                <SelectItem value="owner" disabled>Owner</SelectItem>
-                                                                                <SelectItem value="editor">Editor</SelectItem>
-                                                                                <SelectItem value="viewer">Viewer</SelectItem>
-                                                                            </SelectContent>
-                                                                        </Select>
+                                                                    <div className="flex items-center gap-4">
+                                                                        <span className="text-sm capitalize text-muted-foreground">{invitation.role}</span>
+                                                                        <Button variant="ghost" size="icon" onClick={() => handleRemoveInvitation(invitation.id)} disabled={isRemovingInvitation === invitation.id}>
+                                                                            {isRemovingInvitation === invitation.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                                        </Button>
                                                                     </div>
                                                                 </div>
-                                                                <AccordionContent>
-                                                                    <div className="p-4 bg-muted/50 rounded-md">
-                                                                        <h4 className="font-semibold text-sm mb-2">Column Permissions</h4>
-                                                                        <p className="text-xs text-muted-foreground mb-4">Uncheck columns to HIDE them for this user.</p>
-                                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                                                            {allColumns.filter(c => c.id !== 'wbs' && c.id !== 'name').map(col => (
-                                                                                <div key={col.id} className="flex items-center space-x-2">
-                                                                                    <Checkbox
-                                                                                        id={`col-vis-${member.userId}-${col.id}`}
-                                                                                        checked={!member.permissions?.hiddenColumns?.includes(col.id)}
-                                                                                        onCheckedChange={(checked) => handleColumnVisibilityChange(member.userId, col.id, !!checked)}
-                                                                                        disabled={member.userId === currentUser?.uid}
-                                                                                    />
-                                                                                    <label
-                                                                                        htmlFor={`col-vis-${member.userId}-${col.id}`}
-                                                                                        className="text-sm font-medium leading-none"
-                                                                                    >
-                                                                                        {col.name}
-                                                                                    </label>
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Confirmed Members List */}
+                                                <Accordion type="multiple" className="w-full">
+                                                    {members.map(member => (
+                                                        <AccordionItem value={member.userId} key={member.userId}>
+                                                            <div className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md">
+                                                                <AccordionTrigger className="flex-1 py-2 px-2">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <Avatar className="h-8 w-8">
+                                                                            <AvatarImage src={member.photoURL} alt={member.displayName} />
+                                                                            <AvatarFallback>{member.displayName?.charAt(0) || 'U'}</AvatarFallback>
+                                                                        </Avatar>
+                                                                        <span>{member.displayName}</span>
                                                                     </div>
-                                                                </AccordionContent>
-                                                            </AccordionItem>
-                                                        ))}
-                                                    </Accordion>
-                                                </div>
-                                            </ScrollArea>
+                                                                </AccordionTrigger>
+                                                                <div className="flex items-center gap-4 pr-4" onClick={(e) => e.stopPropagation()}>
+                                                                    <Select
+                                                                        value={member.role}
+                                                                        onValueChange={(newRole: 'editor' | 'viewer') => handleMemberChange(member.userId, { role: newRole })}
+                                                                        disabled={member.role === 'owner' || project.ownerId !== currentUser?.uid}
+                                                                    >
+                                                                        <SelectTrigger className="w-[120px] h-8">
+                                                                            <SelectValue />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="owner" disabled>Owner</SelectItem>
+                                                                            <SelectItem value="editor">Editor</SelectItem>
+                                                                            <SelectItem value="viewer">Viewer</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </div>
+                                                            </div>
+                                                            <AccordionContent>
+                                                                <div className="p-4 bg-muted/50 rounded-md">
+                                                                    <h4 className="font-semibold text-sm mb-2">Column Permissions</h4>
+                                                                    <p className="text-xs text-muted-foreground mb-4">Uncheck columns to HIDE them for this user.</p>
+                                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                                        {allColumns.filter(c => c.id !== 'wbs' && c.id !== 'name').map(col => (
+                                                                            <div key={col.id} className="flex items-center space-x-2">
+                                                                                <Checkbox
+                                                                                    id={`col-vis-${member.userId}-${col.id}`}
+                                                                                    checked={!member.permissions?.hiddenColumns?.includes(col.id)}
+                                                                                    onCheckedChange={(checked) => handleColumnVisibilityChange(member.userId, col.id, !!checked)}
+                                                                                    disabled={member.userId === currentUser?.uid}
+                                                                                />
+                                                                                <label
+                                                                                    htmlFor={`col-vis-${member.userId}-${col.id}`}
+                                                                                    className="text-sm font-medium leading-none"
+                                                                                >
+                                                                                    {col.name}
+                                                                                </label>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </AccordionContent>
+                                                        </AccordionItem>
+                                                    ))}
+                                                </Accordion>
+                                            </div>
                                         </div>
                                         <div className="mt-4 space-y-2">
                                             <h3 className="font-semibold text-sm">Add New Member</h3>
@@ -397,28 +395,26 @@ export function ProjectSettingsDialog({
                                 <AccordionItem value="subprojects">
                                     <AccordionTrigger>Subprojects</AccordionTrigger>
                                     <AccordionContent>
-                                        <div className="flex-grow border rounded-md overflow-hidden min-h-[200px]">
-                                            <ScrollArea className="h-[200px]">
-                                                <div className="p-2 space-y-2">
-                                                    {subprojectIds.map(subId => {
-                                                        const subProj = availableProjects.find(p => p.id === subId);
-                                                        return (
-                                                            <div key={subId} className="flex justify-between items-center p-2 rounded-md hover:bg-muted/50">
-                                                                <div>
-                                                                    <p className="font-medium">{subProj?.name || 'Unknown Project'}</p>
-                                                                    <p className="text-xs text-muted-foreground">{subId}</p>
-                                                                </div>
-                                                                <Button variant="ghost" size="icon" onClick={() => handleRemoveSubproject(subId)}>
-                                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                                </Button>
+                                        <div className="border rounded-md overflow-hidden">
+                                            <div className="p-2 space-y-2">
+                                                {subprojectIds.map(subId => {
+                                                    const subProj = availableProjects.find(p => p.id === subId);
+                                                    return (
+                                                        <div key={subId} className="flex justify-between items-center p-2 rounded-md hover:bg-muted/50">
+                                                            <div>
+                                                                <p className="font-medium">{subProj?.name || 'Unknown Project'}</p>
+                                                                <p className="text-xs text-muted-foreground">{subId}</p>
                                                             </div>
-                                                        );
-                                                    })}
-                                                    {subprojectIds.length === 0 && (
-                                                        <p className="p-4 text-center text-sm text-muted-foreground">No subprojects added.</p>
-                                                    )}
-                                                </div>
-                                            </ScrollArea>
+                                                            <Button variant="ghost" size="icon" onClick={() => handleRemoveSubproject(subId)}>
+                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                            </Button>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {subprojectIds.length === 0 && (
+                                                    <p className="p-4 text-center text-sm text-muted-foreground">No subprojects added.</p>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="mt-4 flex items-center gap-2">
                                             <Select value={selectedSubprojectToAdd} onValueChange={setSelectedSubprojectToAdd}>
@@ -445,25 +441,23 @@ export function ProjectSettingsDialog({
                                 <AccordionItem value="baselines">
                                     <AccordionTrigger>Baselines</AccordionTrigger>
                                     <AccordionContent>
-                                        <div className="flex-grow border rounded-md overflow-hidden min-h-[200px]">
-                                            <ScrollArea className="h-[200px]">
-                                                <div className="p-2 space-y-2">
-                                                    {projectState.baselines.map((b: Baseline) => (
-                                                        <div key={b.id} className="flex justify-between items-center p-2 rounded-md hover:bg-muted/50">
-                                                            <div>
-                                                                <p className="font-medium">{b.name}</p>
-                                                                <p className="text-xs text-muted-foreground">Saved on {format(new Date(b.createdAt), 'PPp')}</p>
-                                                            </div>
-                                                            <Button variant="ghost" size="icon" onClick={() => setBaselineToDelete(b)}>
-                                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                                            </Button>
+                                        <div className="border rounded-md overflow-hidden">
+                                            <div className="p-2 space-y-2">
+                                                {projectState.baselines.map((b: Baseline) => (
+                                                    <div key={b.id} className="flex justify-between items-center p-2 rounded-md hover:bg-muted/50">
+                                                        <div>
+                                                            <p className="font-medium">{b.name}</p>
+                                                            <p className="text-xs text-muted-foreground">Saved on {format(new Date(b.createdAt), 'PPp')}</p>
                                                         </div>
-                                                    ))}
-                                                    {projectState.baselines.length === 0 && (
-                                                        <p className="p-4 text-center text-sm text-muted-foreground">No baselines have been saved.</p>
-                                                    )}
-                                                </div>
-                                            </ScrollArea>
+                                                        <Button variant="ghost" size="icon" onClick={() => setBaselineToDelete(b)}>
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                                {projectState.baselines.length === 0 && (
+                                                    <p className="p-4 text-center text-sm text-muted-foreground">No baselines have been saved.</p>
+                                                )}
+                                            </div>
                                         </div>
                                         <Button className="mt-4" variant="outline" onClick={() => setIsSaveBaselineOpen(true)}>Set Current Schedule as Baseline</Button>
                                     </AccordionContent>
@@ -471,9 +465,9 @@ export function ProjectSettingsDialog({
                                 )}
                             </Accordion>
                         </div>
-                    </div>
+                    </ScrollArea>
 
-                    <DialogFooter>
+                    <DialogFooter className="px-6 py-4 border-t">
                         <Button variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <Button onClick={handleSave} disabled={isSaving}>
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

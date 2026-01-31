@@ -125,44 +125,46 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-[425px] max-h-[90vh] flex flex-col p-0 gap-0">
+                <DialogHeader className="px-6 py-4">
                     <DialogTitle>Insert Project</DialogTitle>
                     <DialogDescription>
                         Select a project to insert into the current project hierarchy.
                     </DialogDescription>
                 </DialogHeader>
-                <ScrollArea className="h-[300px] pr-4">
-                    {isLoading || isCheckingAdmin ? (
-                        <div className="flex items-center justify-center h-full">
-                            <Loader2 className="h-6 w-6 animate-spin" />
-                        </div>
-                    ) : projects.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                            <p>No available projects to insert.</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {projects.map(project => (
-                                <div key={project.id} className="flex items-center justify-between p-2 border rounded hover:bg-muted/50">
-                                    <div className="flex flex-col">
-                                        <span className="font-medium">{project.name}</span>
-                                        <span className="text-xs text-muted-foreground">{project.description || 'No description'}</span>
+                <ScrollArea className="flex-1 px-6">
+                    <div className="pb-6">
+                        {isLoading || isCheckingAdmin ? (
+                            <div className="flex items-center justify-center h-20">
+                                <Loader2 className="h-6 w-6 animate-spin" />
+                            </div>
+                        ) : projects.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-20 text-muted-foreground">
+                                <p>No available projects to insert.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {projects.map(project => (
+                                    <div key={project.id} className="flex items-center justify-between p-2 border rounded hover:bg-muted/50">
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">{project.name}</span>
+                                            <span className="text-xs text-muted-foreground">{project.description || 'No description'}</span>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => handleInsert(project.id)}
+                                            disabled={isSaving}
+                                        >
+                                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                        </Button>
                                     </div>
-                                    <Button
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={() => handleInsert(project.id)}
-                                        disabled={isSaving}
-                                    >
-                                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </ScrollArea>
-                <DialogFooter>
+                <DialogFooter className="px-6 py-4">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
                 </DialogFooter>
             </DialogContent>
