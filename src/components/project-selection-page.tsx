@@ -290,6 +290,8 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                 throw new Error("You do not have permission to delete this project.");
             }
             
+            await deleteDoc(doc(firestore, 'projects', projectToDelete.id));
+
             const subcollections = ['tasks', 'links', 'resources', 'assignments', 'calendars', 'views', 'settings', 'members'];
             for (const sub of subcollections) {
                 const subColQuery = query(collection(firestore, 'projects', projectToDelete.id, sub));
@@ -302,8 +304,6 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                     await deleteBatch.commit();
                 }
             }
-
-            await deleteDoc(doc(firestore, 'projects', projectToDelete.id));
 
             // Remove project ID from all members' user docs
             if (projectToDelete.memberIds && projectToDelete.memberIds.length > 0) {
