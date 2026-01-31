@@ -1840,6 +1840,7 @@ export function useProject(user: User, projectId: string | null) {
             'ADD_RESOURCE', 'REMOVE_RESOURCE', 'REORDER_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
             'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE', 'ADD_BASELINE', 'DELETE_BASELINE',
             'ADD_ASSIGNMENT', 'UPDATE_ASSIGNMENT', 'REMOVE_ASSIGNMENT',
+            'TOGGLE_TASK_COLLAPSE', 'COLLAPSE_ALL', 'EXPAND_ALL',
           ];
     
           const sharedSettingsActions: Action['type'][] = [
@@ -1865,6 +1866,7 @@ export function useProject(user: User, projectId: string | null) {
 
     const optimisticActions: Action['type'][] = [
       'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
+      'TOGGLE_TASK_COLLAPSE',
     ];
     
     const userSettingsActions: Action['type'][] = [
@@ -1901,8 +1903,14 @@ export function useProject(user: User, projectId: string | null) {
         const newState = projectReducer(historyStateRef.current.present, action);
         const batch = writeBatch(firestore);
 
-        if (action.type === 'UPDATE_TASK' || action.type === 'ADD_NOTE_TO_TASK') {
-            const taskId = (action.payload as { id: string }).id;
+        if (action.type === 'UPDATE_TASK' || action.type === 'ADD_NOTE_TO_TASK' || action.type === 'TOGGLE_TASK_COLLAPSE') {
+            let taskId: string;
+            if (action.type === 'UPDATE_TASK') {
+                taskId = action.payload.id;
+            } else {
+                taskId = action.payload.taskId;
+            }
+
             const updatedTask = newState.tasks.find(t => t.id === taskId);
             const targetProjectId = updatedTask?.projectId || projectId;
 
