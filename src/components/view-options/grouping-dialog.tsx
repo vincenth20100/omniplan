@@ -114,7 +114,7 @@ export function GroupingDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>Group By</DialogTitle>
                 </DialogHeader>

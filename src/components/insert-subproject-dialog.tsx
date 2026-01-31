@@ -125,7 +125,7 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-[95vw] max-w-[425px] max-h-[90vh] flex flex-col p-0 gap-0">
+            <DialogContent className="flex flex-col p-0 gap-0 sm:max-w-[425px] sm:max-h-[90vh]">
                 <DialogHeader className="px-6 py-4">
                     <DialogTitle>Insert Project</DialogTitle>
                     <DialogDescription>
