@@ -3,6 +3,7 @@ import type { ColumnSpec } from './types';
 
 export const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })[] = [
     { id: 'wbs', name: 'WBS', defaultWidth: 50, type: 'text' },
+    { id: 'projectSource', name: 'Project Source', defaultWidth: 150, type: 'text' },
     { id: 'schedulingMode', name: 'I', defaultWidth: 30, type: 'text' },
     { id: 'name', name: 'Task Name', defaultWidth: 250, type: 'text' },
     { id: 'effortDriven', name: 'Effort Driven', defaultWidth: 80, type: 'selection' },

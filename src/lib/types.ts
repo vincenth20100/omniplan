@@ -90,6 +90,7 @@ export interface Task {
 
   // Multi-project support
   projectId?: string;
+  projectName?: string; // Computed property for display
 }
 
 export interface Link {
