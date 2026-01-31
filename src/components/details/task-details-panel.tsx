@@ -25,22 +25,22 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
         <div className="flex flex-col h-full bg-card border-t rounded-t-lg overflow-hidden">
             <div className={cn(
                     "flex items-center justify-between border-b shrink-0",
-                    uiDensity === 'large' && 'p-4',
-                    uiDensity === 'medium' && 'p-3',
-                    uiDensity === 'compact' && 'p-2'
+                    (uiDensity === 'large' && !isMobile) && 'p-4',
+                    (uiDensity === 'medium' && !isMobile) && 'p-3',
+                    (uiDensity === 'compact' || isMobile) && 'p-2'
                 )}>
                 <div>
                     <h2 className={cn(
                         "font-semibold",
-                        uiDensity === 'large' && 'text-lg',
-                        uiDensity === 'medium' && 'text-base',
-                        uiDensity === 'compact' && 'text-base'
+                        (uiDensity === 'large' && !isMobile) && 'text-lg',
+                        (uiDensity === 'medium' && !isMobile) && 'text-base',
+                        (uiDensity === 'compact' || isMobile) && 'text-base'
                     )}>{task.name}</h2>
                     <p className={cn(
                         "text-muted-foreground",
-                         uiDensity === 'large' && 'text-sm',
-                         uiDensity === 'medium' && 'text-xs',
-                         uiDensity === 'compact' && 'text-xs'
+                         (uiDensity === 'large' && !isMobile) && 'text-sm',
+                         (uiDensity === 'medium' && !isMobile) && 'text-xs',
+                         (uiDensity === 'compact' || isMobile) && 'text-xs'
                     )}>
                         {format(new Date(task.start), dateFormat)} - {format(new Date(task.finish), dateFormat)} ({task.duration} working days)
                     </p>
@@ -53,9 +53,9 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
              <Tabs defaultValue="links" className="flex-grow flex flex-col overflow-hidden">
                 <div className={cn(
                     "shrink-0 border-b",
-                    uiDensity === 'large' && 'px-4',
-                    uiDensity === 'medium' && 'px-3',
-                    uiDensity === 'compact' && 'px-2'
+                    (uiDensity === 'large' && !isMobile) && 'px-4',
+                    (uiDensity === 'medium' && !isMobile) && 'px-3',
+                    (uiDensity === 'compact' || isMobile) && 'px-2'
                 )}>
                     <TabsList className="bg-transparent p-0">
                         <TabsTrigger value="links" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none -mb-px">Links</TabsTrigger>
@@ -69,9 +69,9 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
                     <TabsContent value="links" className="m-0 h-full">
                         <div className={cn(
                             "h-full",
-                            uiDensity === 'large' && 'p-4',
-                            uiDensity === 'medium' && 'p-3',
-                            uiDensity === 'compact' && 'p-2'
+                            (uiDensity === 'large' && !isMobile) && 'p-4',
+                            (uiDensity === 'medium' && !isMobile) && 'p-3',
+                            (uiDensity === 'compact' || isMobile) && 'p-2'
                         )}>
                            {isMobile ? (
                              <div className="h-full flex flex-col gap-4 overflow-y-auto">
@@ -107,9 +107,9 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
                     <TabsContent value="resources" className="m-0 h-full">
                         <div className={cn(
                             "h-full",
-                            uiDensity === 'large' && 'p-4',
-                            uiDensity === 'medium' && 'p-3',
-                            uiDensity === 'compact' && 'p-2'
+                            (uiDensity === 'large' && !isMobile) && 'p-4',
+                            (uiDensity === 'medium' && !isMobile) && 'p-3',
+                            (uiDensity === 'compact' || isMobile) && 'p-2'
                         )}>
                             <ResourceSection 
                                 task={task} 
@@ -122,9 +122,9 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
                     <TabsContent value="dates" className="m-0 h-full">
                          <div className={cn(
                             "h-full",
-                            uiDensity === 'large' && 'p-4',
-                            uiDensity === 'medium' && 'p-3',
-                            uiDensity === 'compact' && 'p-2'
+                            (uiDensity === 'large' && !isMobile) && 'p-4',
+                            (uiDensity === 'medium' && !isMobile) && 'p-3',
+                            (uiDensity === 'compact' || isMobile) && 'p-2'
                         )}>
                             <InfoSection task={task} dispatch={dispatch} defaultCalendar={defaultCalendar} dateFormat={dateFormat} />
                         </div>
@@ -132,9 +132,9 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
                     <TabsContent value="notes" className="m-0 h-full">
                          <div className={cn(
                             "h-full",
-                            uiDensity === 'large' && 'p-4',
-                            uiDensity === 'medium' && 'p-3',
-                            uiDensity === 'compact' && 'p-2'
+                            (uiDensity === 'large' && !isMobile) && 'p-4',
+                            (uiDensity === 'medium' && !isMobile) && 'p-3',
+                            (uiDensity === 'compact' || isMobile) && 'p-2'
                         )}>
                             <NotesSection task={task} dispatch={dispatch} />
                         </div>

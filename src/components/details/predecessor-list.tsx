@@ -91,8 +91,9 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
 
     return (
         <ScrollArea className="border rounded-md min-h-0 w-full">
-            <Table style={{ tableLayout: 'fixed' }} className="w-auto">
-                <colgroup>
+            <div className="min-w-[540px]">
+                <Table style={{ tableLayout: 'fixed' }} className="w-auto">
+                    <colgroup>
                     <col style={{ width: `${colWidths.id}px` }} />
                     <col style={{ width: `${colWidths.task}px` }} />
                     <col style={{ width: `${colWidths.type}px` }} />
@@ -224,7 +225,8 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
                         uiDensity={uiDensity}
                     />
                 </TableBody>
-            </Table>
+                </Table>
+            </div>
         </ScrollArea>
     );
 }
