@@ -178,7 +178,7 @@ export function FilterDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl">
+            <DialogContent className="sm:max-w-3xl flex flex-col h-full sm:h-auto">
                 <DialogHeader>
                     <DialogTitle>Filter Tasks</DialogTitle>
                 </DialogHeader>
@@ -195,7 +195,7 @@ export function FilterDialog({
 
                 <Separator />
                 
-                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
+                <div className="space-y-2 flex-1 overflow-y-auto pr-2 min-h-0">
                     <p className="text-sm">Show items with matching conditions:</p>
                     {currentFilters.map((filter) => {
                         const column = columns.find(c => c.id === filter.columnId);
