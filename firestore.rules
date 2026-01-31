@@ -77,7 +77,7 @@ service cloud.firestore {
         allow create: if (getAfter(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid && request.auth.uid == userId) || isProjectOwner(projectId) || isGlobalAdmin();
         // An editor can change roles, but not to 'owner'. An owner can change anyone, but we restrict them from promoting others to 'owner' to prevent mistakes.
         allow update: if isProjectEditor(projectId) && request.resource.data.role != 'owner';
-        allow delete: if (isProjectOwner(projectId) && request.auth.uid != userId) || isGlobalAdmin();
+        allow delete: if isProjectOwner(projectId) || isGlobalAdmin();
       }
 
       // Tasks
