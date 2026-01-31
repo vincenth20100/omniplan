@@ -99,7 +99,7 @@ export function GroupingDialog({
     };
 
     const renderFieldList = (fields: ColumnSpec[], selected: string | null, onSelect: (id: string) => void) => (
-        <div className="border rounded-md h-40 sm:h-64 overflow-y-auto">
+        <div className="border rounded-md flex-1 min-h-[10rem] sm:h-64 sm:flex-none overflow-y-auto">
             {fields.map(field => (
                 <div 
                     key={field.id}
@@ -114,7 +114,7 @@ export function GroupingDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl">
+            <DialogContent className="sm:max-w-3xl flex flex-col h-full sm:h-auto">
                 <DialogHeader>
                     <DialogTitle>Group By</DialogTitle>
                 </DialogHeader>
@@ -131,9 +131,9 @@ export function GroupingDialog({
                 
                 <Separator />
                 
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-4 items-center overflow-y-auto max-h-[60vh] p-1">
+                <div className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr_auto] gap-4 items-stretch sm:items-center overflow-hidden flex-1 p-1">
                     {/* Available Fields */}
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 flex-1 min-h-0">
                         <h3 className="font-semibold text-sm">Available fields:</h3>
                         {renderFieldList(availableFields, selectedAvailable, setSelectedAvailable)}
                     </div>
@@ -149,7 +149,7 @@ export function GroupingDialog({
                     </div>
 
                     {/* Group By Fields */}
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 flex-1 min-h-0">
                         <div className="flex justify-between items-center">
                             <h3 className="font-semibold text-sm">Group by:</h3>
                             <Button variant="link" size="sm" onClick={handleClear} className="h-auto p-0">Clear All</Button>
