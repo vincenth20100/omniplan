@@ -287,7 +287,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const canOutdent = state.selectedTaskIds.some(id => !!state.tasks.find(t => t.id === id)?.parentId);
 
   const headerLeftActions = (
-    <div className='flex items-center gap-2'>
+    <div className='flex items-center gap-2 overflow-x-auto min-w-0 [&::-webkit-scrollbar]:hidden'>
         <Button variant="ghost" size="icon" onClick={() => router.push('/')} title="Back to Projects">
             <ArrowLeft />
         </Button>
