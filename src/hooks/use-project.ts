@@ -112,7 +112,7 @@ type Action =
   | { type: 'REORDER_COLUMNS'; payload: { sourceId: string, targetId: string } }
   | { type: 'INDENT_TASK' }
   | { type: 'OUTDENT_TASK' }
-  | { type: 'ADD_TASK' }
+  | { type: 'ADD_TASK'; payload?: { id: string } }
   | { type: 'REMOVE_TASK' }
   | { type: 'REMOVE_LINK'; payload: { linkId: string } }
   | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string; position: 'top' | 'bottom' } }
@@ -1216,7 +1216,7 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         };
     }
     case 'ADD_TASK': {
-        const newId = `task-${Date.now()}`;
+        const newId = action.payload?.id || `task-${Date.now()}`;
         const { tasks, focusCell } = state;
         const lastSelectedId = focusCell?.taskId || (state.selectedTaskIds.length > 0 ? state.selectedTaskIds[state.selectedTaskIds.length - 1] : null);
 
@@ -1867,7 +1867,7 @@ export function useProject(user: User, projectId: string | null) {
 
     const optimisticActions: Action['type'][] = [
       'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
-      'TOGGLE_TASK_COLLAPSE',
+      'TOGGLE_TASK_COLLAPSE', 'ADD_TASK',
     ];
     
     const userSettingsActions: Action['type'][] = [
@@ -1903,6 +1903,17 @@ export function useProject(user: User, projectId: string | null) {
         
         const newState = projectReducer(historyStateRef.current.present, action);
         const batch = writeBatch(firestore);
+
+        if (action.type === 'ADD_TASK') {
+            const taskId = action.payload?.id;
+            if (taskId) {
+                const newTask = newState.tasks.find(t => t.id === taskId);
+                if (newTask) {
+                    const targetProjectId = newTask.projectId || projectId;
+                    batch.set(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), toFirestoreTask(newTask));
+                }
+            }
+        }
 
         if (action.type === 'UPDATE_TASK' || action.type === 'ADD_NOTE_TO_TASK' || action.type === 'TOGGLE_TASK_COLLAPSE') {
             let taskId: string;
