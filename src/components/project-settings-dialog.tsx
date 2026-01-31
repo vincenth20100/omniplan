@@ -259,7 +259,7 @@ export function ProjectSettingsDialog({
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="w-full max-w-4xl h-full sm:max-h-[90vh] flex flex-col p-0 gap-0">
+                <DialogContent className="flex flex-col p-0 gap-0 h-full sm:max-w-4xl sm:max-h-[90vh]">
                     <DialogHeader className="px-6 py-4">
                         <DialogTitle>Project Settings</DialogTitle>
                     </DialogHeader>

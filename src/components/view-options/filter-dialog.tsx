@@ -24,7 +24,7 @@ type Operator =
   | 'gt' | 'lt' | 'gte' | 'lte'
   | 'is_empty' | 'is_not_empty';
 
-const OPERATORS: { [key in ColumnSpec['type'] | 'default' | 'date']: { value: Operator; label: string }[] } = {
+const OPERATORS: { [key in NonNullable<ColumnSpec['type']> | 'default' | 'date']: { value: Operator; label: string }[] } = {
   text: [
     { value: 'none', label: 'None' },
     { value: 'contains', label: 'contains' },
@@ -178,7 +178,7 @@ export function FilterDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>Filter Tasks</DialogTitle>
                 </DialogHeader>
