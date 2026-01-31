@@ -99,7 +99,7 @@ export function GroupingDialog({
     };
 
     const renderFieldList = (fields: ColumnSpec[], selected: string | null, onSelect: (id: string) => void) => (
-        <div className="border rounded-md h-64 overflow-y-auto">
+        <div className="border rounded-md h-40 sm:h-64 overflow-y-auto">
             {fields.map(field => (
                 <div 
                     key={field.id}
@@ -131,7 +131,7 @@ export function GroupingDialog({
                 
                 <Separator />
                 
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-4 items-center">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-4 items-center overflow-y-auto max-h-[60vh] p-1">
                     {/* Available Fields */}
                     <div className="flex flex-col gap-2">
                         <h3 className="font-semibold text-sm">Available fields:</h3>

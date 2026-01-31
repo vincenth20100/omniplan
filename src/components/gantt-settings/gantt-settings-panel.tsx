@@ -63,7 +63,7 @@ export function GanttSettingsPanel({
           </SheetDescription>
            {!isEditor && <p className="mt-2 text-destructive font-semibold">You have view-only permissions. Your changes will not be saved.</p>}
         </SheetHeader>
-        <ScrollArea className="flex-grow pr-4 -mr-6">
+        <ScrollArea className="flex-grow">
           <div className="grid gap-6 py-4">
              {/* General Appearance Section */}
             <div>
