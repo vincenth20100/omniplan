@@ -520,7 +520,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
       {isLoaded && (
         <>
           <Sheet open={isDetailsSheetOpen} onOpenChange={setIsDetailsSheetOpen}>
-              <SheetContent side="bottom" className="h-[80vh] p-0">
+              <SheetContent side="bottom" className="h-[80vh] p-0 flex flex-col">
                 {selectedTask && (
                   <>
                     <SheetTitle className="sr-only">Task Details: {selectedTask.name}</SheetTitle>

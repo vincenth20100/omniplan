@@ -195,7 +195,7 @@ export function FilterDialog({
 
                 <Separator />
                 
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
                     <p className="text-sm">Show items with matching conditions:</p>
                     {currentFilters.map((filter) => {
                         const column = columns.find(c => c.id === filter.columnId);
