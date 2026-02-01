@@ -262,7 +262,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
     return data;
 }
 
-function useExternalData(projectId: string | null, firestore: any, localLinks: Link[] = []) {
+function useExternalData(projectId: string | null, firestore: any, localLinks: Link[] | null) {
     const [externalLinks, setExternalLinks] = useState<Link[]>([]);
     const [externalTasks, setExternalTasks] = useState<Task[]>([]);
 
@@ -313,13 +313,13 @@ function useExternalData(projectId: string | null, firestore: any, localLinks: L
     }, [projectId, firestore]);
 
     useEffect(() => {
-        if ((externalLinks.length === 0 && localLinks.length === 0) || !firestore) {
+        if ((externalLinks.length === 0 && (!localLinks || localLinks.length === 0)) || !firestore) {
             setExternalTasks([]);
             return;
         }
 
         const tasksToLoad = new Set<string>(); // "projectId:taskId"
-        const linksToConsider = [...externalLinks, ...localLinks];
+        const linksToConsider = [...externalLinks, ...(localLinks || [])];
 
         linksToConsider.forEach(l => {
              if (l.sourceProjectId && l.sourceProjectId !== projectId) {
@@ -1981,7 +1981,7 @@ export function useProject(user: User, projectId: string | null) {
   const linksCollection = useCollection<Link>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId, member]));
 
   const subprojectsData = useSubprojectData(projectData?.subprojectIds, firestore);
-  const externalData = useExternalData(projectId, firestore, linksCollection.data || []);
+  const externalData = useExternalData(projectId, firestore, linksCollection.data);
   
   // Effect to migrate legacy projects by creating member documents if they don't exist
   useEffect(() => {
