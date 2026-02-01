@@ -57,8 +57,7 @@ export function KanbanView({ projectState, dispatch }: { projectState: ProjectSt
                     <ResizablePanel defaultSize={35} minSize={20}>
                       <TaskDetailsPanel 
                         task={selectedTask} 
-                        links={links} 
-                        tasks={tasks}
+                        projectState={projectState}
                         dispatch={dispatch}
                         onClose={() => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: null } })}
                         uiDensity={uiDensity}
