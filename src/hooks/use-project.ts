@@ -265,6 +265,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
 function useExternalData(projectId: string | null, firestore: any, localLinks: Link[] | null) {
     const [externalLinks, setExternalLinks] = useState<Link[]>([]);
     const [externalTasks, setExternalTasks] = useState<Task[]>([]);
+    const warnedRef = useRef(false);
 
     useEffect(() => {
         if (!projectId || !firestore) {
@@ -291,20 +292,29 @@ function useExternalData(projectId: string | null, firestore: any, localLinks: L
             setExternalLinks(uniqueLinks);
         };
 
+        const handleError = (e: any) => {
+            if (warnedRef.current) return;
+
+            if (e.code === 'permission-denied') {
+                 console.log("External links query skipped due to permissions (expected for cross-project links without access).");
+                 warnedRef.current = true;
+            } else if (e.code === 'failed-precondition') {
+                 console.warn("External links query failed (likely missing index).", e.message);
+                 warnedRef.current = true;
+            } else {
+                 console.warn("External links query failed:", e);
+            }
+        };
+
         const unsub1 = onSnapshot(q1, (snap) => {
             links1 = snap.docs.map(d => ({ ...d.data(), id: d.id } as Link));
             updateLinks();
-        }, (e) => {
-             // Silently fail if index is missing (common in dev), user just won't see external links
-             console.warn("External links query failed (likely missing index):", e.message);
-        });
+        }, handleError);
 
         const unsub2 = onSnapshot(q2, (snap) => {
             links2 = snap.docs.map(d => ({ ...d.data(), id: d.id } as Link));
             updateLinks();
-        }, (e) => {
-             console.warn("External links query failed (likely missing index):", e.message);
-        });
+        }, handleError);
 
         return () => {
             unsub1();
@@ -624,10 +634,15 @@ function isCycle(sourceId: string, targetId: string, links: Link[], tasks: Task[
 
 export function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null): Task[] => {
-      const defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
+      let defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
       if (!defaultCalendar) {
-          console.warn("No default calendar found for scheduling.");
-          return tasks;
+          // Create a temporary fallback calendar if none exists to ensure scheduling still runs
+          defaultCalendar = {
+              id: 'fallback-default',
+              name: 'Standard (Fallback)',
+              workingDays: [1, 2, 3, 4, 5],
+              exceptions: []
+          };
       }
       const hierarchicalTasks = updateHierarchyAndSort(tasks);
       return calculateSchedule(hierarchicalTasks, links, columns, defaultCalendar);
@@ -2476,6 +2491,8 @@ export function useProject(user: User, projectId: string | null) {
     collections.views.data, collections.sharedSettings.data, collections.userPreferences.data
   ]);
 
+  const failedLinkRepairs = useRef<Set<string>>(new Set());
+
   // Effect to repair links with missing project IDs
   useEffect(() => {
       if (!isLoaded || !projectId || !isEditorOrOwner) return;
@@ -2486,13 +2503,15 @@ export function useProject(user: User, projectId: string | null) {
       const linksToRepair = currentLinks.filter(l =>
           (!l.sourceProjectId || !l.targetProjectId) &&
           currentTasks.some(t => t.id === l.source) &&
-          currentTasks.some(t => t.id === l.target)
+          currentTasks.some(t => t.id === l.target) &&
+          !failedLinkRepairs.current.has(l.id)
       );
 
       if (linksToRepair.length === 0) return;
 
       const batch = writeBatch(firestore);
       let updateCount = 0;
+      const linksBeingRepaired: string[] = [];
 
       linksToRepair.forEach(link => {
           const sourceTask = currentTasks.find(t => t.id === link.source);
@@ -2515,6 +2534,7 @@ export function useProject(user: User, projectId: string | null) {
 
               if (!found) {
                    console.warn(`Could not find home project for link ${link.id} during repair. Skipping.`);
+                   failedLinkRepairs.current.add(link.id);
                    return;
               }
 
@@ -2526,12 +2546,17 @@ export function useProject(user: User, projectId: string | null) {
                   targetProjectId: targetTask.projectId
               });
               updateCount++;
+              linksBeingRepaired.push(link.id);
           }
       });
 
       if (updateCount > 0) {
           console.log(`Repairing ${updateCount} links with missing project IDs...`);
-          batch.commit().catch(e => console.error("Failed to repair links:", e.message || e));
+          batch.commit().catch(e => {
+              console.error("Failed to repair links:", e);
+              // Add failed links to ignore list to prevent infinite loop
+              linksBeingRepaired.forEach(id => failedLinkRepairs.current.add(id));
+          });
       }
   }, [isLoaded, projectId, isEditorOrOwner, historyState.present.links, historyState.present.tasks, firestore, collections.links.data, subprojectsData]);
 
