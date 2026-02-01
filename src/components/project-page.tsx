@@ -520,7 +520,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
       {isLoaded && (
         <>
           <Sheet open={isDetailsSheetOpen} onOpenChange={setIsDetailsSheetOpen}>
-              <SheetContent side="right" className="p-0 flex flex-col w-full sm:max-w-lg">
+              <SheetContent side="right" className="p-0 flex flex-col w-fit min-w-[320px] max-w-[95vw] sm:w-auto sm:max-w-lg">
                 {selectedTask && (
                   <>
                     <SheetTitle className="sr-only">Task Details: {selectedTask.name}</SheetTitle>
@@ -532,6 +532,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                         uiDensity={state.uiDensity}
                         defaultCalendar={defaultCalendar}
                         dateFormat={dateFormat}
+                        layoutMode="vertical"
                     />
                   </>
                 )}

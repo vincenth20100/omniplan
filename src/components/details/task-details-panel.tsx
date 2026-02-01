@@ -14,7 +14,7 @@ import { ResourceSection } from './resource-section';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Separator } from '@/components/ui/separator';
 
-export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDensity, defaultCalendar, dateFormat }: { task: Task, projectState: ProjectState, dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null, dateFormat: string }) {
+export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDensity, defaultCalendar, dateFormat, layoutMode = 'responsive' }: { task: Task, projectState: ProjectState, dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null, dateFormat: string, layoutMode?: 'responsive' | 'vertical' }) {
     const isMobile = useIsMobile();
     const { links, tasks, resources, assignments } = projectState;
     const predecessors = links.filter(l => l.target === task.id);
@@ -68,12 +68,12 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
                 <div className="flex-grow overflow-auto">
                     <TabsContent value="links" className="m-0 h-full">
                         <div className={cn(
-                            isMobile ? "h-auto" : "h-full",
+                            (isMobile || layoutMode === 'vertical') ? "h-auto" : "h-full",
                             (uiDensity === 'large' && !isMobile) && 'p-4',
                             (uiDensity === 'medium' && !isMobile) && 'p-3',
                             (uiDensity === 'compact' || isMobile) && 'p-2'
                         )}>
-                           {isMobile ? (
+                           {(isMobile || layoutMode === 'vertical') ? (
                              <div className="flex flex-col gap-6 pb-4">
                                 <div className="flex flex-col pr-1">
                                     <h3 className="text-sm font-semibold mb-2 shrink-0">Predecessors</h3>

@@ -255,7 +255,7 @@ export function FilterDialog({
             <DialogContent className={cn(
                 "flex flex-col overflow-hidden",
                 isMobile
-                    ? "top-[12%] translate-y-0 max-h-[85vh] w-[95%] max-w-lg"
+                    ? "top-[3.5rem] translate-y-0 max-h-[85vh] w-[95%] max-w-lg"
                     : "sm:max-w-3xl max-h-[90vh]"
             )}>
                 <DialogHeader>
