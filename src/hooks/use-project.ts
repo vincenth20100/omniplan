@@ -7,7 +7,7 @@ import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
 import { parseDuration, formatDuration } from '@/lib/duration';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, writeBatch, query, orderBy, setDoc, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, doc, writeBatch, query, orderBy, setDoc, onSnapshot, arrayUnion, arrayRemove, collectionGroup, where } from 'firebase/firestore';
 import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { User } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
@@ -257,6 +257,118 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
     }, [JSON.stringify(subprojectIds), firestore]);
 
     return data;
+}
+
+function useExternalData(projectId: string | null, firestore: any) {
+    const [externalLinks, setExternalLinks] = useState<Link[]>([]);
+    const [externalTasks, setExternalTasks] = useState<Task[]>([]);
+
+    useEffect(() => {
+        if (!projectId || !firestore) {
+            setExternalLinks([]);
+            return;
+        }
+
+        const q1 = query(collectionGroup(firestore, 'links'), where('targetProjectId', '==', projectId));
+        const q2 = query(collectionGroup(firestore, 'links'), where('sourceProjectId', '==', projectId));
+
+        let links1: Link[] = [];
+        let links2: Link[] = [];
+
+        const updateLinks = () => {
+            const allLinks = [...links1, ...links2];
+            // Filter out links that are purely internal to this project
+            const filtered = allLinks.filter(l =>
+                (l.sourceProjectId && l.sourceProjectId !== projectId) ||
+                (l.targetProjectId && l.targetProjectId !== projectId)
+            );
+
+            // Deduplicate based on ID
+            const uniqueLinks = Array.from(new Map(filtered.map(l => [l.id, l])).values());
+            setExternalLinks(uniqueLinks);
+        };
+
+        const unsub1 = onSnapshot(q1, (snap) => {
+            links1 = snap.docs.map(d => ({ ...d.data(), id: d.id } as Link));
+            updateLinks();
+        }, (e) => {
+             // Silently fail if index is missing (common in dev), user just won't see external links
+             console.warn("External links query failed (likely missing index):", e.message);
+        });
+
+        const unsub2 = onSnapshot(q2, (snap) => {
+            links2 = snap.docs.map(d => ({ ...d.data(), id: d.id } as Link));
+            updateLinks();
+        }, (e) => {
+             console.warn("External links query failed (likely missing index):", e.message);
+        });
+
+        return () => {
+            unsub1();
+            unsub2();
+        };
+    }, [projectId, firestore]);
+
+    useEffect(() => {
+        if (externalLinks.length === 0 || !firestore) {
+            setExternalTasks([]);
+            return;
+        }
+
+        const tasksToLoad = new Set<string>(); // "projectId:taskId"
+        externalLinks.forEach(l => {
+             if (l.sourceProjectId && l.sourceProjectId !== projectId) {
+                 tasksToLoad.add(`${l.sourceProjectId}:${l.source}`);
+             }
+             if (l.targetProjectId && l.targetProjectId !== projectId) {
+                 tasksToLoad.add(`${l.targetProjectId}:${l.target}`);
+             }
+        });
+
+        if (tasksToLoad.size === 0) {
+            setExternalTasks([]);
+            return;
+        }
+
+        const unsubs: (() => void)[] = [];
+        const loadedTasks: Record<string, Task> = {};
+
+        tasksToLoad.forEach(ref => {
+            const [pid, tid] = ref.split(':');
+            const unsub = onSnapshot(doc(firestore, 'projects', pid, 'tasks', tid), (snap) => {
+                if (snap.exists()) {
+                     const data = snap.data();
+                     const safeToDate = (value: any): Date | null => {
+                        if (!value) return null;
+                        if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
+                            return value.toDate();
+                        }
+                        const d = new Date(value);
+                        return !isNaN(d.getTime()) ? d : null;
+                    };
+
+                     const task = {
+                         ...data,
+                         id: snap.id,
+                         projectId: pid,
+                         start: safeToDate(data.start)!,
+                         finish: safeToDate(data.finish)!,
+                         constraintDate: safeToDate(data.constraintDate),
+                         deadline: safeToDate(data.deadline),
+                         // Mark as external/ghost if needed, though projectId check is enough usually
+                     } as Task;
+
+                     loadedTasks[tid] = task;
+                     setExternalTasks(Object.values(loadedTasks));
+                }
+            }, (e) => console.warn(`Failed to load external task ${tid}`, e));
+            unsubs.push(unsub);
+        });
+
+        return () => unsubs.forEach(u => u());
+    }, [externalLinks, firestore, projectId]);
+
+    return { links: externalLinks, tasks: externalTasks };
 }
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -1329,8 +1441,10 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         const newLinks: Link[] = [];
 
         for (let i = 0; i < selectedVisibleTasks.length - 1; i++) {
-            const source = selectedVisibleTasks[i].id;
-            const target = selectedVisibleTasks[i + 1].id;
+            const sourceTask = selectedVisibleTasks[i];
+            const targetTask = selectedVisibleTasks[i + 1];
+            const source = sourceTask.id;
+            const target = targetTask.id;
             const linkKey = `${source}-${target}`;
 
             if (!existingLinkPairs.has(linkKey)) {
@@ -1340,6 +1454,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
                     target: target,
                     type: 'FS',
                     lag: 0,
+                    sourceProjectId: sourceTask.projectId,
+                    targetProjectId: targetTask.projectId,
                 });
                 existingLinkPairs.add(linkKey);
             }
@@ -1382,12 +1498,17 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             };
         }
 
+        const sourceTask = state.tasks.find(t => t.id === source);
+        const targetTask = state.tasks.find(t => t.id === target);
+
         const newLink: Link = {
             id: crypto.randomUUID(),
             source: action.payload.source,
             target: action.payload.target,
             type: action.payload.type,
             lag: action.payload.lag,
+            sourceProjectId: sourceTask?.projectId,
+            targetProjectId: targetTask?.projectId,
         };
         const newLinks = [...state.links, newLink];
         const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
@@ -1468,12 +1589,20 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             const relatedTaskId = wbsToIdMap.get(wbs);
 
             if (relatedTaskId && relatedTaskId !== taskId) {
+                const source = field === 'predecessors' ? relatedTaskId : taskId;
+                const target = field === 'predecessors' ? taskId : relatedTaskId;
+
+                const sourceTask = state.tasks.find(t => t.id === source);
+                const targetTask = state.tasks.find(t => t.id === target);
+
                 return {
                     id: crypto.randomUUID(),
-                    source: field === 'predecessors' ? relatedTaskId : taskId,
-                    target: field === 'predecessors' ? taskId : relatedTaskId,
+                    source: source,
+                    target: target,
                     type,
                     lag,
+                    sourceProjectId: sourceTask?.projectId,
+                    targetProjectId: targetTask?.projectId,
                 };
             }
             return null;
@@ -1794,6 +1923,7 @@ export function useProject(user: User, projectId: string | null) {
   const { data: projectData } = useDoc<Project>(projectDocRef);
 
   const subprojectsData = useSubprojectData(projectData?.subprojectIds, firestore);
+  const externalData = useExternalData(projectId, firestore);
   
   // Effect to migrate legacy projects by creating member documents if they don't exist
   useEffect(() => {
@@ -2191,8 +2321,17 @@ export function useProject(user: User, projectId: string | null) {
         subprojectLinks.push(...sub.links);
     });
 
-    const allTasks = [...mainTasks, ...subprojectTasks];
-    const allLinks = [...(collections.links.data || []), ...subprojectLinks];
+    // Process external data
+    // We append external tasks. They are not part of hierarchy unless linked,
+    // but the scheduler needs them. We should probably not show them in the grid
+    // if they have no parent and are not part of this project,
+    // but `getVisibleTasks` defaults to showing root tasks.
+    // For now, they will appear at the bottom or top of the grid.
+    const externalTasksFiltered = externalData.tasks.filter(t => !subprojectTasks.some(st => st.id === t.id) && !mainTasks.some(mt => mt.id === t.id));
+    const externalLinksFiltered = externalData.links.filter(l => !subprojectLinks.some(sl => sl.id === l.id) && !(collections.links.data || []).some(ml => ml.id === l.id));
+
+    const allTasks = [...mainTasks, ...subprojectTasks, ...externalTasksFiltered];
+    const allLinks = [...(collections.links.data || []), ...subprojectLinks, ...externalLinksFiltered];
 
     internalDispatch({
         type: 'SET_PROJECT_DATA',
@@ -2230,6 +2369,7 @@ export function useProject(user: User, projectId: string | null) {
     projectId, isMemberLoading, isCheckingAdmin, member,
     collections.tasks.data, collections.tasks.isLoading,
     subprojectsData.subprojects,
+    externalData.tasks, externalData.links,
     collections.links.data, collections.links.isLoading,
     collections.resources.data, collections.resources.isLoading,
     collections.assignments.data, collections.assignments.isLoading,
@@ -2269,6 +2409,46 @@ export function useProject(user: User, projectId: string | null) {
     member, 
     collections.views.data, collections.sharedSettings.data, collections.userPreferences.data
   ]);
+
+  // Effect to repair links with missing project IDs
+  useEffect(() => {
+      if (!isLoaded || !projectId || !isEditorOrOwner) return;
+
+      const currentLinks = historyState.present.links;
+      const currentTasks = historyState.present.tasks;
+
+      const linksToRepair = currentLinks.filter(l =>
+          (!l.sourceProjectId || !l.targetProjectId) &&
+          currentTasks.some(t => t.id === l.source) &&
+          currentTasks.some(t => t.id === l.target)
+      );
+
+      if (linksToRepair.length === 0) return;
+
+      const batch = writeBatch(firestore);
+      let updateCount = 0;
+
+      linksToRepair.forEach(link => {
+          const sourceTask = currentTasks.find(t => t.id === link.source);
+          const targetTask = currentTasks.find(t => t.id === link.target);
+
+          if (sourceTask && targetTask) {
+              const linkRef = doc(firestore, 'projects', projectId, 'links', link.id);
+              // Only update if the link actually belongs to this project (it should, based on how loaded)
+              // But safe to just try update
+              batch.update(linkRef, {
+                  sourceProjectId: sourceTask.projectId,
+                  targetProjectId: targetTask.projectId
+              });
+              updateCount++;
+          }
+      });
+
+      if (updateCount > 0) {
+          console.log(`Repairing ${updateCount} links with missing project IDs...`);
+          batch.commit().catch(e => console.error("Failed to repair links:", e));
+      }
+  }, [isLoaded, projectId, isEditorOrOwner, historyState.present.links, historyState.present.tasks, firestore]);
 
 
   useEffect(() => {
