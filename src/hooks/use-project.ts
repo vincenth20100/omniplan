@@ -2499,7 +2499,26 @@ export function useProject(user: User, projectId: string | null) {
           const targetTask = currentTasks.find(t => t.id === link.target);
 
           if (sourceTask && targetTask) {
-              const linkRef = doc(firestore, 'projects', projectId, 'links', link.id);
+              let linkProjectId = projectId;
+              let found = false;
+
+              if (collections.links.data?.some(l => l.id === link.id)) {
+                  linkProjectId = projectId;
+                  found = true;
+              } else {
+                  const sub = subprojectsData.subprojects.find(s => s.links.some(l => l.id === link.id));
+                  if (sub) {
+                      linkProjectId = sub.projectId;
+                      found = true;
+                  }
+              }
+
+              if (!found) {
+                   console.warn(`Could not find home project for link ${link.id} during repair. Skipping.`);
+                   return;
+              }
+
+              const linkRef = doc(firestore, 'projects', linkProjectId, 'links', link.id);
               // Only update if the link actually belongs to this project (it should, based on how loaded)
               // But safe to just try update
               batch.update(linkRef, {
@@ -2512,9 +2531,9 @@ export function useProject(user: User, projectId: string | null) {
 
       if (updateCount > 0) {
           console.log(`Repairing ${updateCount} links with missing project IDs...`);
-          batch.commit().catch(e => console.error("Failed to repair links:", e));
+          batch.commit().catch(e => console.error("Failed to repair links:", e.message || e));
       }
-  }, [isLoaded, projectId, isEditorOrOwner, historyState.present.links, historyState.present.tasks, firestore]);
+  }, [isLoaded, projectId, isEditorOrOwner, historyState.present.links, historyState.present.tasks, firestore, collections.links.data, subprojectsData]);
 
 
   useEffect(() => {
