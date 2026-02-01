@@ -455,7 +455,7 @@ function isCycle(sourceId: string, targetId: string, links: Link[], tasks: Task[
     return false;
 }
 
-function projectReducer(state: ProjectState, action: Action): ProjectState {
+export function projectReducer(state: ProjectState, action: Action): ProjectState {
   const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null): Task[] => {
       const defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
       if (!defaultCalendar) {
@@ -516,7 +516,13 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
         const newSharedSettings = sharedSettings ? { ...defaultAppSettings, ...sharedSettings } : defaultAppSettings;
         const currentView = newViews.find(v => v.id === finalCurrentViewId) || newViews[0];
 
-        let finalVisibleColumns = currentView.visibleColumns || initialVisibleColumns;
+        // Prefer sharedSettings (app_settings) as it represents the live shared state.
+        let finalVisibleColumns = newSharedSettings.visibleColumns && newSharedSettings.visibleColumns.length > 0
+            ? newSharedSettings.visibleColumns
+            : (currentView.visibleColumns || initialVisibleColumns);
+
+        let finalGrouping = newSharedSettings.grouping || currentView.grouping || [];
+        let finalFilters = newSharedSettings.filters || currentView.filters || [];
 
         if (member?.permissions?.hiddenColumns) {
             const hidden = member.permissions.hiddenColumns;
@@ -545,9 +551,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             ...state,
             views: newViews,
             currentViewId: currentView.id,
-            grouping: currentView.grouping || [],
+            grouping: finalGrouping,
             visibleColumns: finalVisibleColumns,
-            filters: currentView.filters || [],
+            filters: finalFilters,
         };
         
         return {
@@ -559,9 +565,9 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             stylePresets: loadedStylePresets,
             activeStylePresetId: finalActiveStylePresetId,
             currentViewId: currentView.id,
-            grouping: currentView.grouping || [],
+            grouping: finalGrouping,
             visibleColumns: finalVisibleColumns,
-            filters: currentView.filters || [],
+            filters: finalFilters,
             isDirty: checkDirty(tempStateForDirtyCheck),
         };
     }
@@ -1250,6 +1256,14 @@ function projectReducer(state: ProjectState, action: Action): ProjectState {
             order: newOrder,
             status: 'To Do',
         };
+
+        if (lastSelectedId) {
+            const selectedTask = tasks.find(t => t.id === lastSelectedId);
+            if (selectedTask) {
+                 newTask.projectId = selectedTask.projectId;
+                 newTask.parentId = selectedTask.parentId;
+            }
+        }
         
         let newTasks = [...state.tasks];
         if (lastSelectedId) {
