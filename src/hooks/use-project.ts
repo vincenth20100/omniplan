@@ -79,6 +79,7 @@ const initialState: ProjectState = {
   columns: initialColumns,
   uiDensity: 'compact',
   grouping: [],
+  groupingState: { mode: 'expanded', overrides: [] },
   filters: [],
   views: defaultViews,
   currentViewId: 'default',
@@ -105,6 +106,7 @@ type Action =
   | { type: 'ADD_LINK'; payload: { source: string, target: string, type: LinkType, lag: number } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
   | { type: 'TOGGLE_TASK_COLLAPSE'; payload: { taskId: string } }
+  | { type: 'TOGGLE_GROUP'; payload: { groupId: string } }
   | { type: 'COLLAPSE_ALL' }
   | { type: 'EXPAND_ALL' }
   | { type: 'MOVE_SELECTION'; payload: { direction: 'up' | 'down' } }
@@ -963,7 +965,26 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       );
       return { ...state, tasks: newTasks };
     }
+    case 'TOGGLE_GROUP': {
+        const { groupId } = action.payload;
+        const { overrides } = state.groupingState;
+        const newOverrides = overrides.includes(groupId)
+            ? overrides.filter(id => id !== groupId)
+            : [...overrides, groupId];
+
+        return {
+            ...state,
+            groupingState: {
+                ...state.groupingState,
+                overrides: newOverrides
+            }
+        };
+    }
     case 'COLLAPSE_ALL': {
+        if (state.grouping.length > 0) {
+             return { ...state, groupingState: { mode: 'collapsed', overrides: [] } };
+        }
+
         const taskIdsInSelection = getTaskIdsInSelection(state);
         const shouldCollapseSelected = taskIdsInSelection.size > 0;
 
@@ -982,6 +1003,10 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         return { ...state, tasks: newTasks };
     }
     case 'EXPAND_ALL': {
+        if (state.grouping.length > 0) {
+             return { ...state, groupingState: { mode: 'expanded', overrides: [] } };
+        }
+
         const taskIdsInSelection = getTaskIdsInSelection(state);
         const shouldExpandSelected = taskIdsInSelection.size > 0;
 
@@ -1396,6 +1421,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             ...loaded,
             ganttSettings: ganttSettings,
             stylePresets: stylePresets,
+            groupingState: loaded.groupingState || initialState.groupingState,
         };
         const scheduledTasks = runScheduler(loadedState.tasks, loadedState.links, loadedState.columns, loadedState.calendars, loadedState.defaultCalendarId);
         return {

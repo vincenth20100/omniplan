@@ -227,6 +227,7 @@ export interface ProjectState {
     sortDirection?: 'asc' | 'desc' | null;
     uiDensity: UiDensity;
     grouping: string[];
+    groupingState: { mode: 'expanded' | 'collapsed'; overrides: string[] };
     filters: Filter[];
     views: View[];
     currentViewId: string | null;
