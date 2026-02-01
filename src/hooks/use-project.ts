@@ -401,7 +401,12 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
         children.sort((a, b) => (originalIndices.get(a) ?? 0) - (originalIndices.get(b) ?? 0));
     }
 
+    const visited = new Set<string>();
+
     function traverse(taskId: string, level: number, wbs: string) {
+        if (visited.has(taskId)) return;
+        visited.add(taskId);
+
         const task = taskMap.get(taskId)!;
         task.level = level;
         task.wbs = wbs;
@@ -412,9 +417,27 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
         });
     }
 
-    rootTasks.forEach((task, index) => {
-        traverse(task.id, 0, `${index + 1}`);
+    let rootIndex = 0;
+    rootTasks.forEach((task) => {
+        rootIndex++;
+        traverse(task.id, 0, `${rootIndex}`);
     });
+
+    // Handle unvisited tasks (cycles or orphans)
+    while (visited.size < taskMap.size) {
+        const unvisited = Array.from(taskMap.values()).filter(t => !visited.has(t.id));
+        if (unvisited.length === 0) break;
+
+        // Sort by original order to be deterministic
+        unvisited.sort((a, b) => (originalIndices.get(a.id) ?? 0) - (originalIndices.get(b.id) ?? 0));
+
+        const nextRoot = unvisited[0];
+        // Break the cycle/orphanage by making it a root
+        nextRoot.parentId = null;
+
+        rootIndex++;
+        traverse(nextRoot.id, 0, `${rootIndex}`);
+    }
 
     const finalTasks = Array.from(taskMap.values());
     finalTasks.sort((a, b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true, sensitivity: 'base' }));
