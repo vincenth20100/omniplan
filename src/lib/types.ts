@@ -91,6 +91,8 @@ export interface Task {
   // Multi-project support
   projectId?: string;
   projectName?: string; // Computed property for display
+  projectInitials?: string;
+  isGhost?: boolean;
 }
 
 export interface Link {
@@ -244,6 +246,7 @@ export interface Project {
   createdAt: any;
   memberIds: string[];
   subprojectIds?: string[];
+  initials?: string;
 }
 
 export interface ProjectMember {

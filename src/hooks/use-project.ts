@@ -183,7 +183,7 @@ const toFirestoreTask = (task: Task) => {
 };
 
 function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) {
-    const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string }[] }>({ subprojects: [] });
+    const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string }[] }>({ subprojects: [] });
 
     useEffect(() => {
         if (!subprojectIds || subprojectIds.length === 0 || !firestore) {
@@ -192,7 +192,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
         }
 
         const unsubscribes: (() => void)[] = [];
-        const localCache: Record<string, { tasks: Task[], links: Link[], projectName: string }> = {};
+        const localCache: Record<string, { tasks: Task[], links: Link[], projectName: string, initials?: string }> = {};
 
         // Initialize cache
         subprojectIds.forEach(id => localCache[id] = { tasks: [], links: [], projectName: 'Loading...' });
@@ -211,6 +211,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
                 const data = snap.data();
                 if (data) {
                     localCache[pId].projectName = data.name;
+                    localCache[pId].initials = data.initials;
                     updateData();
                 }
             });
@@ -332,9 +333,31 @@ function useExternalData(projectId: string | null, firestore: any) {
 
         const unsubs: (() => void)[] = [];
         const loadedTasks: Record<string, Task> = {};
+        const loadedProjects: Record<string, string | undefined> = {};
+
+        const updateTasksState = () => {
+             const tasks = Object.values(loadedTasks).map(t => ({
+                 ...t,
+                 projectInitials: t.projectId ? loadedProjects[t.projectId] : undefined,
+                 isGhost: true,
+             }));
+             setExternalTasks(tasks);
+        };
 
         tasksToLoad.forEach(ref => {
             const [pid, tid] = ref.split(':');
+
+            // Load Project Initials
+            if (loadedProjects[pid] === undefined) {
+                 const projUnsub = onSnapshot(doc(firestore, 'projects', pid), (snap) => {
+                     if (snap.exists()) {
+                         loadedProjects[pid] = snap.data().initials || '';
+                         updateTasksState();
+                     }
+                 });
+                 unsubs.push(projUnsub);
+            }
+
             const unsub = onSnapshot(doc(firestore, 'projects', pid, 'tasks', tid), (snap) => {
                 if (snap.exists()) {
                      const data = snap.data();
@@ -355,11 +378,13 @@ function useExternalData(projectId: string | null, firestore: any) {
                          finish: safeToDate(data.finish)!,
                          constraintDate: safeToDate(data.constraintDate),
                          deadline: safeToDate(data.deadline),
-                         // Mark as external/ghost if needed, though projectId check is enough usually
+                         // Mark as external/ghost if needed
+                         isGhost: true,
+                         wbs: data.wbs,
                      } as Task;
 
                      loadedTasks[tid] = task;
-                     setExternalTasks(Object.values(loadedTasks));
+                     updateTasksState();
                 }
             }, (e) => console.warn(`Failed to load external task ${tid}`, e));
             unsubs.push(unsub);
@@ -372,7 +397,10 @@ function useExternalData(projectId: string | null, firestore: any) {
 }
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
-    const taskMap = new Map(tasks.map(t => ({ ...t })).map(t => [t.id, t]));
+    const ghostTasks = tasks.filter(t => t.isGhost);
+    const internalTasks = tasks.filter(t => !t.isGhost);
+
+    const taskMap = new Map(internalTasks.map(t => ({ ...t })).map(t => [t.id, t]));
     
     for (const task of taskMap.values()) {
         if (task.parentId && !taskMap.has(task.parentId)) {
@@ -394,7 +422,7 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
 
     const rootTasks = Array.from(taskMap.values()).filter(t => !t.parentId);
 
-    const originalIndices = new Map(tasks.map((t, i) => [t.id, i]));
+    const originalIndices = new Map(internalTasks.map((t, i) => [t.id, i]));
     rootTasks.sort((a, b) => (originalIndices.get(a.id) ?? 0) - (originalIndices.get(b.id) ?? 0));
     
     for (const children of childrenMap.values()) {
@@ -442,7 +470,7 @@ function updateHierarchyAndSort(tasks: Task[]): Task[] {
     const finalTasks = Array.from(taskMap.values());
     finalTasks.sort((a, b) => (a.wbs || '').localeCompare(b.wbs || '', undefined, { numeric: true, sensitivity: 'base' }));
 
-    return finalTasks;
+    return [...finalTasks, ...ghostTasks];
 }
 
 function getVisibleTasks(tasks: Task[]): Task[] {
@@ -2337,6 +2365,7 @@ export function useProject(user: User, projectId: string | null) {
                 ...t,
                 projectId: sub.projectId, // Explicitly set projectId to ensure data integrity
                 projectName: sub.projectName,
+                projectInitials: sub.initials,
                 parentId: isRootInSub ? syntheticRootId : t.parentId,
             };
         });
