@@ -7,6 +7,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogFooter,
+    DialogClose
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Columns3, Plus, ArrowUp, ArrowDown, Pencil } from "lucide-react";
 import type { ColumnSpec } from "@/lib/types";
@@ -14,6 +23,7 @@ import { useState, useEffect } from "react";
 import { ColumnConfigDialog, type ColumnConfig } from "../view-options/column-config-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function ColumnSelector({
     visibleColumns,
@@ -26,6 +36,7 @@ export function ColumnSelector({
     dispatch: any;
     disabled?: boolean;
 }) {
+    const isMobile = useIsMobile();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
@@ -84,6 +95,86 @@ export function ColumnSelector({
         dispatch({ type: 'REORDER_COLUMNS', payload: { sourceId: columns[index].id, targetId: columns[newIndex].id } });
     }
 
+    const renderColumnItem = (column: ColumnSpec, index: number) => (
+        <div className="flex items-center w-full hover:bg-accent rounded-sm p-1">
+            <Checkbox
+                id={`col-vis-${column.id}`}
+                checked={visibleColumns.includes(column.id)}
+                onCheckedChange={(checked) => handleCheckedChange(column.id, Boolean(checked))}
+                className="mr-2"
+            />
+            <label htmlFor={`col-vis-${column.id}`} className="flex-grow truncate cursor-pointer text-sm font-normal">{column.name}</label>
+            <div className="flex items-center ml-2">
+                {column.id.startsWith('custom-') && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenEdit(column); }} title="Edit column">
+                        <Pencil className="h-4 w-4" />
+                    </Button>
+                )}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={index === 0}
+                    onClick={(e) => { e.stopPropagation(); handleMoveColumn(index, 'up'); }}
+                    title="Move up"
+                >
+                    <ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={index === columns.length - 1}
+                    onClick={(e) => { e.stopPropagation(); handleMoveColumn(index, 'down'); }}
+                    title="Move down"
+                >
+                    <ArrowDown className="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+    );
+
+    if (isMobile) {
+        return (
+             <>
+                <Dialog open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" size="icon" title="Select Visible Columns" disabled={disabled}>
+                            <Columns3 className="h-4 w-4" />
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh] overflow-hidden">
+                        <DialogHeader>
+                            <DialogTitle>Visible Columns</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex-1 overflow-y-auto pr-2 min-h-0 py-2">
+                             {columns.map((column, index) => (
+                                <div key={column.id} className="mb-1">
+                                    {renderColumnItem(column, index)}
+                                </div>
+                             ))}
+                        </div>
+                        <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
+                            <Button onClick={handleOpenNew} variant="outline" className="w-full sm:w-auto">
+                                <Plus className="mr-2 h-4 w-4" /> New Column
+                            </Button>
+                            <DialogClose asChild>
+                                <Button type="button" variant="secondary" className="w-full sm:w-auto">Close</Button>
+                            </DialogClose>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                <ColumnConfigDialog
+                    key={editingColumn?.id || 'new'}
+                    open={isConfigOpen}
+                    onOpenChange={handleDialogClose}
+                    onSave={handleSaveColumn}
+                    column={editingColumn}
+                />
+            </>
+        )
+    }
+
     return (
         <>
             <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
@@ -102,42 +193,7 @@ export function ColumnSelector({
                                 onSelect={(e) => e.preventDefault()}
                                 className="p-0 focus:bg-transparent"
                             >
-                                <div className="flex items-center w-full hover:bg-accent rounded-sm p-1">
-                                    <Checkbox
-                                        id={`col-vis-${column.id}`}
-                                        checked={visibleColumns.includes(column.id)}
-                                        onCheckedChange={(checked) => handleCheckedChange(column.id, Boolean(checked))}
-                                        className="mr-2"
-                                    />
-                                    <label htmlFor={`col-vis-${column.id}`} className="flex-grow truncate cursor-pointer">{column.name}</label>
-                                    <div className="flex items-center ml-2">
-                                        {column.id.startsWith('custom-') && (
-                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenEdit(column)} title="Edit column">
-                                                <Pencil className="h-3 w-3" />
-                                            </Button>
-                                        )}
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6"
-                                            disabled={index === 0}
-                                            onClick={() => handleMoveColumn(index, 'up')}
-                                            title="Move up"
-                                        >
-                                            <ArrowUp className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6"
-                                            disabled={index === columns.length - 1}
-                                            onClick={() => handleMoveColumn(index, 'down')}
-                                            title="Move down"
-                                        >
-                                            <ArrowDown className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
+                                {renderColumnItem(column, index)}
                             </DropdownMenuItem>
                         ))}
                     </ScrollArea>
