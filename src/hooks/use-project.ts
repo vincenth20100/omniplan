@@ -237,8 +237,8 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
                          ...data,
                          id: d.id,
                          projectId: pId,
-                         start: safeToDate(data.start)!,
-                         finish: safeToDate(data.finish)!,
+                         start: safeToDate(data.start) || new Date(),
+                         finish: safeToDate(data.finish) || new Date(),
                          constraintDate: safeToDate(data.constraintDate),
                          deadline: safeToDate(data.deadline),
                      } as Task;
@@ -378,8 +378,8 @@ function useExternalData(projectId: string | null, firestore: any, localLinks: L
                          ...data,
                          id: snap.id,
                          projectId: pid,
-                         start: safeToDate(data.start)!,
-                         finish: safeToDate(data.finish)!,
+                         start: safeToDate(data.start) || new Date(),
+                         finish: safeToDate(data.finish) || new Date(),
                          constraintDate: safeToDate(data.constraintDate),
                          deadline: safeToDate(data.deadline),
                          // Mark as external/ghost if needed
@@ -2334,8 +2334,8 @@ export function useProject(user: User, projectId: string | null) {
         ...t,
         projectId: projectId,
         projectName: projectData?.name || 'Current Project',
-        start: safeToDate(t.start)!,
-        finish: safeToDate(t.finish)!,
+        start: safeToDate(t.start) || new Date(),
+        finish: safeToDate(t.finish) || new Date(),
         constraintDate: safeToDate(t.constraintDate),
         deadline: safeToDate(t.deadline)
     }));
@@ -2409,17 +2409,17 @@ export function useProject(user: User, projectId: string | null) {
                 ...c, 
                 exceptions: (c.exceptions || []).map(e => ({
                     ...e, 
-                    start: safeToDate(e.start)!, 
-                    finish: safeToDate(e.finish)!
+                    start: safeToDate(e.start) || new Date(),
+                    finish: safeToDate(e.finish) || new Date()
                 }))
             })),
             baselines: (collections.baselines.data || []).map(b => ({
                 ...b,
-                createdAt: safeToDate(b.createdAt)!,
+                createdAt: safeToDate(b.createdAt) || new Date(),
                 tasks: (b.tasks || []).map(t => ({
                     ...t,
-                    start: safeToDate(t.start)!,
-                    finish: safeToDate(t.finish)!,
+                    start: safeToDate(t.start) || new Date(),
+                    finish: safeToDate(t.finish) || new Date(),
                     constraintDate: safeToDate(t.constraintDate),
                     deadline: safeToDate(t.deadline),
                 }))
