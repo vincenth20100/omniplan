@@ -128,19 +128,21 @@ export function Timeline({
     ganttSettings,
     baselines,
     projectColors,
+    disableScroll,
 }: { 
     allTasks: Task[],
     renderableRows: RenderableRow[], 
     links: Link[], 
     dispatch: any, 
     selectedTaskIds: string[],
-    viewportRef: React.RefObject<HTMLDivElement>,
+    viewportRef: React.RefObject<HTMLDivElement | null>,
     onScroll: () => void,
     uiDensity: UiDensity,
     defaultCalendar: Calendar | null,
     ganttSettings: GanttSettings,
     baselines: Baseline[],
     projectColors?: Record<string, string>,
+    disableScroll?: boolean,
 }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
@@ -264,10 +266,7 @@ export function Timeline({
   
   const totalHeight = renderableRows.length * rowHeight;
 
-  return (
-    <div className="h-full w-full relative">
-      <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
-        <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
+  const content = (
           <div style={{ width: totalWidth, minHeight: '100%' }} className="relative pb-40">
             <TimelineHeader startDate={viewStartDate} endDate={viewEndDate} scale={scale} />
             <div className="relative h-full" style={{height: `${totalHeight}px`}}>
@@ -364,11 +363,22 @@ export function Timeline({
               />}
             </div>
           </div>
+  );
+
+  return (
+    <div className="h-full w-full relative">
+      {disableScroll ? (
+        content
+      ) : (
+      <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
+        <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
+          {content}
         </ScrollAreaPrimitive.Viewport>
         <ScrollBar orientation="vertical" />
         <ScrollBar orientation="horizontal" />
         <ScrollAreaPrimitive.Corner />
       </ScrollAreaPrimitive.Root>
+      )}
     </div>
   );
 }

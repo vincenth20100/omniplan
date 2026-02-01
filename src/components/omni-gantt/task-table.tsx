@@ -6,7 +6,7 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
+import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag, GripVertical, ArrowUp, ArrowDown, Pin, PinOff } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
@@ -480,6 +480,9 @@ export function TaskTable({
     onToggleGroup,
     sortColumn,
     sortDirection,
+    disableScroll,
+    onToggleFixed,
+    isFixed,
 }: { 
     tasks: Task[];
     links: Link[];
@@ -492,7 +495,7 @@ export function TaskTable({
     selectedTaskIds: string[];
     focusCell: { taskId: string, columnId: string } | null;
     anchorCell: { taskId: string, columnId: string } | null;
-    editingCell: { taskId: string, columnId: string, initialValue?: string } | null;
+    editingCell: { taskId: string, columnId: string, initialValue?: string } | null | undefined;
     selectionMode: SelectionMode;
     calendars: Calendar[];
     defaultCalendarId: string | null;
@@ -500,12 +503,15 @@ export function TaskTable({
     baselines: Baseline[];
     renderableRows: RenderableRow[],
     dispatch: any, 
-    viewportRef: React.RefObject<HTMLDivElement>,
+    viewportRef: React.RefObject<HTMLDivElement | null>,
     onScroll: () => void,
     uiDensity: UiDensity,
     onToggleGroup: (groupId: string) => void,
     sortColumn?: string | null,
     sortDirection?: 'asc' | 'desc' | null,
+    disableScroll?: boolean,
+    onToggleFixed?: () => void,
+    isFixed?: boolean,
 }) {
     const stateRef = useRef({ tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode, anchorCell });
     const isMobile = useIsMobile();
@@ -1068,12 +1074,8 @@ export function TaskTable({
     const defaultCalendar = React.useMemo(() => calendars.find(c => c.id === defaultCalendarId) || calendars[0] || null, [calendars, defaultCalendarId]);
     const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
-
-    return (
-        <>
-        <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
-            <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
-                <div className="pb-40">
+    const content = (
+        <div className="pb-40">
                 <Table className="w-auto">
                     <colgroup>
                         <col style={{ width: '40px' }} />
@@ -1083,7 +1085,19 @@ export function TaskTable({
                     </colgroup>
                     <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
                         <TableRow>
-                            <TableHead className="p-0"></TableHead>
+                            <TableHead className="p-0 align-middle text-center">
+                                {onToggleFixed && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={onToggleFixed}
+                                        title={isFixed ? "Unpin Column" : "Pin Column"}
+                                    >
+                                        {isFixed ? <Pin className="h-3 w-3 fill-current" /> : <PinOff className="h-3 w-3" />}
+                                    </Button>
+                                )}
+                            </TableHead>
                             {orderedAndVisibleColumns.map(column => {
                                 return (
                                     <TableHead 
@@ -1327,11 +1341,25 @@ export function TaskTable({
                     </TableBody>
                 </Table>
                 </div>
-            </ScrollAreaPrimitive.Viewport>
-            <ScrollBar orientation="vertical" />
-            <ScrollBar orientation="horizontal" />
-            <ScrollAreaPrimitive.Corner />
-        </ScrollAreaPrimitive.Root>
+    );
+
+
+    return (
+        <>
+        {disableScroll ? (
+            <div className="h-full w-full">
+                {content}
+            </div>
+        ) : (
+            <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
+                <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
+                    {content}
+                </ScrollAreaPrimitive.Viewport>
+                <ScrollBar orientation="vertical" />
+                <ScrollBar orientation="horizontal" />
+                <ScrollAreaPrimitive.Corner />
+            </ScrollAreaPrimitive.Root>
+        )}
         <ColumnConfigDialog
             open={!!editingColumn}
             onOpenChange={() => setEditingColumn(null)}
