@@ -7,6 +7,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetFooter,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import type { ColumnSpec, Filter as FilterType, View } from "@/lib/types";
 import { useState, useEffect } from 'react';
@@ -16,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { EditableDateCell } from "../omni-gantt/editable-date-cell";
 import { ViewManager } from "./view-manager";
 import { Separator } from "../ui/separator";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type Operator =
   | 'none'
@@ -88,6 +96,7 @@ export function FilterDialog({
     currentViewId: string | null;
     isDirty?: boolean;
 }) {
+    const isMobile = useIsMobile();
     const [currentFilters, setCurrentFilters] = useState<FilterType[]>([]);
 
     useEffect(() => {
@@ -176,75 +185,104 @@ export function FilterDialog({
         );
     };
 
+    const renderContent = () => (
+        <>
+            <div className="border rounded-lg p-4">
+                <ViewManager
+                    views={views}
+                    currentViewId={currentViewId}
+                    isDirty={isDirty}
+                    dispatch={dispatch}
+                    showTitle={false}
+                />
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2 flex-1 overflow-y-auto pr-2 min-h-0">
+                <p className="text-sm">Show items with matching conditions:</p>
+                {currentFilters.map((filter) => {
+                    const column = columns.find(c => c.id === filter.columnId);
+
+                    let columnType = column?.type;
+                    if (['start', 'finish', 'constraintDate'].includes(filter.columnId)) {
+                        columnType = 'date';
+                    }
+                    const operatorSet = OPERATORS[columnType || 'default'];
+
+                    return (
+                        <div key={filter.id} className="flex flex-col items-stretch sm:flex-row sm:items-center gap-2">
+                            <Select value={filter.columnId} onValueChange={(columnId) => {
+                                const newCol = columns.find(c=>c.id===columnId);
+                                let newColType = newCol?.type;
+                                if (['start', 'finish', 'constraintDate'].includes(newCol?.id || '')) {
+                                    newColType = 'date';
+                                }
+                                handleUpdateFilter(filter.id, { columnId, operator: OPERATORS[newColType || 'default'][0].value, value: '' })
+                            }}>
+                                <SelectTrigger className="w-full sm:w-[180px]">
+                                    <SelectValue placeholder="Select column" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {columns.filter(c => c.id !== 'wbs').map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <Select value={filter.operator} onValueChange={(operator: Operator) => handleUpdateFilter(filter.id, { operator })}>
+                                <SelectTrigger className="w-full sm:w-[150px]">
+                                    <SelectValue placeholder="Select operator" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {operatorSet.map(op => <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            {renderFilterValueInput(filter)}
+                            <Button variant="ghost" size="icon" onClick={() => handleRemoveFilter(filter.id)} className="self-end sm:self-auto">
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    );
+                })}
+                    <Button variant="outline" size="sm" onClick={handleAddFilter}>
+                    <Plus className="mr-2 h-4 w-4" /> Add filter
+                </Button>
+            </div>
+        </>
+    );
+
+    const renderFooter = () => (
+        <>
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" onClick={handleApply}>Apply</Button>
+        </>
+    );
+
+    if (isMobile) {
+        return (
+            <Sheet open={open} onOpenChange={onOpenChange}>
+                <SheetContent side="left" className="flex flex-col h-full w-full sm:max-w-md p-0 gap-0">
+                    <SheetHeader className="p-4 border-b">
+                        <SheetTitle>Filter Tasks</SheetTitle>
+                    </SheetHeader>
+                    <div className="flex-1 flex flex-col min-h-0 p-4 gap-4 overflow-hidden">
+                        {renderContent()}
+                    </div>
+                    <SheetFooter className="p-4 border-t gap-2 sm:gap-0">
+                        {renderFooter()}
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
+        );
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>Filter Tasks</DialogTitle>
                 </DialogHeader>
-
-                <div className="border rounded-lg p-4">
-                    <ViewManager 
-                        views={views}
-                        currentViewId={currentViewId}
-                        isDirty={isDirty}
-                        dispatch={dispatch}
-                        showTitle={false}
-                    />
-                </div>
-
-                <Separator />
-                
-                <div className="space-y-2 flex-1 overflow-y-auto pr-2 min-h-0">
-                    <p className="text-sm">Show items with matching conditions:</p>
-                    {currentFilters.map((filter) => {
-                        const column = columns.find(c => c.id === filter.columnId);
-                        
-                        let columnType = column?.type;
-                        if (['start', 'finish', 'constraintDate'].includes(filter.columnId)) {
-                            columnType = 'date';
-                        }
-                        const operatorSet = OPERATORS[columnType || 'default'];
-                        
-                        return (
-                            <div key={filter.id} className="flex flex-col items-stretch sm:flex-row sm:items-center gap-2">
-                                <Select value={filter.columnId} onValueChange={(columnId) => {
-                                    const newCol = columns.find(c=>c.id===columnId);
-                                    let newColType = newCol?.type;
-                                    if (['start', 'finish', 'constraintDate'].includes(newCol?.id || '')) {
-                                        newColType = 'date';
-                                    }
-                                    handleUpdateFilter(filter.id, { columnId, operator: OPERATORS[newColType || 'default'][0].value, value: '' })
-                                }}>
-                                    <SelectTrigger className="w-full sm:w-[180px]">
-                                        <SelectValue placeholder="Select column" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {columns.filter(c => c.id !== 'wbs').map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                <Select value={filter.operator} onValueChange={(operator: Operator) => handleUpdateFilter(filter.id, { operator })}>
-                                    <SelectTrigger className="w-full sm:w-[150px]">
-                                        <SelectValue placeholder="Select operator" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {operatorSet.map(op => <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                {renderFilterValueInput(filter)}
-                                <Button variant="ghost" size="icon" onClick={() => handleRemoveFilter(filter.id)} className="self-end sm:self-auto">
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        );
-                    })}
-                     <Button variant="outline" size="sm" onClick={handleAddFilter}>
-                        <Plus className="mr-2 h-4 w-4" /> Add filter
-                    </Button>
-                </div>
+                {renderContent()}
                 <DialogFooter>
-                    <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button type="button" onClick={handleApply}>Apply</Button>
+                    {renderFooter()}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
