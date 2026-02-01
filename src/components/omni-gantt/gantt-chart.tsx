@@ -366,6 +366,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
             defaultCalendar={defaultCalendar}
             ganttSettings={ganttSettings}
             baselines={baselines}
+            projectColors={projectState.projectColors}
         />
     );
 

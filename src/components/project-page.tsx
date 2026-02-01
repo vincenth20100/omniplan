@@ -39,7 +39,7 @@ import { DetailedThemeEditor } from './gantt-settings/detailed-theme-editor';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 import { ALL_COLUMNS } from '@/lib/columns';
 import { SetBaselineDialog } from './set-baseline-dialog';
-import { InsertSubprojectDialog } from './insert-subproject-dialog';
+import { SubprojectManagerDialog } from './subproject-manager-dialog';
 import { THEME_VARIABLES } from '@/lib/theme-config';
 import {
   DropdownMenu,
@@ -635,7 +635,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
               onSave={handleSaveBaseline}
           />
           {project && (
-            <InsertSubprojectDialog
+            <SubprojectManagerDialog
                 open={isInsertSubprojectOpen}
                 onOpenChange={setIsInsertSubprojectOpen}
                 user={user}

@@ -64,6 +64,7 @@ const initialState: ProjectState = {
   calendars: [],
   defaultCalendarId: null,
   baselines: [],
+  projectColors: {},
   
   // Selection
   selectionMode: 'row',
@@ -93,7 +94,7 @@ const initialState: ProjectState = {
 };
 
 type Action =
-  | { type: 'SET_PROJECT_DATA', payload: { tasks: Task[], links: Link[], resources: Resource[], assignments: Assignment[], calendars: Calendar[], baselines: Baseline[] } }
+  | { type: 'SET_PROJECT_DATA', payload: { tasks: Task[], links: Link[], resources: Resource[], assignments: Assignment[], calendars: Calendar[], baselines: Baseline[], projectColors: Record<string, string> } }
   | { type: 'SET_PERSISTED_STATE', payload: { views: View[], sharedSettings: typeof defaultAppSettings | null, userPreferences: typeof defaultUserPreferences | null, member: ProjectMember | null } }
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
@@ -183,7 +184,7 @@ const toFirestoreTask = (task: Task) => {
 };
 
 function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) {
-    const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string }[] }>({ subprojects: [] });
+    const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string }[] }>({ subprojects: [] });
 
     useEffect(() => {
         if (!subprojectIds || subprojectIds.length === 0 || !firestore) {
@@ -192,7 +193,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
         }
 
         const unsubscribes: (() => void)[] = [];
-        const localCache: Record<string, { tasks: Task[], links: Link[], projectName: string, initials?: string }> = {};
+        const localCache: Record<string, { tasks: Task[], links: Link[], projectName: string, initials?: string, color?: string }> = {};
 
         // Initialize cache
         subprojectIds.forEach(id => localCache[id] = { tasks: [], links: [], projectName: 'Loading...' });
@@ -212,6 +213,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
                 if (data) {
                     localCache[pId].projectName = data.name;
                     localCache[pId].initials = data.initials;
+                    localCache[pId].color = data.color;
                     updateData();
                 }
             });
@@ -653,7 +655,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     
   switch (action.type) {
     case 'SET_PROJECT_DATA': {
-      const { tasks, links, resources, assignments, calendars, baselines } = action.payload;
+      const { tasks, links, resources, assignments, calendars, baselines, projectColors } = action.payload;
       const defaultCalendarId = state.defaultCalendarId || calendars.find(c => c.name === "Standard")?.id || calendars[0]?.id || null;
       const scheduledTasks = runScheduler(tasks, links, state.columns, calendars, defaultCalendarId);
       return {
@@ -665,6 +667,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         calendars,
         baselines: baselines || [],
         defaultCalendarId,
+        projectColors,
       };
     }
     case 'SET_PERSISTED_STATE': {
@@ -2385,6 +2388,12 @@ export function useProject(user: User, projectId: string | null) {
     const allTasks = [...mainTasks, ...subprojectTasks, ...externalTasksFiltered];
     const allLinks = [...(collections.links.data || []), ...subprojectLinks, ...externalLinksFiltered];
 
+    const projectColors: Record<string, string> = {};
+    if (projectId) projectColors[projectId] = projectData?.color || '#ef4444';
+    subprojectsData.subprojects.forEach(sub => {
+        if (sub.color) projectColors[sub.projectId] = sub.color;
+    });
+
     internalDispatch({
         type: 'SET_PROJECT_DATA',
         payload: {
@@ -2410,7 +2419,8 @@ export function useProject(user: User, projectId: string | null) {
                     constraintDate: safeToDate(t.constraintDate),
                     deadline: safeToDate(t.deadline),
                 }))
-            }))
+            })),
+            projectColors,
         }
     });
 

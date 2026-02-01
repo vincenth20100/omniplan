@@ -210,6 +210,8 @@ export interface ProjectState {
     baselines: Baseline[];
     
     // Selection state
+  projectColors: Record<string, string>;
+
     selectionMode: SelectionMode;
     selectedTaskIds: string[];
     selectionAnchor: string | null; // A taskId for row selection anchor
@@ -247,6 +249,7 @@ export interface Project {
   memberIds: string[];
   subprojectIds?: string[];
   initials?: string;
+  color?: string;
 }
 
 export interface ProjectMember {

@@ -127,6 +127,7 @@ export function Timeline({
     defaultCalendar,
     ganttSettings,
     baselines,
+    projectColors,
 }: { 
     allTasks: Task[],
     renderableRows: RenderableRow[], 
@@ -139,6 +140,7 @@ export function Timeline({
     defaultCalendar: Calendar | null,
     ganttSettings: GanttSettings,
     baselines: Baseline[],
+    projectColors?: Record<string, string>,
 }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
@@ -333,6 +335,7 @@ export function Timeline({
                               highlightCriticalPath={ganttSettings.highlightCriticalPath}
                               defaultCalendar={defaultCalendar}
                               dateFormat={dateFormat}
+                              projectColors={projectColors}
                             />
                           )}
                           {baselineTask && !task.isSummary && (
