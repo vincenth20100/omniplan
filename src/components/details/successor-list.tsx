@@ -94,7 +94,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
 
     if (isMobile) {
         return (
-            <div className="flex flex-col gap-3 h-full overflow-y-auto p-1">
+            <div className="flex flex-col gap-3 p-1">
                 {successorLinks.map(link => {
                      const targetTask = taskMap.get(link.target);
                      if (!targetTask) return null;

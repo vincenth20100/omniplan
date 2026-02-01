@@ -68,19 +68,19 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
                 <div className="flex-grow overflow-auto">
                     <TabsContent value="links" className="m-0 h-full">
                         <div className={cn(
-                            "h-full",
+                            isMobile ? "h-auto" : "h-full",
                             (uiDensity === 'large' && !isMobile) && 'p-4',
                             (uiDensity === 'medium' && !isMobile) && 'p-3',
                             (uiDensity === 'compact' || isMobile) && 'p-2'
                         )}>
                            {isMobile ? (
-                             <div className="h-full flex flex-col gap-4 overflow-y-auto">
-                                <div className="flex-1 min-h-0 flex flex-col pr-1">
+                             <div className="flex flex-col gap-6 pb-4">
+                                <div className="flex flex-col pr-1">
                                     <h3 className="text-sm font-semibold mb-2 shrink-0">Predecessors</h3>
                                     <PredecessorList currentTaskId={task.id} predecessorLinks={predecessors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
                                 </div>
                                 <Separator />
-                                <div className="flex-1 min-h-0 flex flex-col pl-1">
+                                <div className="flex flex-col pl-1">
                                      <h3 className="text-sm font-semibold mb-2 shrink-0">Successors</h3>
                                      <SuccessorList currentTaskId={task.id} successorLinks={successors} allTasks={tasks} dispatch={dispatch} uiDensity={uiDensity} dateFormat={dateFormat} />
                                 </div>
