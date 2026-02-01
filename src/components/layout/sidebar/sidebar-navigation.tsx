@@ -14,7 +14,8 @@ import {
     Trash2,
     Undo2,
     Redo2,
-    Layers
+    Layers,
+    Columns3
 } from 'lucide-react';
 import {
     SidebarMenu,
@@ -129,6 +130,12 @@ export function SidebarNavigation({
                  <SidebarGroupContent>
                     <SidebarMenu>
                         <SidebarMenuItem>
+                            <SidebarMenuButton onClick={() => onNavigate('columns')} tooltip="Columns">
+                                <Columns3 />
+                                <span>Columns</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
                             <SidebarMenuButton onClick={() => onNavigate('filters')} tooltip="Filters">
                                 <Filter />
                                 <span>Filters</span>
@@ -144,6 +151,12 @@ export function SidebarNavigation({
                             <SidebarMenuButton onClick={() => onNavigate('gantt-settings')} tooltip="Display Options">
                                 <Settings />
                                 <span>Display Options</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton onClick={() => onNavigate('manage-views')} tooltip="Manage Views">
+                                <Layers />
+                                <span>Manage Views</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     </SidebarMenu>
