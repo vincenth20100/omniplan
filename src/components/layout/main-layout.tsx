@@ -64,13 +64,13 @@ const UserMenu = ({ user }: { user: User }) => {
 export function MainLayout({ children, sidebarContent, headerLeftActions, headerRightActions, user }: { children: React.ReactNode, sidebarContent: React.ReactNode, headerLeftActions?: React.ReactNode, headerRightActions?: React.ReactNode, user: User }) {
   return (
     <SidebarProvider>
-      <Sidebar>
+      <Sidebar collapsible="icon">
         <SidebarHeader>
-          <div className="flex items-center gap-2 p-2">
-            <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
+          <div className="flex items-center gap-2 p-2 group-data-[collapsible=icon]:justify-center">
+            <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8">
               <GanttChartSquare className="h-6 w-6 text-primary" />
             </Button>
-            <div className='overflow-hidden'>
+            <div className='overflow-hidden group-data-[collapsible=icon]:hidden'>
                <h2 className="text-lg font-semibold font-headline truncate">OmniPlan AI</h2>
             </div>
           </div>
@@ -79,7 +79,7 @@ export function MainLayout({ children, sidebarContent, headerLeftActions, header
           {sidebarContent}
         </SidebarContent>
         <SidebarFooter>
-          {/* Footer content if any */}
+          <SidebarTrigger />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
