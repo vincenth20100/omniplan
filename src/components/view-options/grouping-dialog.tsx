@@ -7,13 +7,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    SheetFooter,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import type { ColumnSpec, View } from "@/lib/types";
 import { useState, useEffect } from 'react';
@@ -21,6 +14,7 @@ import { ArrowLeft, ArrowRight, ChevronsUp, ChevronsDown } from "lucide-react";
 import { ViewManager } from "./view-manager";
 import { Separator } from "../ui/separator";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 export function GroupingDialog({
     open,
@@ -181,27 +175,14 @@ export function GroupingDialog({
         </>
     );
 
-    if (isMobile) {
-        return (
-            <Sheet open={open} onOpenChange={onOpenChange}>
-                <SheetContent side="bottom" className="flex flex-col max-h-[90dvh] w-full p-0 gap-0 rounded-t-xl">
-                    <SheetHeader className="p-4 border-b">
-                        <SheetTitle>Group By</SheetTitle>
-                    </SheetHeader>
-                    <div className="flex-1 flex flex-col min-h-0 p-4 gap-4 overflow-hidden">
-                        {renderContent()}
-                    </div>
-                    <SheetFooter className="p-4 border-t gap-2 sm:gap-0">
-                        {renderFooter()}
-                    </SheetFooter>
-                </SheetContent>
-            </Sheet>
-        );
-    }
-
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
+            <DialogContent className={cn(
+                "flex flex-col overflow-hidden",
+                isMobile
+                    ? "top-[12%] translate-y-0 max-h-[85vh] w-[95%] max-w-lg"
+                    : "sm:max-w-3xl max-h-[90vh]"
+            )}>
                 <DialogHeader>
                     <DialogTitle>Group By</DialogTitle>
                 </DialogHeader>

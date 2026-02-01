@@ -17,6 +17,8 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus } from 'lucide-react';
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface InsertSubprojectDialogProps {
     open: boolean;
@@ -34,6 +36,7 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
     const [isSaving, setIsSaving] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
+    const isMobile = useIsMobile();
 
     useEffect(() => {
         if (user) {
@@ -125,7 +128,10 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex flex-col p-0 gap-0 sm:max-w-[425px] sm:max-h-[90vh]">
+            <DialogContent className={cn(
+                "flex flex-col p-0 gap-0 sm:max-w-[425px] sm:max-h-[90vh]",
+                isMobile && "top-[12%] translate-y-0 max-h-[85vh] w-[95%] max-w-lg"
+            )}>
                 <DialogHeader className="px-6 py-4">
                     <DialogTitle>Insert Project</DialogTitle>
                     <DialogDescription>
