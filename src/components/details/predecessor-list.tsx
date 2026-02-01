@@ -93,7 +93,7 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
 
     if (isMobile) {
         return (
-            <div className="flex flex-col gap-3 h-full overflow-y-auto p-1">
+            <div className="flex flex-col gap-3 p-1">
                 {predecessorLinks.map(link => {
                      const sourceTask = taskMap.get(link.source);
                      if (!sourceTask) return null;
