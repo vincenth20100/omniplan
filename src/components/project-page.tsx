@@ -41,6 +41,7 @@ import { ALL_COLUMNS } from '@/lib/columns';
 import { SetBaselineDialog } from './set-baseline-dialog';
 import { SubprojectManagerDialog } from './subproject-manager-dialog';
 import { THEME_VARIABLES } from '@/lib/theme-config';
+import { MobileSidebarContainer, type SidebarView } from '@/components/layout/sidebar/mobile-sidebar-container';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -159,6 +160,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const [projectSettingsSection, setProjectSettingsSection] = useState<'members' | 'baselines'>('members');
   const [isSetBaselineOpen, setIsSetBaselineOpen] = useState(false);
   const [isInsertSubprojectOpen, setIsInsertSubprojectOpen] = useState(false);
+  const [currentSidebarView, setCurrentSidebarView] = useState<SidebarView>('main');
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -251,7 +253,26 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
       toast({ title: "Baseline Saved" });
   };
 
-  const sidebarContent = (
+  const handleSidebarNavigate = (view: SidebarView) => {
+    if (view === 'print') {
+        setIsPrintPreviewOpen(true);
+        setCurrentSidebarView('main');
+        return;
+    }
+    if (view === 'shortcuts') {
+        setIsShortcutsDialogOpen(true);
+        setCurrentSidebarView('main');
+        return;
+    }
+    if (view === 'find-replace') {
+        setIsFindReplaceOpen(true);
+        setCurrentSidebarView('main');
+        return;
+    }
+    setCurrentSidebarView(view);
+  };
+
+  const defaultSidebarContent = (
     <>
       <FileExplorer 
         projectState={state} 
@@ -275,6 +296,20 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
       <SpatialView projectState={state} />
     </>
   );
+
+  const sidebarContent = isMobile ? (
+    <MobileSidebarContainer
+        view={currentSidebarView}
+        onNavigate={handleSidebarNavigate}
+        projectState={state}
+        dispatch={dispatch}
+        defaultContent={defaultSidebarContent}
+        history={history.log}
+        historyIndex={history.index}
+        onManageThemes={() => setIsThemeManagerOpen(true)}
+        isEditor={isEditorOrOwner}
+    />
+  ) : defaultSidebarContent;
 
   const canRemove = state.selectedTaskIds.length > 0;
   const canLink = state.selectedTaskIds.length > 1;
@@ -369,7 +404,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Button variant="outline" size="icon" onClick={handleZoomIn} disabled={state.currentRepresentation !== 'gantt' || currentZoomIndex <= 0} title="Zoom In">
             <ZoomIn />
         </Button>
-        {isLoaded && (
+        {isLoaded && !isMobile && (
           <>
             <ColumnSelector visibleColumns={state.visibleColumns} columns={state.columns} dispatch={dispatch} disabled={!isEditorOrOwner} />
             <Button
@@ -428,6 +463,9 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             </DropdownMenu>
           </>
         )}
+
+        {!isMobile && (
+        <>
         <Separator orientation="vertical" className="h-6 mx-1" />
         
         {/* More Tools */}
@@ -450,6 +488,8 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Button variant="outline" size="icon" onClick={() => setIsShortcutsDialogOpen(true)} title="Keyboard Shortcuts">
             <Keyboard />
         </Button>
+        </>
+        )}
     </div>
   );
 
