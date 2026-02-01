@@ -259,7 +259,7 @@ export function FilterDialog({
     if (isMobile) {
         return (
             <Sheet open={open} onOpenChange={onOpenChange}>
-                <SheetContent side="left" className="flex flex-col h-full w-full sm:max-w-md p-0 gap-0">
+                <SheetContent side="bottom" className="flex flex-col max-h-[90dvh] w-full p-0 gap-0 rounded-t-xl">
                     <SheetHeader className="p-4 border-b">
                         <SheetTitle>Filter Tasks</SheetTitle>
                     </SheetHeader>
