@@ -3,7 +3,7 @@ import type { ProjectState, UiDensity, Task, Link, ColumnSpec, Assignment, Resou
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { TaskTable } from './task-table';
 import { Timeline } from './timeline';
-import React, { useRef, useCallback, useMemo, useState } from 'react';
+import React, { useRef, useCallback, useMemo, useState, useEffect } from 'react';
 import { format, startOfDay } from 'date-fns';
 import { addDays, min } from 'date-fns';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -32,6 +32,12 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
     const isSyncingVerticalScroll = useRef(false);
     const isMobile = useIsMobile();
     const [isFixedLeftPanel, setIsFixedLeftPanel] = useState(true);
+
+    useEffect(() => {
+        if (isMobile) {
+            setIsFixedLeftPanel(false);
+        }
+    }, [isMobile]);
 
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
