@@ -14,6 +14,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus } from 'lucide-react';
@@ -126,50 +134,70 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
         }
     };
 
+    const renderContent = () => (
+        <ScrollArea className="flex-1 px-6">
+            <div className="pb-6">
+                {isLoading || isCheckingAdmin ? (
+                    <div className="flex items-center justify-center h-20">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                ) : projects.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-20 text-muted-foreground">
+                        <p>No available projects to insert.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {projects.map(project => (
+                            <div key={project.id} className="flex items-center justify-between p-2 border rounded hover:bg-muted/50">
+                                <div className="flex flex-col">
+                                    <span className="font-medium">{project.name}</span>
+                                    <span className="text-xs text-muted-foreground">{project.description || 'No description'}</span>
+                                </div>
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => handleInsert(project.id)}
+                                    disabled={isSaving}
+                                >
+                                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </ScrollArea>
+    );
+
+    if (isMobile) {
+        return (
+            <Sheet open={open} onOpenChange={onOpenChange}>
+                <SheetContent side="left" className="flex flex-col p-0 gap-0 w-full sm:max-w-md">
+                     <SheetHeader className="px-6 py-4">
+                        <SheetTitle>Insert Project</SheetTitle>
+                        <SheetDescription>
+                            Select a project to insert into the current project hierarchy.
+                        </SheetDescription>
+                    </SheetHeader>
+                    {renderContent()}
+                    <SheetFooter className="px-6 py-4">
+                        <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
+        )
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={cn(
-                "flex flex-col p-0 gap-0 sm:max-w-[425px] sm:max-h-[90vh]",
-                isMobile && "top-[3.5rem] translate-y-0 max-h-[85vh] w-[95%] max-w-lg"
-            )}>
+            <DialogContent className="flex flex-col p-0 gap-0 sm:max-w-[425px] sm:max-h-[90vh]">
                 <DialogHeader className="px-6 py-4">
                     <DialogTitle>Insert Project</DialogTitle>
                     <DialogDescription>
                         Select a project to insert into the current project hierarchy.
                     </DialogDescription>
                 </DialogHeader>
-                <ScrollArea className="flex-1 px-6">
-                    <div className="pb-6">
-                        {isLoading || isCheckingAdmin ? (
-                            <div className="flex items-center justify-center h-20">
-                                <Loader2 className="h-6 w-6 animate-spin" />
-                            </div>
-                        ) : projects.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-20 text-muted-foreground">
-                                <p>No available projects to insert.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {projects.map(project => (
-                                    <div key={project.id} className="flex items-center justify-between p-2 border rounded hover:bg-muted/50">
-                                        <div className="flex flex-col">
-                                            <span className="font-medium">{project.name}</span>
-                                            <span className="text-xs text-muted-foreground">{project.description || 'No description'}</span>
-                                        </div>
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            onClick={() => handleInsert(project.id)}
-                                            disabled={isSaving}
-                                        >
-                                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </ScrollArea>
+                {renderContent()}
                 <DialogFooter className="px-6 py-4">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
                 </DialogFooter>
