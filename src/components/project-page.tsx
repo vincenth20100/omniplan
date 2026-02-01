@@ -297,6 +297,16 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
     </>
   );
 
+  const canRemove = state.selectedTaskIds.length > 0;
+  const canLink = state.selectedTaskIds.length > 1;
+
+  // A task can be indented if it's selected and it's not the first task in the project.
+  const firstSelectedTaskIndex = canRemove ? state.tasks.findIndex(t => t.id === state.selectedTaskIds[0]) : -1;
+  const canIndent = canRemove && firstSelectedTaskIndex > 0;
+
+  // A task can be outdented if it's selected and has a parent.
+  const canOutdent = state.selectedTaskIds.some(id => !!state.tasks.find(t => t.id === id)?.parentId);
+
   const sidebarContent = isMobile ? (
     <MobileSidebarContainer
         view={currentSidebarView}
@@ -308,18 +318,11 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         historyIndex={history.index}
         onManageThemes={() => setIsThemeManagerOpen(true)}
         isEditor={isEditorOrOwner}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        canRemove={canRemove}
     />
   ) : defaultSidebarContent;
-
-  const canRemove = state.selectedTaskIds.length > 0;
-  const canLink = state.selectedTaskIds.length > 1;
-  
-  // A task can be indented if it's selected and it's not the first task in the project.
-  const firstSelectedTaskIndex = canRemove ? state.tasks.findIndex(t => t.id === state.selectedTaskIds[0]) : -1;
-  const canIndent = canRemove && firstSelectedTaskIndex > 0;
-  
-  // A task can be outdented if it's selected and has a parent.
-  const canOutdent = state.selectedTaskIds.some(id => !!state.tasks.find(t => t.id === id)?.parentId);
 
   const headerLeftActions = (
     <div className='flex items-center gap-2 overflow-x-auto min-w-0 [&::-webkit-scrollbar]:hidden'>
@@ -365,6 +368,8 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Separator orientation="vertical" className="h-6 mx-1" />
 
         {/* History */}
+        {!isMobile && (
+        <>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo || !isEditorOrOwner} title="Undo (Ctrl+Z)">
             <Undo2 />
         </Button>
@@ -372,8 +377,12 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             <Redo2 />
         </Button>
         <Separator orientation="vertical" className="h-6 mx-1" />
+        </>
+        )}
 
         {/* Task Editing */}
+        {!isMobile && (
+        <>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK', payload: { id: crypto.randomUUID() } })} title="Add Task" disabled={!isEditorOrOwner}>
             <Plus />
         </Button>
@@ -383,6 +392,8 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REMOVE_TASK' })} disabled={!canRemove || !isEditorOrOwner} title="Remove Selected Tasks">
             <Trash2 />
         </Button>
+        </>
+        )}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'INDENT_TASK' })} disabled={!canIndent || !isEditorOrOwner} title="Indent Task">
             <Indent />
         </Button>

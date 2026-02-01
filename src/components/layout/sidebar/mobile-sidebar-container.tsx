@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { SidebarNavigation } from "./sidebar-navigation";
 import { FilterPanel } from "@/components/view-options/filter-panel";
 import { GroupingPanel } from "@/components/view-options/grouping-panel";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import type { ProjectState, HistoryEntry } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
+import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 
 export type SidebarView = 'main' | 'resources' | 'calendars' | 'filters' | 'grouping' | 'gantt-settings' | 'history' | 'shortcuts' | 'find-replace' | 'print';
 
@@ -25,6 +26,9 @@ export function MobileSidebarContainer({
     historyIndex,
     onManageThemes,
     isEditor,
+    canUndo,
+    canRedo,
+    canRemove,
 }: {
     view: SidebarView;
     onNavigate: (view: SidebarView) => void;
@@ -35,7 +39,19 @@ export function MobileSidebarContainer({
     historyIndex: number;
     onManageThemes: () => void;
     isEditor: boolean;
+    canUndo: boolean;
+    canRedo: boolean;
+    canRemove: boolean;
 }) {
+    const { state, setOpenMobile, isMobile } = useSidebar();
+
+    // Automatically expand the sidebar when entering a sub-view (panel)
+    // ensuring the content is visible.
+    useEffect(() => {
+        if (view !== 'main' && isMobile) {
+            setOpenMobile(true);
+        }
+    }, [view, isMobile, setOpenMobile]);
 
     const handleBack = () => {
         onNavigate('main');
@@ -44,10 +60,30 @@ export function MobileSidebarContainer({
     if (view === 'main') {
         return (
             <div className="flex flex-col h-full">
-                {defaultContent}
-                <Separator className="my-2" />
-                <h4 className="px-4 py-2 text-sm font-semibold text-muted-foreground">Tools</h4>
-                <SidebarNavigation onNavigate={onNavigate} />
+                <div className="flex items-center justify-between p-2">
+                     <span className="text-sm font-semibold text-muted-foreground group-data-[collapsible=icon]:hidden">
+                        Project Tools
+                     </span>
+                     <SidebarTrigger />
+                </div>
+
+                <SidebarNavigation
+                    onNavigate={onNavigate}
+                    dispatch={dispatch}
+                    canUndo={canUndo}
+                    canRedo={canRedo}
+                    canRemove={canRemove}
+                    isEditor={isEditor}
+                />
+
+                {state === 'expanded' && (
+                    <>
+                        <Separator className="my-2" />
+                        <div className="flex-1 overflow-auto">
+                            {defaultContent}
+                        </div>
+                    </>
+                )}
             </div>
         );
     }
