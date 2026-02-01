@@ -7,15 +7,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-    DialogFooter,
-    DialogClose
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Columns3, Plus, ArrowUp, ArrowDown, Pencil } from "lucide-react";
 import type { ColumnSpec } from "@/lib/types";
@@ -23,7 +14,6 @@ import { useState, useEffect } from "react";
 import { ColumnConfigDialog, type ColumnConfig } from "../view-options/column-config-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 export function ColumnSelector({
     visibleColumns,
@@ -36,7 +26,6 @@ export function ColumnSelector({
     dispatch: any;
     disabled?: boolean;
 }) {
-    const isMobile = useIsMobile();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState<ColumnSpec | null>(null);
@@ -133,47 +122,6 @@ export function ColumnSelector({
             </div>
         </div>
     );
-
-    if (isMobile) {
-        return (
-             <>
-                <Dialog open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" size="icon" title="Select Visible Columns" disabled={disabled}>
-                            <Columns3 className="h-4 w-4" />
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh] overflow-hidden">
-                        <DialogHeader>
-                            <DialogTitle>Visible Columns</DialogTitle>
-                        </DialogHeader>
-                        <div className="flex-1 overflow-y-auto pr-2 min-h-0 py-2">
-                             {columns.map((column, index) => (
-                                <div key={column.id} className="mb-1">
-                                    {renderColumnItem(column, index)}
-                                </div>
-                             ))}
-                        </div>
-                        <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
-                            <Button onClick={handleOpenNew} variant="outline" className="w-full sm:w-auto">
-                                <Plus className="mr-2 h-4 w-4" /> New Column
-                            </Button>
-                            <DialogClose asChild>
-                                <Button type="button" variant="secondary" className="w-full sm:w-auto">Close</Button>
-                            </DialogClose>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-                <ColumnConfigDialog
-                    key={editingColumn?.id || 'new'}
-                    open={isConfigOpen}
-                    onOpenChange={handleDialogClose}
-                    onSave={handleSaveColumn}
-                    column={editingColumn}
-                />
-            </>
-        )
-    }
 
     return (
         <>
