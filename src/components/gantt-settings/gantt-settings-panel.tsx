@@ -55,7 +55,7 @@ export function GanttSettingsPanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col">
+      <SheetContent side="left" className="flex flex-col">
         <SheetHeader>
           <SheetTitle>Display Options</SheetTitle>
           <SheetDescription>

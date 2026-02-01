@@ -53,7 +53,7 @@ export function HistoryPanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
+      <SheetContent side="left">
         <SheetHeader>
           <SheetTitle>Action History</SheetTitle>
           <SheetDescription>
