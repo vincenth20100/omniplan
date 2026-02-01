@@ -21,11 +21,21 @@ export function initializeFirebase() {
       // during development
       if (process.env.NODE_ENV === "production") {
         // Suppress warning for expected error "app/no-options" which happens on Vercel/non-AppHosting environments
-        if (e?.code !== 'app/no-options') {
+        const isNoOptionsError = e?.code === 'app/no-options' || e?.message?.includes('app/no-options');
+
+        if (!isNoOptionsError) {
           console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
         }
       }
-      firebaseApp = initializeApp(firebaseConfig);
+
+      try {
+        firebaseApp = initializeApp(firebaseConfig);
+      } catch (fallbackError: any) {
+        console.error('Fallback initialization with config failed.');
+        console.error('Config keys present:', Object.keys(firebaseConfig));
+        console.error('Error:', fallbackError);
+        throw fallbackError;
+      }
     }
 
     return getSdks(firebaseApp);
