@@ -24,9 +24,10 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, ArrowLeft } from 'lucide-react';
 import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface InsertSubprojectDialogProps {
     open: boolean;
@@ -46,6 +47,10 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
     const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
     const isMobile = useIsMobile();
 
+    // State for the selected project to insert (Second Step)
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const [initials, setInitials] = useState('');
+
     useEffect(() => {
         if (user) {
             user.getIdTokenResult().then((idTokenResult) => {
@@ -54,6 +59,14 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
             });
         }
     }, [user]);
+
+    useEffect(() => {
+        // Reset state when dialog opens
+        if (open) {
+            setSelectedProject(null);
+            setInitials('');
+        }
+    }, [open]);
 
     useEffect(() => {
         const fetchProjects = async () => {
@@ -108,13 +121,36 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
         }
     }, [firestore, user, isAdmin, isCheckingAdmin, open, currentProjectId, existingSubprojectIds, toast]);
 
-    const handleInsert = async (subprojectId: string) => {
-        if (!firestore) return;
+    const handleSelectProject = (project: Project) => {
+        setSelectedProject(project);
+        setInitials(project.initials || '');
+    };
+
+    const handleConfirmInsert = async () => {
+        if (!firestore || !selectedProject) return;
+        if (!initials.trim()) {
+            toast({
+                variant: 'destructive',
+                title: 'Initials Required',
+                description: 'Please define initials for the linked project.',
+            });
+            return;
+        }
+
         setIsSaving(true);
         try {
+            // 1. Update the subproject with the new initials if changed or missing
+            if (selectedProject.initials !== initials.trim()) {
+                const subprojectRef = doc(firestore, 'projects', selectedProject.id);
+                await updateDoc(subprojectRef, {
+                    initials: initials.trim()
+                });
+            }
+
+            // 2. Link the subproject to the current project
             const projectRef = doc(firestore, 'projects', currentProjectId);
             await updateDoc(projectRef, {
-                subprojectIds: arrayUnion(subprojectId)
+                subprojectIds: arrayUnion(selectedProject.id)
             });
 
             toast({
@@ -134,7 +170,7 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
         }
     };
 
-    const renderContent = () => (
+    const renderList = () => (
         <ScrollArea className="flex-1 px-6">
             <div className="pb-6">
                 {isLoading || isCheckingAdmin ? (
@@ -156,10 +192,10 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
                                 <Button
                                     size="sm"
                                     variant="secondary"
-                                    onClick={() => handleInsert(project.id)}
+                                    onClick={() => handleSelectProject(project)}
                                     disabled={isSaving}
                                 >
-                                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                    <Plus className="h-4 w-4" />
                                 </Button>
                             </div>
                         ))}
@@ -169,19 +205,65 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
         </ScrollArea>
     );
 
+    const renderForm = () => (
+        <div className="flex-1 px-6 flex flex-col gap-4">
+            <div className="p-4 border rounded-md bg-muted/20">
+                <h4 className="font-medium">{selectedProject?.name}</h4>
+                <p className="text-sm text-muted-foreground">{selectedProject?.description || 'No description'}</p>
+            </div>
+
+            <div className="space-y-2">
+                <Label htmlFor="project-initials">
+                    Project Initials <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                    id="project-initials"
+                    value={initials}
+                    onChange={(e) => setInitials(e.target.value.toUpperCase())}
+                    placeholder="e.g. PRJ1"
+                    maxLength={5}
+                />
+                <p className="text-xs text-muted-foreground">
+                    These initials will be used as a prefix for tasks in cross-project links (e.g., PRJ1-1.2).
+                </p>
+            </div>
+        </div>
+    );
+
+    const handleBack = () => {
+        setSelectedProject(null);
+    };
+
     if (isMobile) {
         return (
             <Sheet open={open} onOpenChange={onOpenChange}>
                 <SheetContent side="left" className="flex flex-col p-0 gap-0 w-full sm:max-w-md">
                      <SheetHeader className="px-6 py-4">
-                        <SheetTitle>Insert Project</SheetTitle>
+                        <SheetTitle>{selectedProject ? "Configure Link" : "Insert Project"}</SheetTitle>
                         <SheetDescription>
-                            Select a project to insert into the current project hierarchy.
+                            {selectedProject
+                                ? "Define settings for the linked project."
+                                : "Select a project to insert into the current project hierarchy."
+                            }
                         </SheetDescription>
                     </SheetHeader>
-                    {renderContent()}
+                    {selectedProject ? renderForm() : renderList()}
                     <SheetFooter className="px-6 py-4">
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                        <div className="flex gap-2 w-full">
+                            {selectedProject ? (
+                                <>
+                                    <Button variant="outline" onClick={handleBack} disabled={isSaving}>
+                                        Back
+                                    </Button>
+                                    <Button onClick={handleConfirmInsert} disabled={isSaving || !initials.trim()} className="flex-1">
+                                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Insert Project
+                                    </Button>
+                                </>
+                            ) : (
+                                <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">Close</Button>
+                            )}
+                        </div>
                     </SheetFooter>
                 </SheetContent>
             </Sheet>
@@ -192,14 +274,29 @@ export function InsertSubprojectDialog({ open, onOpenChange, user, currentProjec
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex flex-col p-0 gap-0 sm:max-w-[425px] sm:max-h-[90vh]">
                 <DialogHeader className="px-6 py-4">
-                    <DialogTitle>Insert Project</DialogTitle>
+                    <DialogTitle>{selectedProject ? "Configure Link" : "Insert Project"}</DialogTitle>
                     <DialogDescription>
-                        Select a project to insert into the current project hierarchy.
+                         {selectedProject
+                                ? "Define settings for the linked project."
+                                : "Select a project to insert into the current project hierarchy."
+                         }
                     </DialogDescription>
                 </DialogHeader>
-                {renderContent()}
+                {selectedProject ? renderForm() : renderList()}
                 <DialogFooter className="px-6 py-4">
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                    {selectedProject ? (
+                        <>
+                            <Button variant="outline" onClick={handleBack} disabled={isSaving}>
+                                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+                            </Button>
+                            <Button onClick={handleConfirmInsert} disabled={isSaving || !initials.trim()}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Insert Project
+                            </Button>
+                        </>
+                    ) : (
+                        <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>

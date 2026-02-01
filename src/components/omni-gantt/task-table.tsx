@@ -173,12 +173,17 @@ const TaskCellRenderer = React.memo(({
         case 'predecessors': {
             const predecessorLinks = links.filter(l => l.target === task.id);
             const predecessorString = predecessorLinks.map(l => {
+                const sourceTask = tasks.find(t => t.id === l.source);
                 const sourceWbs = idToWbsMap.get(l.source);
                 if (!sourceWbs) return '';
+
+                const prefix = sourceTask?.projectInitials ? `${sourceTask.projectInitials}-` : '';
+                const displayWbs = `${prefix}${sourceWbs}`;
+
                 let lagString = '';
                 if (l.lag > 0) lagString = `+${l.lag}d`;
                 if (l.lag < 0) lagString = `${l.lag}d`;
-                return `${sourceWbs}${l.type}${lagString}`;
+                return `${displayWbs}${l.type}${lagString}`;
             }).join(', ');
             
             return (
@@ -196,12 +201,17 @@ const TaskCellRenderer = React.memo(({
         case 'successors': {
             const successorLinks = links.filter(l => l.source === task.id);
             const successorString = successorLinks.map(l => {
+                const targetTask = tasks.find(t => t.id === l.target);
                 const targetWbs = idToWbsMap.get(l.target);
                 if (!targetWbs) return '';
+
+                const prefix = targetTask?.projectInitials ? `${targetTask.projectInitials}-` : '';
+                const displayWbs = `${prefix}${targetWbs}`;
+
                 let lagString = '';
                 if (l.lag > 0) lagString = `+${l.lag}d`;
                 if (l.lag < 0) lagString = `${l.lag}d`;
-                return `${targetWbs}${l.type}${lagString}`;
+                return `${displayWbs}${l.type}${lagString}`;
             }).join(', ');
             
             return (
@@ -535,23 +545,33 @@ export function TaskTable({
             case 'predecessors': {
                 const predecessorLinks = links.filter(l => l.target === task.id);
                 return predecessorLinks.map(l => {
+                    const sourceTask = tasks.find(t => t.id === l.source);
                     const sourceWbs = idToWbsMap.get(l.source);
                     if (!sourceWbs) return '';
+
+                    const prefix = sourceTask?.projectInitials ? `${sourceTask.projectInitials}-` : '';
+                    const displayWbs = `${prefix}${sourceWbs}`;
+
                     let lagString = '';
                     if (l.lag > 0) lagString = `+${l.lag}d`;
                     else if (l.lag < 0) lagString = `${l.lag}d`;
-                    return `${sourceWbs}${l.type}${lagString}`;
+                    return `${displayWbs}${l.type}${lagString}`;
                 }).join(', ');
             }
             case 'successors': {
                  const successorLinks = links.filter(l => l.source === task.id);
                 return successorLinks.map(l => {
+                    const targetTask = tasks.find(t => t.id === l.target);
                     const targetWbs = idToWbsMap.get(l.target);
                     if (!targetWbs) return '';
+
+                    const prefix = targetTask?.projectInitials ? `${targetTask.projectInitials}-` : '';
+                    const displayWbs = `${prefix}${targetWbs}`;
+
                     let lagString = '';
                     if (l.lag > 0) lagString = `+${l.lag}d`;
                     else if (l.lag < 0) lagString = `${l.lag}d`;
-                    return `${targetWbs}${l.type}${lagString}`;
+                    return `${displayWbs}${l.type}${lagString}`;
                 }).join(', ');
             }
             default:
