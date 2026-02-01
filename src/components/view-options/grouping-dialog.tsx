@@ -7,12 +7,20 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetFooter,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import type { ColumnSpec, View } from "@/lib/types";
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, ChevronsUp, ChevronsDown } from "lucide-react";
 import { ViewManager } from "./view-manager";
 import { Separator } from "../ui/separator";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function GroupingDialog({
     open,
@@ -33,6 +41,7 @@ export function GroupingDialog({
     currentViewId: string | null;
     isDirty?: boolean;
 }) {
+    const isMobile = useIsMobile();
     const [currentGrouping, setCurrentGrouping] = useState<string[]>([]);
     const [selectedAvailable, setSelectedAvailable] = useState<string | null>(null);
     const [selectedGroupBy, setSelectedGroupBy] = useState<string | null>(null);
@@ -112,64 +121,93 @@ export function GroupingDialog({
         </div>
     );
 
+    const renderContent = () => (
+        <>
+            <div className="border rounded-lg p-4">
+                <ViewManager
+                    views={views}
+                    currentViewId={currentViewId}
+                    isDirty={isDirty}
+                    dispatch={dispatch}
+                    showTitle={false}
+                />
+            </div>
+
+            <Separator />
+
+            <div className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr_auto] gap-4 items-stretch sm:items-center overflow-hidden flex-1 p-1">
+                {/* Available Fields */}
+                <div className="flex flex-col gap-2 flex-1 min-h-0">
+                    <h3 className="font-semibold text-sm">Available fields:</h3>
+                    {renderFieldList(availableFields, selectedAvailable, setSelectedAvailable)}
+                </div>
+
+                {/* Add/Remove Buttons */}
+                <div className="flex flex-row justify-center sm:flex-col gap-2">
+                    <Button variant="outline" size="icon" onClick={handleAddField} disabled={!selectedAvailable}>
+                        <ArrowRight className="h-4 w-4 rotate-90 sm:rotate-0" />
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={handleRemoveField} disabled={!selectedGroupBy}>
+                        <ArrowLeft className="h-4 w-4 rotate-90 sm:rotate-0" />
+                    </Button>
+                </div>
+
+                {/* Group By Fields */}
+                <div className="flex flex-col gap-2 flex-1 min-h-0">
+                    <div className="flex justify-between items-center">
+                        <h3 className="font-semibold text-sm">Group by:</h3>
+                        <Button variant="link" size="sm" onClick={handleClear} className="h-auto p-0">Clear All</Button>
+                    </div>
+                    {renderFieldList(groupByFields, selectedGroupBy, setSelectedGroupBy)}
+                </div>
+
+                {/* Move Buttons */}
+                <div className="flex flex-row justify-center sm:flex-col gap-2">
+                        <Button variant="outline" size="icon" onClick={handleMoveUp} disabled={!selectedGroupBy || currentGrouping.indexOf(selectedGroupBy) === 0}>
+                        <ChevronsUp className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={handleMoveDown} disabled={!selectedGroupBy || currentGrouping.indexOf(selectedGroupBy) === currentGrouping.length - 1}>
+                        <ChevronsDown className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+        </>
+    );
+
+    const renderFooter = () => (
+        <>
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" onClick={handleSave}>OK</Button>
+        </>
+    );
+
+    if (isMobile) {
+        return (
+            <Sheet open={open} onOpenChange={onOpenChange}>
+                <SheetContent side="left" className="flex flex-col h-full w-full sm:max-w-md p-0 gap-0">
+                    <SheetHeader className="p-4 border-b">
+                        <SheetTitle>Group By</SheetTitle>
+                    </SheetHeader>
+                    <div className="flex-1 flex flex-col min-h-0 p-4 gap-4 overflow-hidden">
+                        {renderContent()}
+                    </div>
+                    <SheetFooter className="p-4 border-t gap-2 sm:gap-0">
+                        {renderFooter()}
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
+        );
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>Group By</DialogTitle>
                 </DialogHeader>
-
-                <div className="border rounded-lg p-4">
-                    <ViewManager 
-                        views={views}
-                        currentViewId={currentViewId}
-                        isDirty={isDirty}
-                        dispatch={dispatch}
-                        showTitle={false}
-                    />
-                </div>
-                
-                <Separator />
-                
-                <div className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr_auto] gap-4 items-stretch sm:items-center overflow-hidden flex-1 p-1">
-                    {/* Available Fields */}
-                    <div className="flex flex-col gap-2 flex-1 min-h-0">
-                        <h3 className="font-semibold text-sm">Available fields:</h3>
-                        {renderFieldList(availableFields, selectedAvailable, setSelectedAvailable)}
-                    </div>
-                    
-                    {/* Add/Remove Buttons */}
-                    <div className="flex flex-row justify-center sm:flex-col gap-2">
-                        <Button variant="outline" size="icon" onClick={handleAddField} disabled={!selectedAvailable}>
-                            <ArrowRight className="h-4 w-4 rotate-90 sm:rotate-0" />
-                        </Button>
-                        <Button variant="outline" size="icon" onClick={handleRemoveField} disabled={!selectedGroupBy}>
-                            <ArrowLeft className="h-4 w-4 rotate-90 sm:rotate-0" />
-                        </Button>
-                    </div>
-
-                    {/* Group By Fields */}
-                    <div className="flex flex-col gap-2 flex-1 min-h-0">
-                        <div className="flex justify-between items-center">
-                            <h3 className="font-semibold text-sm">Group by:</h3>
-                            <Button variant="link" size="sm" onClick={handleClear} className="h-auto p-0">Clear All</Button>
-                        </div>
-                        {renderFieldList(groupByFields, selectedGroupBy, setSelectedGroupBy)}
-                    </div>
-                    
-                    {/* Move Buttons */}
-                    <div className="flex flex-row justify-center sm:flex-col gap-2">
-                         <Button variant="outline" size="icon" onClick={handleMoveUp} disabled={!selectedGroupBy || currentGrouping.indexOf(selectedGroupBy) === 0}>
-                            <ChevronsUp className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="icon" onClick={handleMoveDown} disabled={!selectedGroupBy || currentGrouping.indexOf(selectedGroupBy) === currentGrouping.length - 1}>
-                            <ChevronsDown className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
+                {renderContent()}
                 <DialogFooter>
-                    <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button type="button" onClick={handleSave}>OK</Button>
+                    {renderFooter()}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
