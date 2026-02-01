@@ -96,9 +96,15 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
             <div className="flex flex-col gap-3 p-1">
                 {predecessorLinks.map(link => {
                      const sourceTask = taskMap.get(link.source);
-                     if (!sourceTask) return null;
+                     const displayTask = sourceTask || {
+                         name: 'External Task',
+                         wbs: 'EXT',
+                         finish: null,
+                         start: null
+                     };
 
                      const getDateForLink = () => {
+                        if (!sourceTask) return null;
                         switch (link.type) {
                             case 'FS':
                             case 'FF':
@@ -116,8 +122,8 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
                          <div key={link.id} className="border rounded-md p-3 bg-card shadow-sm">
                              <div className="flex justify-between items-start mb-2">
                                 <div className="flex flex-col min-w-0">
-                                     <span className="font-semibold text-sm truncate">{sourceTask.name}</span>
-                                     <span className="text-xs text-muted-foreground">ID: {sourceTask.wbs}</span>
+                                     <span className="font-semibold text-sm truncate">{displayTask.name}</span>
+                                     <span className="text-xs text-muted-foreground">ID: {displayTask.wbs}</span>
                                 </div>
                                 <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 -mr-2 -mt-2" onClick={() => dispatch({ type: 'REMOVE_LINK', payload: { linkId: link.id }})}>
                                      <Trash2 className="h-4 w-4 text-destructive" />
@@ -227,9 +233,15 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
                 <TableBody>
                     {predecessorLinks.map(link => {
                         const sourceTask = taskMap.get(link.source);
-                        if (!sourceTask) return null;
+                        const displayTask = sourceTask || {
+                             name: 'External Task',
+                             wbs: 'EXT',
+                             finish: null,
+                             start: null
+                        };
 
                         const getDateForLink = () => {
+                            if (!sourceTask) return null;
                             switch (link.type) {
                                 case 'FS':
                                 case 'FF':
@@ -255,16 +267,16 @@ export function PredecessorList({ currentTaskId, predecessorLinks, allTasks, dis
                                 )}
                             >
                                 <TableCell className={cellClass}>
-                                    <div className={cellInnerDivClass}>{sourceTask?.wbs || 'N/A'}</div>
+                                    <div className={cellInnerDivClass}>{displayTask.wbs || 'N/A'}</div>
                                 </TableCell>
-                                <TableCell className={cellClass} title={sourceTask?.name}>
+                                <TableCell className={cellClass} title={displayTask.name}>
                                     <Popover open={editingLinkId === link.id} onOpenChange={(open) => !open && setEditingLinkId(null)}>
                                         <PopoverTrigger asChild>
                                             <div
                                                 onClick={() => setEditingLinkId(link.id)}
                                                 className={cn(cellInnerDivClass, "cursor-pointer")}
                                             >
-                                                {sourceTask.name}
+                                                {displayTask.name}
                                             </div>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-[300px] sm:w-[400px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
