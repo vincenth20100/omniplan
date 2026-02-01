@@ -1,0 +1,20 @@
+   ▲ Next.js 15.5.9
+   - Local:        http://localhost:3001
+   - Network:      http://0.0.0.0:3001
+
+ ✓ Starting...
+
+   We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+   The following mandatory changes were made to your tsconfig.json:
+
+	- jsx was set to preserve (next.js implements its own optimized jsx transform)
+
+ ✓ Ready in 1976ms
+ ○ Compiling /test-view ...
+ ✓ Compiled /test-view in 17.1s (2214 modules)
+ GET /test-view 200 in 19111ms
+ ✓ Compiled in 2.2s (971 modules)
+ GET /test-view 200 in 116ms
+ GET /test-view 200 in 132ms
+ GET /test-view 200 in 113ms
+ ✓ Compiled in 654ms (276 modules)

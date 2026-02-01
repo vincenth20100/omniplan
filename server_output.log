@@ -1,0 +1,263 @@
+npm warn exec The following package was not found and will be installed: next@16.1.6
+⚠ Installing TypeScript as it was not found while loading "next.config.ts".
+
+Installing devDependencies (npm):
+- typescript
+
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated rimraf@2.7.1: Rimraf versions prior to v4 are no longer supported
+
+added 984 packages, and audited 985 packages in 59s
+
+110 packages are looking for funding
+  run `npm fund` for details
+
+17 vulnerabilities (3 low, 2 moderate, 12 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+⚠ `eslint` configuration in next.config.ts is no longer supported. See more info here: https://nextjs.org/docs/app/api-reference/cli/next#next-lint-options
+⚠ Invalid next.config.ts options detected:
+⚠     Unrecognized key(s) in object: 'eslint'
+⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+  We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+  The following mandatory changes were made to your tsconfig.json:
+
+	- jsx was set to react-jsx (next.js uses the React automatic runtime)
+
+✓ Ready in 60.3s
+
+-----
+[1m[31mFATAL[39m[0m: An unexpected Turbopack error occurred. A panic log has been written to /tmp/next-panic-78c28a64750077ae831265d7244640c0.log.
+
+To help make Turbopack better, report this error by clicking here: https://github.com/vercel/next.js/discussions/new?category=turbopack-error-report&title=Turbopack%20Error%3A%20Failed%20to%20write%20app%20endpoint%20%2Ftest-view%2Fpage&body=Turbopack%20version%3A%20%600c06f068%60%0ANext.js%20version%3A%20%600.0.0%60%0A%0AError%20message%3A%0A%60%60%60%0ATurbopack%20Error%3A%20Failed%20to%20write%20app%20endpoint%20%2Ftest-view%2Fpage%0A%60%60%60&labels=Turbopack,Turbopack%20Panic%20Backtrace
+-----
+
+⨯ Error [TurbopackInternalError]: Failed to write page endpoint /_app
+
+Caused by:
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <PageEndpoint as Endpoint>::output failed
+- Failed to write page endpoint /_app
+- Execution of PageEndpoint::output failed
+- Execution of PageEndpoint::internal_ssr_chunk failed
+- Execution of PageEndpoint::internal_ssr_chunk_module failed
+- Execution of *ProcessResult::module failed
+- Execution of *<ModuleAssetContext as AssetContext>::process failed
+- Execution of PagesProject::ssr_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of get_server_resolve_options_context failed
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+    at <unknown> (TurbopackInternalError: Failed to write page endpoint /_app) {
+  location: undefined
+}
+Error [TurbopackInternalError]: Failed to write app endpoint /test-view/page
+
+Caused by:
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <AppEndpoint as Endpoint>::output failed
+- Failed to write app endpoint /test-view/page
+- Execution of AppEndpoint::output failed
+- Execution of AppEndpoint::app_page_entry failed
+- Execution of *get_app_page_entry failed
+- Execution of AppProject::rsc_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of *AppProject::get_rsc_transitions failed
+- Execution of AppProject::ecmascript_client_reference_transition failed
+- Execution of *NextEcmascriptClientReferenceTransition::new failed
+- Execution of AppProject::ssr_transition failed
+- Execution of *FullContextTransition::new failed
+- Execution of AppProject::ssr_module_context failed
+- Execution of AppProject::shared_transition failed
+- Execution of *FullContextTransition::new failed
+- Execution of AppProject::shared_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of get_server_resolve_options_context failed
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+    at <unknown> (TurbopackInternalError: Failed to write app endpoint /test-view/page) {
+  location: undefined
+}
+⨯ Error [TurbopackInternalError]: Failed to write page endpoint /_app
+
+Caused by:
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <PageEndpoint as Endpoint>::output failed
+- Failed to write page endpoint /_app
+- Execution of PageEndpoint::output failed
+- Execution of PageEndpoint::internal_ssr_chunk failed
+- Execution of PageEndpoint::internal_ssr_chunk_module failed
+- Execution of *ProcessResult::module failed
+- Execution of *<ModuleAssetContext as AssetContext>::process failed
+- Execution of PagesProject::ssr_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of get_server_resolve_options_context failed
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+    at <unknown> (TurbopackInternalError: Failed to write page endpoint /_app) {
+  location: undefined
+}
+Error [TurbopackInternalError]: Failed to write page endpoint /_app
+
+Caused by:
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <PageEndpoint as Endpoint>::output failed
+- Failed to write page endpoint /_app
+- Execution of PageEndpoint::output failed
+- Execution of PageEndpoint::internal_ssr_chunk failed
+- Execution of PageEndpoint::internal_ssr_chunk_module failed
+- Execution of *ProcessResult::module failed
+- Execution of *<ModuleAssetContext as AssetContext>::process failed
+- Execution of PagesProject::ssr_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of get_server_resolve_options_context failed
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+    at <unknown> (TurbopackInternalError: Failed to write page endpoint /_app) {
+  location: undefined
+}
+
+-----
+[1m[31mFATAL[39m[0m: An unexpected Turbopack error occurred. A panic log has been written to /tmp/next-panic-78c28a64750077ae831265d7244640c0.log.
+
+To help make Turbopack better, report this error by clicking here: https://github.com/vercel/next.js/discussions/new?category=turbopack-error-report&title=Turbopack%20Error%3A%20Failed%20to%20write%20app%20endpoint%20%2Ftest-view%2Fpage&body=Turbopack%20version%3A%20%600c06f068%60%0ANext.js%20version%3A%20%600.0.0%60%0A%0AError%20message%3A%0A%60%60%60%0ATurbopack%20Error%3A%20Failed%20to%20write%20app%20endpoint%20%2Ftest-view%2Fpage%0A%60%60%60&labels=Turbopack,Turbopack%20Panic%20Backtrace
+-----
+
+⨯ Error [TurbopackInternalError]: Failed to write page endpoint /_app
+
+Caused by:
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <PageEndpoint as Endpoint>::output failed
+- Failed to write page endpoint /_app
+- Execution of PageEndpoint::output failed
+- Execution of PageEndpoint::internal_ssr_chunk failed
+- Execution of PageEndpoint::internal_ssr_chunk_module failed
+- Execution of *ProcessResult::module failed
+- Execution of *<ModuleAssetContext as AssetContext>::process failed
+- Execution of PagesProject::ssr_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of get_server_resolve_options_context failed
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+    at <unknown> (TurbopackInternalError: Failed to write page endpoint /_app) {
+  location: undefined
+}
+Error [TurbopackInternalError]: Failed to write app endpoint /test-view/page
+
+Caused by:
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <AppEndpoint as Endpoint>::output failed
+- Failed to write app endpoint /test-view/page
+- Execution of AppEndpoint::output failed
+- Execution of AppEndpoint::app_page_entry failed
+- Execution of *get_app_page_entry failed
+- Execution of AppProject::rsc_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of *AppProject::get_rsc_transitions failed
+- Execution of AppProject::ecmascript_client_reference_transition failed
+- Execution of *NextEcmascriptClientReferenceTransition::new failed
+- Execution of AppProject::ssr_transition failed
+- Execution of *FullContextTransition::new failed
+- Execution of AppProject::ssr_module_context failed
+- Execution of AppProject::shared_transition failed
+- Execution of *FullContextTransition::new failed
+- Execution of AppProject::shared_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of get_server_resolve_options_context failed
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+    at <unknown> (TurbopackInternalError: Failed to write app endpoint /test-view/page) {
+  location: undefined
+}
+⨯ Error [TurbopackInternalError]: Failed to write page endpoint /_app
+
+Caused by:
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <PageEndpoint as Endpoint>::output failed
+- Failed to write page endpoint /_app
+- Execution of PageEndpoint::output failed
+- Execution of PageEndpoint::internal_ssr_chunk failed
+- Execution of PageEndpoint::internal_ssr_chunk_module failed
+- Execution of *ProcessResult::module failed
+- Execution of *<ModuleAssetContext as AssetContext>::process failed
+- Execution of PagesProject::ssr_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of get_server_resolve_options_context failed
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+    at <unknown> (TurbopackInternalError: Failed to write page endpoint /_app) {
+  location: undefined
+}
+Error [TurbopackInternalError]: Failed to write page endpoint /_app
+
+Caused by:
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Execution of endpoint_write_to_disk failed
+- Execution of <PageEndpoint as Endpoint>::output failed
+- Failed to write page endpoint /_app
+- Execution of PageEndpoint::output failed
+- Execution of PageEndpoint::internal_ssr_chunk failed
+- Execution of PageEndpoint::internal_ssr_chunk_module failed
+- Execution of *ProcessResult::module failed
+- Execution of *<ModuleAssetContext as AssetContext>::process failed
+- Execution of PagesProject::ssr_module_context failed
+- Execution of *ModuleAssetContext::new failed
+- Execution of get_server_resolve_options_context failed
+- File not found: "[project]/node_modules/next/dist/lib/server-external-packages.jsonc"
+    at <unknown> (TurbopackInternalError: Failed to write page endpoint /_app) {
+  location: undefined
+}
+Killed
+npm notice
+npm notice New minor version of npm available! 11.7.0 -> 11.8.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.8.0
+npm notice To update run: npm install -g npm@11.8.0
+npm notice
+Persisting failed: Unable to write SST file 00000023.sst
+
+Caused by:
+    No such file or directory (os error 2)
+Persisting failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)

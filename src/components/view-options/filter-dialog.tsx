@@ -7,6 +7,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import type { ColumnSpec, Filter as FilterType, View } from "@/lib/types";
 import { useState, useEffect } from 'react';
@@ -250,14 +257,25 @@ export function FilterDialog({
         </>
     );
 
+    if (isMobile) {
+        return (
+            <Sheet open={open} onOpenChange={onOpenChange}>
+                <SheetContent side="left" className="flex flex-col w-full sm:max-w-md">
+                    <SheetHeader>
+                        <SheetTitle>Filter Tasks</SheetTitle>
+                    </SheetHeader>
+                    {renderContent()}
+                    <SheetFooter className="flex-col-reverse sm:flex-row gap-2 mt-4">
+                        {renderFooter()}
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
+        );
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={cn(
-                "flex flex-col overflow-hidden",
-                isMobile
-                    ? "top-[3.5rem] translate-y-0 max-h-[85vh] w-[95%] max-w-lg"
-                    : "sm:max-w-3xl max-h-[90vh]"
-            )}>
+            <DialogContent className="flex flex-col overflow-hidden sm:max-w-3xl max-h-[90vh]">
                 <DialogHeader>
                     <DialogTitle>Filter Tasks</DialogTitle>
                 </DialogHeader>

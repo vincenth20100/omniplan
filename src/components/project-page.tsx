@@ -302,9 +302,11 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         >
           <ListChecks />
         </Toggle>
-        <Button variant="outline" size="icon" onClick={() => setIsDetailsSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
-            <Info />
-        </Button>
+        {isMobile && (
+            <Button variant="outline" size="icon" onClick={() => setIsDetailsSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
+                <Info />
+            </Button>
+        )}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink || !isEditorOrOwner} title="Link Selected Tasks">
             <LinkIcon />
         </Button>
@@ -519,25 +521,27 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
       </main>
       {isLoaded && (
         <>
-          <Sheet open={isDetailsSheetOpen} onOpenChange={setIsDetailsSheetOpen}>
-              <SheetContent side="left" className="p-0 flex flex-col w-fit min-w-[320px] max-w-[95vw] sm:w-auto sm:max-w-lg">
-                {selectedTask && (
-                  <>
-                    <SheetTitle className="sr-only">Task Details: {selectedTask.name}</SheetTitle>
-                    <TaskDetailsPanel
-                        task={selectedTask}
-                        projectState={state}
-                        dispatch={dispatch}
-                        onClose={() => setIsDetailsSheetOpen(false)}
-                        uiDensity={state.uiDensity}
-                        defaultCalendar={defaultCalendar}
-                        dateFormat={dateFormat}
-                        layoutMode="vertical"
-                    />
-                  </>
-                )}
-              </SheetContent>
-          </Sheet>
+          {isMobile && (
+              <Sheet open={isDetailsSheetOpen} onOpenChange={setIsDetailsSheetOpen}>
+                  <SheetContent side="left" className="p-0 flex flex-col w-fit min-w-[320px] max-w-[95vw] sm:w-auto sm:max-w-lg">
+                    {selectedTask && (
+                      <>
+                        <SheetTitle className="sr-only">Task Details: {selectedTask.name}</SheetTitle>
+                        <TaskDetailsPanel
+                            task={selectedTask}
+                            projectState={state}
+                            dispatch={dispatch}
+                            onClose={() => setIsDetailsSheetOpen(false)}
+                            uiDensity={state.uiDensity}
+                            defaultCalendar={defaultCalendar}
+                            dateFormat={dateFormat}
+                            layoutMode="vertical"
+                        />
+                      </>
+                    )}
+                  </SheetContent>
+              </Sheet>
+          )}
            {project && (
                 <ProjectSettingsDialog
                     open={isProjectSettingsOpen}
