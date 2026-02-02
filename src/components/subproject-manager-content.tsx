@@ -118,7 +118,7 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
 
     const handleSelectProject = (project: Project) => {
         setSelectedProjectToAdd(project);
-        setInitialsToAdd(project.initials || '');
+        setInitialsToAdd(project.initials || project.name.substring(0, 2).toUpperCase());
     };
 
     const handleConfirmInsert = async () => {

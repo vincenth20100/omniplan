@@ -215,7 +215,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
                 const data = snap.data();
                 if (data) {
                     localCache[pId].projectName = data.name;
-                    localCache[pId].initials = data.initials;
+                    localCache[pId].initials = data.initials || data.name.substring(0, 2).toUpperCase();
                     localCache[pId].color = data.color;
                     updateData();
                 }
@@ -368,7 +368,8 @@ function useExternalData(projectId: string | null, firestore: any, localLinks: L
             if (loadedProjects[pid] === undefined) {
                  const projUnsub = onSnapshot(doc(firestore, 'projects', pid), (snap) => {
                      if (snap.exists()) {
-                         loadedProjects[pid] = snap.data().initials || '';
+                         const data = snap.data();
+                         loadedProjects[pid] = data.initials || data.name.substring(0, 2).toUpperCase();
                          updateTasksState();
                      }
                  });
@@ -2212,18 +2213,27 @@ export function useProject(user: User, projectId: string | null) {
         newState.links.forEach(newLink => {
             const oldLink = currentState.links.find(l => l.id === newLink.id);
             const { isDriving, ...linkData } = newLink;
+            const linkProjectId = newLink.sourceProjectId || projectId;
+
             if (!oldLink) {
-                batch.set(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+                batch.set(doc(firestore, 'projects', linkProjectId, 'links', newLink.id), linkData);
             } else {
                 const { isDriving: oldIsDriving, ...oldLinkData } = oldLink;
                 if (JSON.stringify(oldLinkData) !== JSON.stringify(linkData)) {
-                        batch.update(doc(firestore, 'projects', projectId, 'links', newLink.id), linkData);
+                    const oldLinkProjectId = oldLink.sourceProjectId || projectId;
+                    if (oldLinkProjectId !== linkProjectId) {
+                        batch.delete(doc(firestore, 'projects', oldLinkProjectId, 'links', oldLink.id));
+                        batch.set(doc(firestore, 'projects', linkProjectId, 'links', newLink.id), linkData);
+                    } else {
+                        batch.update(doc(firestore, 'projects', linkProjectId, 'links', newLink.id), linkData);
+                    }
                 }
             }
         });
         currentState.links.forEach(oldLink => {
             if (!newState.links.some(l => l.id === oldLink.id)) {
-                batch.delete(doc(firestore, 'projects', projectId, 'links', oldLink.id));
+                const linkProjectId = oldLink.sourceProjectId || projectId;
+                batch.delete(doc(firestore, 'projects', linkProjectId, 'links', oldLink.id));
             }
         });
 

@@ -74,6 +74,7 @@ export function ProjectSettingsDialog({
     const { data: fetchedInvitations, isLoading: invitationsLoading } = useCollection<Invitation>(invitationsQuery);
 
     const [name, setName] = useState(project.name);
+    const [initials, setInitials] = useState(project.initials || '');
     const [description, setDescription] = useState(project.description || '');
     const [members, setMembers] = useState<EditableMember[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -118,6 +119,7 @@ export function ProjectSettingsDialog({
     useEffect(() => {
         if (open) {
             setName(project.name);
+            setInitials(project.initials || project.name.substring(0, 2).toUpperCase());
             setDescription(project.description || '');
             setMembers(originalMembers);
             setSubprojectIds(project.subprojectIds || []);
@@ -158,6 +160,7 @@ export function ProjectSettingsDialog({
             // 1. Update Project Document
             const projectUpdates: Partial<Project> = {};
             if (name !== project.name) projectUpdates.name = name;
+            if (initials !== (project.initials || '')) projectUpdates.initials = initials;
             if (description !== (project.description || '')) projectUpdates.description = description;
 
             if (JSON.stringify(subprojectIds) !== JSON.stringify(project.subprojectIds || [])) {
@@ -268,9 +271,21 @@ export function ProjectSettingsDialog({
                         <div className="flex flex-col gap-6 pb-6">
                             {/* Project Details */}
                             <div className="space-y-4">
-                                <div>
-                                    <Label htmlFor="project-name">Project Name</Label>
-                                    <Input id="project-name" value={name} onChange={e => setName(e.target.value)} />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-2 sm:col-span-1">
+                                        <Label htmlFor="project-name">Project Name</Label>
+                                        <Input id="project-name" value={name} onChange={e => setName(e.target.value)} />
+                                    </div>
+                                    <div className="col-span-2 sm:col-span-1">
+                                        <Label htmlFor="project-initials">Initials</Label>
+                                        <Input
+                                            id="project-initials"
+                                            value={initials}
+                                            onChange={e => setInitials(e.target.value.toUpperCase())}
+                                            maxLength={5}
+                                            placeholder="e.g. PRJ"
+                                        />
+                                    </div>
                                 </div>
                                 <div>
                                     <Label htmlFor="project-description">Description</Label>
