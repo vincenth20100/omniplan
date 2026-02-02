@@ -2290,7 +2290,15 @@ export function useProject(user: User, projectId: string | null) {
         newState.links.forEach(newLink => {
             const oldLink = currentState.links.find(l => l.id === newLink.id);
             const { isDriving, ...linkData } = newLink;
-            const linkProjectId = newLink.sourceProjectId || projectId;
+
+            const effectiveTargetProjectId = newLink.targetProjectId || projectId;
+            const effectiveSourceProjectId = newLink.sourceProjectId || projectId;
+
+            // Prefer storing in the current project if it is involved in the link.
+            // This ensures we can write the link even if the other project is read-only.
+            const linkProjectId = (effectiveTargetProjectId === projectId || effectiveSourceProjectId === projectId)
+                ? projectId
+                : effectiveSourceProjectId;
 
             // Defensive coding: Ensure sourceProjectId and targetProjectId are defined
             if (linkData.sourceProjectId === undefined) linkData.sourceProjectId = projectId;
