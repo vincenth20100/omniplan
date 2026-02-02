@@ -172,7 +172,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                      );
                 })}
 
-                <Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
+                <Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen} modal={true}>
                     <PopoverTrigger asChild>
                          <Button variant="outline" className="w-full border-dashed text-muted-foreground">
                             <Plus className="h-4 w-4 mr-2" /> Add Successor
@@ -270,7 +270,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                                     <div className={cellInnerDivClass}>{displayTask.wbs || 'N/A'}</div>
                                 </TableCell>
                                 <TableCell className={cellClass} title={displayTask.name}>
-                                     <Popover open={editingLinkId === link.id} onOpenChange={(open) => !open && setEditingLinkId(null)}>
+                                     <Popover open={editingLinkId === link.id} onOpenChange={(open) => !open && setEditingLinkId(null)} modal={true}>
                                         <PopoverTrigger asChild>
                                             <div
                                                 onClick={() => setEditingLinkId(link.id)}
