@@ -186,6 +186,16 @@ const toFirestoreTask = (task: Task) => {
   return cleanTask;
 };
 
+const toFirestoreResource = (resource: Resource) => {
+    const cleanResource: Record<string, any> = { ...resource };
+    for (const key in cleanResource) {
+        if (cleanResource[key] === undefined) {
+            cleanResource[key] = null;
+        }
+    }
+    return cleanResource;
+}
+
 function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) {
     const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string }[] }>({ subprojects: [] });
 
@@ -839,12 +849,14 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         const newResource: Resource = {
             id: id || `res-${Date.now()}`,
             name: name || 'New Resource',
-            initials: initials,
             type: 'Work',
             availability: 1,
             costPerHour: 0,
             order: maxOrder + 1,
         };
+        if (initials !== undefined) {
+            newResource.initials = initials;
+        }
         const newResources = [...state.resources, newResource];
         return { ...state, resources: newResources };
     }
@@ -2296,7 +2308,13 @@ export function useProject(user: User, projectId: string | null) {
         
         if (finalAction.type === 'UPDATE_RESOURCE') {
             const { id, ...updateData } = finalAction.payload as { id: string };
-            batch.update(doc(firestore, 'projects', projectId, 'resources', id), updateData);
+            const cleanUpdateData: Record<string, any> = { ...updateData };
+            for (const key in cleanUpdateData) {
+                if (cleanUpdateData[key] === undefined) {
+                    cleanUpdateData[key] = null;
+                }
+            }
+            batch.update(doc(firestore, 'projects', projectId, 'resources', id), cleanUpdateData);
         }
         if (finalAction.type === 'UPDATE_CALENDAR') {
             const { id, ...updateData } = finalAction.payload as { id: string };
@@ -2362,10 +2380,10 @@ export function useProject(user: User, projectId: string | null) {
         newState.resources.forEach(newResource => {
             const oldResource = currentState.resources.find(r => r.id === newResource.id);
             if (!oldResource) {
-                batch.set(doc(firestore, 'projects', projectId, 'resources', newResource.id), newResource);
+                batch.set(doc(firestore, 'projects', projectId, 'resources', newResource.id), toFirestoreResource(newResource));
             } else {
                 if (JSON.stringify(oldResource) !== JSON.stringify(newResource)) {
-                    batch.update(doc(firestore, 'projects', projectId, 'resources', newResource.id), newResource as any);
+                    batch.update(doc(firestore, 'projects', projectId, 'resources', newResource.id), toFirestoreResource(newResource));
                 }
             }
         });
