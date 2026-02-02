@@ -51,6 +51,15 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec
             // A summary task is critical if any of its children are critical.
             summaryTask.isCritical = children.some(c => c.isCritical);
             
+            // Aggregate criticalFor from children
+            const childCriticalFor = new Set<string>();
+            children.forEach(c => {
+                if (c.criticalFor) {
+                    c.criticalFor.forEach(pid => childCriticalFor.add(pid));
+                }
+            });
+            summaryTask.criticalFor = Array.from(childCriticalFor);
+
             if (columns) {
                 columns.forEach(col => {
                     if (col.id.startsWith('custom-') && col.type === 'number') {
