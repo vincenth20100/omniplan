@@ -39,10 +39,8 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         }
     }, [isMobile]);
 
-    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-
     const handleToggleGroup = (groupId: string) => {
-        setCollapsedGroups(prev => ({...prev, [groupId]: !prev[groupId]}));
+        dispatch({ type: 'TOGGLE_GROUP', payload: { groupId } });
     }
 
     const handleVerticalScroll = useCallback((scroller: 'table' | 'timeline') => {
@@ -59,7 +57,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         }
     }, []);
 
-    const { tasks, links, resources, assignments, columns, grouping, filters, calendars, defaultCalendarId, ganttSettings, baselines, visibleColumns, selectedTaskIds, focusCell, anchorCell, editingCell, selectionMode, sortColumn, sortDirection } = projectState;
+    const { tasks, links, resources, assignments, columns, grouping, groupingState, filters, calendars, defaultCalendarId, ganttSettings, baselines, visibleColumns, selectedTaskIds, focusCell, anchorCell, editingCell, selectionMode, sortColumn, sortDirection } = projectState;
     const defaultCalendar = useMemo(() => calendars.find(c => c.id === defaultCalendarId) || (calendars.length > 0 ? calendars[0] : null), [calendars, defaultCalendarId]);
     const resourceMap = useMemo(() => new Map(resources.map(r => [r.id, r.name])), [resources]);
 
@@ -299,7 +297,11 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
                     const groupTasks = grouped.get(key)!;
                     const groupColumn = columns.find(c => c.id === groupField);
                     const groupId = `group-${groupLevel}-${key}`;
-                    const isCollapsed = collapsedGroups[groupId] || false;
+
+                    const { mode, overrides } = groupingState;
+                    const isCollapsed = mode === 'expanded'
+                        ? overrides.includes(groupId)
+                        : !overrides.includes(groupId);
     
                     finalRows.push({
                         itemType: 'group',
@@ -320,7 +322,7 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
         } else {
              return getVisibleHierarchicalTasks().map(task => ({ itemType: 'task', data: task, displayLevel: task.level || 0 }));
         }
-    }, [tasks, filters, grouping, collapsedGroups, getRawTaskPropertyValue, getTaskPropertyValue, columns, assignments, resourceMap, sortColumn, sortDirection]);
+    }, [tasks, filters, grouping, groupingState, getRawTaskPropertyValue, getTaskPropertyValue, columns, assignments, resourceMap, sortColumn, sortDirection]);
     
     const timelineTasks = useMemo(() => 
         renderableRows.filter((r): r is TaskRow => r.itemType === 'task').map(r => r.data)
