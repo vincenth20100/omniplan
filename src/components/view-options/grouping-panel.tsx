@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import type { ColumnSpec, View } from "@/lib/types";
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, ChevronsUp, ChevronsDown } from "lucide-react";
-import { ViewManager } from "./view-manager";
 import { Separator } from "../ui/separator";
 
 export function GroupingPanel({
@@ -97,18 +96,6 @@ export function GroupingPanel({
 
     return (
         <div className="flex flex-col h-full">
-            <div className="border rounded-lg p-4">
-                <ViewManager
-                    views={views}
-                    currentViewId={currentViewId}
-                    isDirty={isDirty}
-                    dispatch={dispatch}
-                    showTitle={false}
-                />
-            </div>
-
-            <Separator className="my-4"/>
-
             <div className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr_auto] gap-4 items-stretch sm:items-center overflow-hidden flex-1 p-1">
                 {/* Available Fields */}
                 <div className="flex flex-col gap-2 flex-1 min-h-0">

@@ -7,7 +7,6 @@ import { Plus, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { EditableDateCell } from "../omni-gantt/editable-date-cell";
-import { ViewManager } from "./view-manager";
 import { Separator } from "../ui/separator";
 
 type Operator =
@@ -160,18 +159,6 @@ export function FilterPanel({
 
     return (
         <div className="flex flex-col h-full">
-            <div className="border rounded-lg p-4">
-                <ViewManager
-                    views={views}
-                    currentViewId={currentViewId}
-                    isDirty={isDirty}
-                    dispatch={dispatch}
-                    showTitle={false}
-                />
-            </div>
-
-            <Separator className="my-4"/>
-
             <div className="space-y-2 flex-1 overflow-y-auto pr-2 min-h-0">
                 <p className="text-sm">Show items with matching conditions:</p>
                 {currentFilters.map((filter) => {

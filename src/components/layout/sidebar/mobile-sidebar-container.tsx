@@ -4,6 +4,8 @@ import React, { useEffect } from 'react';
 import { SidebarNavigation } from "./sidebar-navigation";
 import { FilterPanel } from "@/components/view-options/filter-panel";
 import { GroupingPanel } from "@/components/view-options/grouping-panel";
+import { ColumnPanel } from "@/components/view-options/column-panel";
+import { ViewManager } from "@/components/view-options/view-manager";
 import { ResourceView } from "@/components/resources/resource-view";
 import { CalendarView } from "@/components/calendars/calendar-view";
 import { GanttSettingsContent } from "@/components/gantt-settings/gantt-settings-content";
@@ -14,7 +16,7 @@ import type { ProjectState, HistoryEntry } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
 import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
 
-export type SidebarView = 'main' | 'resources' | 'calendars' | 'filters' | 'grouping' | 'gantt-settings' | 'history' | 'shortcuts' | 'find-replace' | 'print';
+export type SidebarView = 'main' | 'resources' | 'calendars' | 'filters' | 'grouping' | 'gantt-settings' | 'history' | 'shortcuts' | 'find-replace' | 'print' | 'columns' | 'manage-views';
 
 export function MobileSidebarContainer({
     view,
@@ -100,6 +102,17 @@ export function MobileSidebarContainer({
             title = 'Calendars';
             content = <CalendarView projectState={projectState} dispatch={dispatch} />;
             break;
+        case 'columns':
+            title = 'Columns';
+            content = (
+                <ColumnPanel
+                    visibleColumns={projectState.visibleColumns}
+                    columns={projectState.columns}
+                    dispatch={dispatch}
+                    onCancel={handleBack}
+                />
+            );
+            break;
         case 'filters':
             title = 'Filters';
             content = (
@@ -115,6 +128,18 @@ export function MobileSidebarContainer({
                         handleBack();
                     }}
                     onCancel={handleBack}
+                />
+            );
+            break;
+        case 'manage-views':
+            title = 'Manage Views';
+            content = (
+                <ViewManager
+                    views={projectState.views}
+                    currentViewId={projectState.currentViewId}
+                    isDirty={projectState.isDirty}
+                    dispatch={dispatch}
+                    isEditor={isEditor}
                 />
             );
             break;
