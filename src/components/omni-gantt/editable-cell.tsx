@@ -27,9 +27,11 @@ export function EditableCell({
 
     const [currentValue, setCurrentValue] = useState(value);
     const inputRef = useRef<HTMLInputElement>(null);
+    const hasSavedOnBlur = useRef(false);
 
     useEffect(() => {
         if (isEditing) {
+            hasSavedOnBlur.current = false;
             setCurrentValue(initialValue !== undefined ? initialValue : value);
         }
     }, [isEditing, initialValue, value]);
@@ -55,7 +57,7 @@ export function EditableCell({
         if (prevIsEditing.current && !isEditing) {
             // Check if we need to save when transitioning from editing to not editing
             // This is a fallback for when blur doesn't fire (e.g. mobile tap outside or component unmount)
-            if (currentValue !== value) {
+            if (!hasSavedOnBlur.current && currentValue !== value) {
                 onSave(currentValue);
             }
         }
@@ -66,6 +68,7 @@ export function EditableCell({
     const handleBlur = useCallback(() => {
         if (inputRef.current && inputRef.current.value !== value) {
             onSave(inputRef.current.value);
+            hasSavedOnBlur.current = true;
         }
         if (isControlled) {
             onStopEditingProp?.();

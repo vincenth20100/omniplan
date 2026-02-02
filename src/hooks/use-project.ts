@@ -1013,6 +1013,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             selectionAnchor: newAnchorId,
             focusCell: null,
             anchorCell: null,
+            editingCell: null,
         };
     }
     case 'SET_CELL_SELECTION': {
@@ -1031,6 +1032,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             anchorCell: newAnchorCell,
             selectedTaskIds: [],
             selectionAnchor: null,
+            editingCell: null,
         };
     }
     case 'TOGGLE_TASK_COLLAPSE': {
@@ -1585,6 +1587,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             anchorCell: { taskId: newTask.id, columnId: 'name' },
             selectedTaskIds: [],
             selectionAnchor: null,
+            editingCell: null,
         };
     }
     case 'REMOVE_TASK': {
@@ -1617,6 +1620,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             selectionAnchor: null,
             focusCell: null,
             anchorCell: null,
+            editingCell: null,
          };
     }
     case 'LINK_TASKS': {
