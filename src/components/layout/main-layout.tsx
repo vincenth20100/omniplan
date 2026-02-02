@@ -1,3 +1,5 @@
+'use client';
+
 import {
   SidebarProvider,
   Sidebar,
@@ -8,6 +10,7 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { GanttChartSquare, LogOut } from 'lucide-react';
 import React from 'react';
 import { useAuth } from '@/firebase';
@@ -62,6 +65,7 @@ const UserMenu = ({ user }: { user: User }) => {
 }
 
 export function MainLayout({ children, sidebarContent, headerLeftActions, headerRightActions, user }: { children: React.ReactNode, sidebarContent: React.ReactNode, headerLeftActions?: React.ReactNode, headerRightActions?: React.ReactNode, user: User }) {
+  const isMobile = useIsMobile();
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
@@ -84,9 +88,9 @@ export function MainLayout({ children, sidebarContent, headerLeftActions, header
       </Sidebar>
       <SidebarInset>
         <AppHeader>
-          <SidebarTrigger />
+          {!isMobile && <SidebarTrigger />}
           {headerLeftActions}
-          <h1 className="text-xl font-semibold font-headline">Project Plan</h1>
+          {!isMobile && <h1 className="text-xl font-semibold font-headline">Project Plan</h1>}
            <div className="ml-auto flex items-center gap-4">
               {headerRightActions}
               {user && <UserMenu user={user} />}

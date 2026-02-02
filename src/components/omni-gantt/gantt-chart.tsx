@@ -26,7 +26,7 @@ export type TaskRow = {
 
 export type RenderableRow = GroupRow | TaskRow;
 
-export function GanttChart({ projectState, dispatch, uiDensity }: { projectState: ProjectState, dispatch: any, uiDensity: UiDensity }) {
+export function GanttChart({ projectState, dispatch, uiDensity, projectName }: { projectState: ProjectState, dispatch: any, uiDensity: UiDensity, projectName?: string }) {
     const tableViewportRef = useRef<HTMLDivElement>(null);
     const timelineViewportRef = useRef<HTMLDivElement>(null);
     const isSyncingVerticalScroll = useRef(false);
@@ -354,20 +354,27 @@ export function GanttChart({ projectState, dispatch, uiDensity }: { projectState
 
     if (isMobile) {
         return (
-            <div className="border rounded-lg overflow-auto h-full relative bg-card flex flex-row items-start">
-                <div className={cn("z-30 bg-card h-full flex-shrink-0", isFixedLeftPanel && "sticky left-0 shadow-xl border-r")}>
-                    <TaskTable
-                        {...commonTaskTableProps}
-                        disableScroll={true}
-                        onToggleFixed={() => setIsFixedLeftPanel(!isFixedLeftPanel)}
-                        isFixed={isFixedLeftPanel}
-                    />
-                </div>
-                <div className="h-full min-w-0">
-                    <Timeline
-                        {...commonTimelineProps}
-                        disableScroll={true}
-                    />
+            <div className="border rounded-lg overflow-hidden h-full relative bg-card flex flex-col">
+                {projectName && (
+                     <div className="px-4 py-2 font-semibold text-lg border-b bg-background z-10 flex-shrink-0">
+                         {projectName}
+                     </div>
+                )}
+                <div className="flex-1 overflow-auto relative flex flex-row items-start">
+                    <div className={cn("z-30 bg-card h-full flex-shrink-0", isFixedLeftPanel && "sticky left-0 shadow-xl border-r")}>
+                        <TaskTable
+                            {...commonTaskTableProps}
+                            disableScroll={true}
+                            onToggleFixed={() => setIsFixedLeftPanel(!isFixedLeftPanel)}
+                            isFixed={isFixedLeftPanel}
+                        />
+                    </div>
+                    <div className="h-full min-w-0">
+                        <Timeline
+                            {...commonTimelineProps}
+                            disableScroll={true}
+                        />
+                    </div>
                 </div>
             </div>
         );
