@@ -1129,26 +1129,28 @@ export function TaskTable({
                                             )}
                                         </div>
                                         <div className="flex items-center">
-                                            {column.id.startsWith('custom-') && (
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover/header:opacity-100 data-[state=open]:opacity-100">
-                                                            <Settings2 className="h-3 w-3" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent>
-                                                        <DropdownMenuItem onClick={() => setEditingColumn(column)}>
-                                                            <Pencil className="mr-2 h-4 w-4" />
-                                                            <span>Edit Column</span>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuSeparator/>
-                                                        <DropdownMenuItem onClick={() => handleRemoveColumn(column.id)} className="text-destructive">
-                                                            <Trash2 className="mr-2 h-4 w-4" />
-                                                            <span>Delete Column</span>
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            )}
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover/header:opacity-100 data-[state=open]:opacity-100">
+                                                        <Settings2 className="h-3 w-3" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuItem onClick={() => setEditingColumn(column)}>
+                                                        <Pencil className="mr-2 h-4 w-4" />
+                                                        <span>Edit Column</span>
+                                                    </DropdownMenuItem>
+                                                    {column.id.startsWith('custom-') && (
+                                                        <>
+                                                            <DropdownMenuSeparator/>
+                                                            <DropdownMenuItem onClick={() => handleRemoveColumn(column.id)} className="text-destructive">
+                                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                                <span>Delete Column</span>
+                                                            </DropdownMenuItem>
+                                                        </>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                             <div 
                                                 className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-border opacity-0 group-hover/header:opacity-100"
                                                 onMouseDown={(e) => handleResizeMouseDown(e, column.id)}

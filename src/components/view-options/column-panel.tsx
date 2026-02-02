@@ -85,11 +85,9 @@ function SortableColumnItem({
                 {column.name}
             </label>
             <div className="flex items-center ml-2 gap-1">
-                {column.id.startsWith('custom-') && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onEdit(column); }} title="Edit column">
-                        <Pencil className="h-4 w-4" />
-                    </Button>
-                )}
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onEdit(column); }} title="Edit column">
+                    <Pencil className="h-4 w-4" />
+                </Button>
                 <Button
                     variant="ghost"
                     size="icon"
