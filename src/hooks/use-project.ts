@@ -116,7 +116,7 @@ type Action =
   | { type: 'REORDER_COLUMNS'; payload: { sourceId: string, targetId: string } }
   | { type: 'INDENT_TASK' }
   | { type: 'OUTDENT_TASK' }
-  | { type: 'ADD_TASK'; payload?: { id: string } }
+  | { type: 'ADD_TASK'; payload?: { id: string, projectId?: string } }
   | { type: 'REMOVE_TASK' }
   | { type: 'REMOVE_LINK'; payload: { linkId: string } }
   | { type: 'REORDER_TASKS'; payload: { sourceIds: string[]; targetId: string; position: 'top' | 'bottom' } }
@@ -146,7 +146,7 @@ type Action =
   | { type: 'DELETE_VIEW', payload: { viewId: string } }
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
-  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, activeCell: { taskId: string, columnId: string } | null } }
+  | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, activeCell: { taskId: string, columnId: string } | null, projectId?: string } }
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
   | { type: 'STOP_EDITING_CELL' }
   | { type: 'UPDATE_GANTT_SETTINGS', payload: GanttSettings }
@@ -1216,7 +1216,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, multiSelectMode: !state.multiSelectMode };
     }
     case 'ADD_TASKS_FROM_PASTE': {
-        const { data, activeCell } = action.payload;
+        const { data, activeCell, projectId } = action.payload;
         try {
             const parsedData = JSON.parse(data);
             if (parsedData.type === 'omniplan-tasks' && Array.isArray(parsedData.tasks)) {
@@ -1228,10 +1228,13 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
                 pastedTasks.forEach(t => idMap.set(t.id, `task-${Date.now()}-${Math.random()}`.replace('.','')));
                 
                 let targetIndex = state.tasks.length;
+                let inheritedProjectId = projectId;
+
                 if (activeCell) {
                     const activeTaskIndex = state.tasks.findIndex(t => t.id === activeCell.taskId);
                     if (activeTaskIndex !== -1) {
                         targetIndex = activeTaskIndex + 1;
+                        inheritedProjectId = state.tasks[activeTaskIndex].projectId || projectId;
                     }
                 }
 
@@ -1246,6 +1249,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
                     return {
                         ...task,
                         id: newId,
+                        projectId: inheritedProjectId,
                         parentId: newParentId,
                         percentComplete: 0,
                         start: new Date(),
@@ -1267,6 +1271,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
                     id: `link-${Date.now()}-${Math.random()}`.replace('.', ''),
                     source: idMap.get(link.source)!,
                     target: idMap.get(link.target)!,
+                    sourceProjectId: inheritedProjectId,
+                    targetProjectId: inheritedProjectId,
                 }));
                 
                 const allTasks = [...state.tasks];
@@ -1289,10 +1295,13 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         
         if (lines.length > 1) {
             let targetIndex = state.tasks.length;
+            let inheritedProjectId = projectId;
+
             if (activeCell) {
                 const activeTaskIndex = state.tasks.findIndex(t => t.id === activeCell.taskId);
                 if (activeTaskIndex > -1) {
                     targetIndex = activeTaskIndex + 1;
+                    inheritedProjectId = state.tasks[activeTaskIndex].projectId || projectId;
                 }
             }
             
@@ -1302,6 +1311,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
 
             const newTasks: Task[] = lines.map((line, index) => ({
                 id: `task-${Date.now()}-${index}`,
+                projectId: inheritedProjectId,
                 name: line.trim(),
                 start: new Date(),
                 finish: new Date(),
@@ -1475,6 +1485,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     }
     case 'ADD_TASK': {
         const newId = action.payload?.id || `task-${Date.now()}`;
+        const projectIdFromPayload = action.payload?.projectId;
         const { tasks, focusCell } = state;
         const lastSelectedId = focusCell?.taskId || (state.selectedTaskIds.length > 0 ? state.selectedTaskIds[state.selectedTaskIds.length - 1] : null);
 
@@ -1507,6 +1518,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             level: 0,
             order: newOrder,
             status: 'To Do',
+            projectId: projectIdFromPayload,
         };
 
         if (lastSelectedId) {
@@ -2117,6 +2129,26 @@ export function useProject(user: User, projectId: string | null) {
         internalDispatch(action);
         return;
     }
+
+    let finalAction = action;
+
+    if (action.type === 'ADD_TASK') {
+        finalAction = {
+            ...action,
+            payload: {
+                ...(action.payload || { id: crypto.randomUUID() }),
+                projectId
+            }
+        };
+    } else if (action.type === 'ADD_TASKS_FROM_PASTE') {
+         finalAction = {
+             ...action,
+             payload: {
+                 ...action.payload,
+                 projectId
+             }
+         };
+    }
     
     // This is the new centralized permission guard.
     const isEditAction = (act: Action): boolean => {
@@ -2140,7 +2172,7 @@ export function useProject(user: User, projectId: string | null) {
     }
 
 
-    if (isEditAction(action)) {
+    if (isEditAction(finalAction)) {
         if (!isEditorOrOwner) {
              toast({
                 variant: 'destructive',
@@ -2161,37 +2193,37 @@ export function useProject(user: User, projectId: string | null) {
         'SET_ACTIVE_STYLE_PRESET'
     ];
 
-    if (userSettingsActions.includes(action.type)) {
-        internalDispatch(action);
-        const newState = projectReducer(historyStateRef.current.present, action);
+    if (userSettingsActions.includes(finalAction.type)) {
+        internalDispatch(finalAction);
+        const newState = projectReducer(historyStateRef.current.present, finalAction);
         const userPrefsDocRef = doc(firestore, 'user_preferences', `${user.uid}_${projectId}`);
 
         const prefsToUpdate: Partial<typeof defaultUserPreferences> = {};
-        if (action.type === 'UPDATE_GANTT_SETTINGS') {
+        if (finalAction.type === 'UPDATE_GANTT_SETTINGS') {
              prefsToUpdate.ganttSettings = newState.ganttSettings;
              prefsToUpdate.activeStylePresetId = newState.activeStylePresetId;
         }
-        if (action.type === 'SET_UI_DENSITY') {
+        if (finalAction.type === 'SET_UI_DENSITY') {
             prefsToUpdate.uiDensity = newState.uiDensity;
         }
-         if (action.type === 'SET_VIEW') {
+         if (finalAction.type === 'SET_VIEW') {
             prefsToUpdate.currentViewId = newState.currentViewId;
         }
-        if (action.type === 'SET_ACTIVE_STYLE_PRESET') {
+        if (finalAction.type === 'SET_ACTIVE_STYLE_PRESET') {
             prefsToUpdate.activeStylePresetId = newState.activeStylePresetId;
             prefsToUpdate.ganttSettings = newState.ganttSettings;
         }
 
         setDocumentNonBlocking(userPrefsDocRef, prefsToUpdate, { merge: true });
 
-    } else if (optimisticActions.includes(action.type)) {
-        internalDispatch(action); 
+    } else if (optimisticActions.includes(finalAction.type)) {
+        internalDispatch(finalAction);
         
-        const newState = projectReducer(historyStateRef.current.present, action);
+        const newState = projectReducer(historyStateRef.current.present, finalAction);
         const batch = writeBatch(firestore);
 
-        if (action.type === 'ADD_TASK') {
-            const taskId = action.payload?.id;
+        if (finalAction.type === 'ADD_TASK') {
+            const taskId = finalAction.payload?.id;
             if (taskId) {
                 const newTask = newState.tasks.find(t => t.id === taskId);
                 if (newTask) {
@@ -2201,15 +2233,15 @@ export function useProject(user: User, projectId: string | null) {
             }
         }
 
-        if (action.type === 'UPDATE_TASK' || action.type === 'ADD_NOTE_TO_TASK' || action.type === 'TOGGLE_TASK_COLLAPSE') {
+        if (finalAction.type === 'UPDATE_TASK' || finalAction.type === 'ADD_NOTE_TO_TASK' || finalAction.type === 'TOGGLE_TASK_COLLAPSE') {
             let taskId: string;
-            if (action.type === 'UPDATE_TASK') {
-                taskId = action.payload.id;
+            if (finalAction.type === 'UPDATE_TASK') {
+                taskId = finalAction.payload.id;
             } else {
-                taskId = action.payload.taskId;
+                taskId = (finalAction.payload as any).taskId; // Type cast safe based on optimisticActions
             }
 
-            if (action.type === 'TOGGLE_TASK_COLLAPSE' && taskId.startsWith('subproject-')) {
+            if (finalAction.type === 'TOGGLE_TASK_COLLAPSE' && taskId.startsWith('subproject-')) {
                 const settingsDocRef = doc(firestore, 'projects', projectId, 'settings', 'app_settings');
                 const isCollapsed = newState.tasks.find(t => t.id === taskId)?.isCollapsed;
                 const updateOp = isCollapsed ? arrayRemove(taskId) : arrayUnion(taskId);
@@ -2225,21 +2257,21 @@ export function useProject(user: User, projectId: string | null) {
             }
         }
         
-        if (action.type === 'UPDATE_RESOURCE') {
-            const { id, ...updateData } = action.payload as { id: string };
+        if (finalAction.type === 'UPDATE_RESOURCE') {
+            const { id, ...updateData } = finalAction.payload as { id: string };
             batch.update(doc(firestore, 'projects', projectId, 'resources', id), updateData);
         }
-        if (action.type === 'UPDATE_CALENDAR') {
-            const { id, ...updateData } = action.payload as { id: string };
+        if (finalAction.type === 'UPDATE_CALENDAR') {
+            const { id, ...updateData } = finalAction.payload as { id: string };
             batch.update(doc(firestore, 'projects', projectId, 'calendars', id), updateData);
         }
 
         batch.commit().catch(e => {
-            console.error(`Optimistic action ${action.type} failed to commit.`, e);
+            console.error(`Optimistic action ${finalAction.type} failed to commit.`, e);
             toast({
               variant: 'destructive',
               title: 'Error Saving Changes',
-              description: `Your action (${action.type}) could not be saved. The UI will revert.`,
+              description: `Your action (${finalAction.type}) could not be saved. The UI will revert.`,
             });
             // Revert state if commit fails - may need more robust history implementation
             internalDispatch({ type: 'UNDO' });
@@ -2247,7 +2279,7 @@ export function useProject(user: User, projectId: string | null) {
 
     } else { 
         const currentState = historyStateRef.current.present;
-        const newState = projectReducer(currentState, action);
+        const newState = projectReducer(currentState, finalAction);
         const batch = writeBatch(firestore);
 
         // ... existing batch logic for tasks, links ...
@@ -2255,6 +2287,10 @@ export function useProject(user: User, projectId: string | null) {
             const oldLink = currentState.links.find(l => l.id === newLink.id);
             const { isDriving, ...linkData } = newLink;
             const linkProjectId = newLink.sourceProjectId || projectId;
+
+            // Defensive coding: Ensure sourceProjectId and targetProjectId are defined
+            if (linkData.sourceProjectId === undefined) linkData.sourceProjectId = projectId;
+            if (linkData.targetProjectId === undefined) linkData.targetProjectId = projectId;
 
             if (!oldLink) {
                 batch.set(doc(firestore, 'projects', linkProjectId, 'links', newLink.id), linkData);
@@ -2350,7 +2386,7 @@ export function useProject(user: User, projectId: string | null) {
             }
         });
         
-        if (isEditAction(action)) {
+        if (isEditAction(finalAction)) {
             const sharedSettingsDocRef = doc(firestore, 'projects', projectId, 'settings', 'app_settings');
              const settingsToUpdate: Partial<typeof defaultAppSettings> = {
                 columns: newState.columns,
@@ -2361,28 +2397,28 @@ export function useProject(user: User, projectId: string | null) {
             };
             batch.set(sharedSettingsDocRef, settingsToUpdate, { merge: true });
             
-            if (action.type === 'SAVE_VIEW_AS') {
+            if (finalAction.type === 'SAVE_VIEW_AS') {
                  const newView = newState.views.find(v => v.id === newState.currentViewId);
                  if (newView) batch.set(doc(firestore, 'projects', projectId, 'views', newView.id), newView);
-            } else if (action.type === 'UPDATE_CURRENT_VIEW' && newState.currentViewId) {
+            } else if (finalAction.type === 'UPDATE_CURRENT_VIEW' && newState.currentViewId) {
                 const updatedView = newState.views.find(v => v.id === newState.currentViewId);
                 if (updatedView) {
                     const { id, ...viewData } = updatedView;
                     batch.update(doc(firestore, 'projects', projectId, 'views', id), viewData);
                 }
-            } else if (action.type === 'DELETE_VIEW') {
-                 batch.delete(doc(firestore, 'projects', projectId, 'views', (action.payload as any).viewId));
+            } else if (finalAction.type === 'DELETE_VIEW') {
+                 batch.delete(doc(firestore, 'projects', projectId, 'views', (finalAction.payload as any).viewId));
             }
         }
 
         batch.commit().then(() => {
-            internalDispatch({ type: '_APPLY_STATE_CHANGE', payload: { newState, originalAction: action } });
+            internalDispatch({ type: '_APPLY_STATE_CHANGE', payload: { newState, originalAction: finalAction } });
         }).catch(e => {
-            console.error(`Action ${action.type} failed to commit.`, e);
+            console.error(`Action ${finalAction.type} failed to commit.`, e);
             toast({
               variant: 'destructive',
               title: 'Error Saving Changes',
-              description: `Your action (${action.type}) could not be saved. Please try again.`,
+              description: `Your action (${finalAction.type}) could not be saved. Please try again.`,
             });
         });
     }
