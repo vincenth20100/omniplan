@@ -307,66 +307,10 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   // A task can be outdented if it's selected and has a parent.
   const canOutdent = state.selectedTaskIds.some(id => !!state.tasks.find(t => t.id === id)?.parentId);
 
-  const sidebarContent = isMobile ? (
-    <MobileSidebarContainer
-        view={currentSidebarView}
-        onNavigate={handleSidebarNavigate}
-        projectState={state}
-        dispatch={dispatch}
-        defaultContent={defaultSidebarContent}
-        history={history.log}
-        historyIndex={history.index}
-        onManageThemes={() => setIsThemeManagerOpen(true)}
-        isEditor={isEditorOrOwner}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        canRemove={canRemove}
-    />
-  ) : defaultSidebarContent;
+  const isButtonOnSide = state.ganttSettings.buttonLocation === 'side';
 
-  const headerLeftActions = (
-    <div className='flex items-center gap-2 overflow-x-auto min-w-0 [&::-webkit-scrollbar]:hidden'>
-        <Button variant="ghost" size="icon" onClick={() => router.push('/')} title="Back to Projects">
-            <ArrowLeft />
-        </Button>
-        <Separator orientation="vertical" className="h-6 mx-1" />
-        <Toggle
-          variant="outline"
-          size="icon"
-          pressed={state.multiSelectMode}
-          onPressedChange={handleToggleMultiSelect}
-          title="Toggle Multi-Select Mode"
-          className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
-        >
-          <ListChecks />
-        </Toggle>
-        {isMobile && (
-            <Button variant="outline" size="icon" onClick={() => setIsDetailsSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
-                <Info />
-            </Button>
-        )}
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink || !isEditorOrOwner} title="Link Selected Tasks">
-            <LinkIcon />
-        </Button>
-        <Separator orientation="vertical" className="h-6 mx-1" />
-        {/* View Type */}
-        <ToggleGroup
-            type="single"
-            value={state.currentRepresentation}
-            onValueChange={(value: Representation) => {
-                if (value) dispatch({ type: 'SET_REPRESENTATION', payload: value })
-            }}
-            aria-label="View mode"
-        >
-            <ToggleGroupItem value="gantt" aria-label="Gantt view">
-                <GanttChartSquare />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="kanban" aria-label="Kanban view">
-                <LayoutGrid />
-            </ToggleGroupItem>
-        </ToggleGroup>
-        <Separator orientation="vertical" className="h-6 mx-1" />
-
+  const toolbarActions = (
+    <div className={`flex ${isButtonOnSide ? 'flex-wrap gap-2 p-2' : 'items-center gap-2'}`}>
         {/* History */}
         {!isMobile && (
         <>
@@ -376,13 +320,12 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REDO' })} disabled={!canRedo || !isEditorOrOwner} title="Redo (Ctrl+Y)">
             <Redo2 />
         </Button>
-        <Separator orientation="vertical" className="h-6 mx-1" />
+        {!isButtonOnSide && <Separator orientation="vertical" className="h-6 mx-1" />}
         </>
         )}
 
         {/* Task Editing */}
-        {!isMobile && (
-        <>
+        {/* Removed !isMobile check for core editing tools to ensure visibility */}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK', payload: { id: crypto.randomUUID() } })} title="Add Task" disabled={!isEditorOrOwner}>
             <Plus />
         </Button>
@@ -392,15 +335,14 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REMOVE_TASK' })} disabled={!canRemove || !isEditorOrOwner} title="Remove Selected Tasks">
             <Trash2 />
         </Button>
-        </>
-        )}
+
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'INDENT_TASK' })} disabled={!canIndent || !isEditorOrOwner} title="Indent Task">
             <Indent />
         </Button>
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'OUTDENT_TASK' })} disabled={!canOutdent || !isEditorOrOwner} title="Outdent Task">
             <Outdent />
         </Button>
-        <Separator orientation="vertical" className="h-6 mx-1" />
+        {!isButtonOnSide && <Separator orientation="vertical" className="h-6 mx-1" />}
         
         {/* View Manipulation */}
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'COLLAPSE_ALL' })} title="Collapse Selection/All">
@@ -477,13 +419,13 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
 
         {!isMobile && (
         <>
-        <Separator orientation="vertical" className="h-6 mx-1" />
+        {!isButtonOnSide && <Separator orientation="vertical" className="h-6 mx-1" />}
         
         {/* More Tools */}
          <Button variant="outline" size="icon" onClick={() => setIsFindReplaceOpen(true)} title="Find and Replace (Ctrl+H)" disabled={!isEditorOrOwner}>
             <Search />
         </Button>
-        <Separator orientation="vertical" className="h-6 mx-1" />
+        {!isButtonOnSide && <Separator orientation="vertical" className="h-6 mx-1" />}
         <Button variant="outline" size="icon" onClick={() => setIsResourceDialogOpen(true)} title="Manage Resources" disabled={!isEditorOrOwner}>
             <Users />
         </Button>
@@ -500,6 +442,86 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             <Keyboard />
         </Button>
         </>
+        )}
+    </div>
+  );
+
+  const sidebarContent = isMobile ? (
+    <MobileSidebarContainer
+        view={currentSidebarView}
+        onNavigate={handleSidebarNavigate}
+        projectState={state}
+        dispatch={dispatch}
+        defaultContent={defaultSidebarContent}
+        history={history.log}
+        historyIndex={history.index}
+        onManageThemes={() => setIsThemeManagerOpen(true)}
+        isEditor={isEditorOrOwner}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        canRemove={canRemove}
+    />
+  ) : (
+    <>
+        {defaultSidebarContent}
+        {isButtonOnSide && (
+            <>
+                <Separator className="my-2" />
+                <div className="flex-1 overflow-y-auto">
+                    {toolbarActions}
+                </div>
+            </>
+        )}
+    </>
+  );
+
+  const headerLeftActions = (
+    <div className='flex items-center gap-2 overflow-x-auto min-w-0 [&::-webkit-scrollbar]:hidden'>
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} title="Back to Projects">
+            <ArrowLeft />
+        </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
+        <Toggle
+          variant="outline"
+          size="icon"
+          pressed={state.multiSelectMode}
+          onPressedChange={handleToggleMultiSelect}
+          title="Toggle Multi-Select Mode"
+          className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+        >
+          <ListChecks />
+        </Toggle>
+        {isMobile && (
+            <Button variant="outline" size="icon" onClick={() => setIsDetailsSheetOpen(true)} disabled={!selectedTask} title="View Task Details">
+                <Info />
+            </Button>
+        )}
+        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'LINK_TASKS' })} disabled={!canLink || !isEditorOrOwner} title="Link Selected Tasks">
+            <LinkIcon />
+        </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
+        {/* View Type */}
+        <ToggleGroup
+            type="single"
+            value={state.currentRepresentation}
+            onValueChange={(value: Representation) => {
+                if (value) dispatch({ type: 'SET_REPRESENTATION', payload: value })
+            }}
+            aria-label="View mode"
+        >
+            <ToggleGroupItem value="gantt" aria-label="Gantt view">
+                <GanttChartSquare />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="kanban" aria-label="Kanban view">
+                <LayoutGrid />
+            </ToggleGroupItem>
+        </ToggleGroup>
+
+        {!isButtonOnSide && (
+            <>
+                <Separator orientation="vertical" className="h-6 mx-1" />
+                {toolbarActions}
+            </>
         )}
     </div>
   );

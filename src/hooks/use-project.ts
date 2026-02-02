@@ -33,6 +33,7 @@ const initialGanttSettings: GanttSettings = {
   theme: 'dark',
   customStyles: {},
   comparisonBaselineId: null,
+  buttonLocation: 'top',
 };
 
 const defaultStylePresets: StylePreset[] = THEME_PRESETS;

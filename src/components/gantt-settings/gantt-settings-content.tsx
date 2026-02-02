@@ -88,6 +88,43 @@ export function GanttSettingsContent({
                  <p className="text-xs text-muted-foreground -mt-2">
                       Uses <a href="https://date-fns.org/v3.6.0/docs/format" target="_blank" rel="noopener noreferrer" className="underline">date-fns</a> format tokens.
                   </p>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="button-location">Toolbar Location</Label>
+                  <Select
+                    value={settings.buttonLocation || 'top'}
+                    onValueChange={(value: 'top' | 'side') => handleSettingChange('buttonLocation', value)}
+                    // This is a user preference, so it doesn't strictly require editor permissions,
+                    // but since GanttSettings are mostly project-wide (or mixed), use-project handles saving it to user prefs.
+                    // The 'isEditor' prop usually restricts things that change shared state.
+                    // However, 'theme' is also here and it is saved to user preferences in 'use-project'.
+                    // So we should probably ENABLE it even if not editor, but current implementation disables everything if !isEditor.
+                    // Checking GanttSettingsPanel wrapper... it says "You have view-only permissions. Your changes will not be saved."
+                    // But in use-project, UPDATE_GANTT_SETTINGS saves to user_preferences.
+                    // Let's keep consistency with other settings for now and disable if !isEditor if that's the established pattern,
+                    // ALTHOUGH, looking at 'theme' select, it is disabled={!isEditor}.
+                    // Wait, if I change 'theme' it saves to my user prefs, so why disable it for viewers?
+                    // Ah, `useProject` implementation says:
+                    // if (userSettingsActions.includes(action.type)) { ... saves to user_preferences ... }
+                    // AND `UPDATE_GANTT_SETTINGS` IS in `userSettingsActions`.
+                    // So it SHOULD be allowed for viewers.
+                    // BUT `GanttSettingsPanel` passes `isEditor` and the component uses it to disable inputs.
+                    // This seems like a bug or design choice in the existing code (viewers can't change their own theme?).
+                    // I will follow the existing pattern (disabled={!isEditor}) to avoid changing scope,
+                    // OR I can just leave it enabled since it's purely local preference (if the system allows).
+                    // Given the prompt didn't ask to fix permission issues, I'll stick to consistency.
+                    // However, "Button placement" is definitely a personal preference.
+                    // Let's stick to `disabled={!isEditor}` to be safe and consistent with "Theme".
+                    disabled={!isEditor}
+                  >
+                    <SelectTrigger id="button-location" className="w-[180px]">
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="top">Top Bar</SelectItem>
+                      <SelectItem value="side">Side Bar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
