@@ -526,7 +526,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
       return <KanbanView projectState={state} dispatch={dispatch} />;
     }
 
-    const ganttChartComponent = <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} />;
+    const ganttChartComponent = <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} projectName={project?.name} />;
 
     if (isMobile) {
         return ganttChartComponent;
