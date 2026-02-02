@@ -11,6 +11,7 @@ export function EditableCell({
     isEditing: isEditingProp, // To be able to control from outside
     onStopEditing: onStopEditingProp, // To be able to control from outside
     initialValue,
+    inputClassName,
 }: {
     value: string;
     onSave: (newValue: string) => void;
@@ -18,6 +19,7 @@ export function EditableCell({
     isEditing?: boolean; // now optional
     onStopEditing?: () => void; // now optional
     initialValue?: string;
+    inputClassName?: string;
 }) {
     const [internalIsEditing, setInternalIsEditing] = useState(false);
     const isControlled = isEditingProp !== undefined;
@@ -47,6 +49,19 @@ export function EditableCell({
         }
     }, [isEditing, initialValue]);
 
+    const prevIsEditing = useRef(isEditing);
+
+    useEffect(() => {
+        if (prevIsEditing.current && !isEditing) {
+            // Check if we need to save when transitioning from editing to not editing
+            // This is a fallback for when blur doesn't fire (e.g. mobile tap outside or component unmount)
+            if (currentValue !== value) {
+                onSave(currentValue);
+            }
+        }
+        prevIsEditing.current = isEditing;
+    }, [isEditing, currentValue, value, onSave]);
+
 
     const handleBlur = useCallback(() => {
         if (inputRef.current && inputRef.current.value !== value) {
@@ -66,6 +81,7 @@ export function EditableCell({
         } else if (e.key === 'Escape') {
             e.preventDefault();
             // To prevent saving on escape, reset the input's value before blurring
+            setCurrentValue(value);
             if (inputRef.current) {
                 inputRef.current.value = value;
             }
@@ -83,7 +99,7 @@ export function EditableCell({
                     onChange={(e) => setCurrentValue(e.target.value)}
                     onBlur={handleBlur}
                     onKeyDown={handleKeyDown}
-                    className={cn("h-full p-0 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring", className)}
+                    className={cn("h-full p-0 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring", inputClassName || className)}
                 />
             ) : (
                 <div className="w-full h-full flex items-center">
