@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import { useFirestore, useAuth } from '@/firebase';
@@ -11,7 +11,6 @@ import { ALL_COLUMNS } from '@/lib/columns';
 import { signOut } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +20,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
@@ -33,14 +31,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Copy, Trash2, Loader2, Settings, LogOut } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Plus, Loader2, LogOut } from 'lucide-react';
 import { ProjectSettingsDialog } from './project-settings-dialog';
-
-type ProjectWithMetadata = Project & {
-    createdAt: Date; 
-};
-
+import { ProjectList, type ProjectWithMetadata } from './project-list';
 
 export function ProjectSelectionPage({ user }: { user: User }) {
     const firestore = useFirestore();
@@ -68,6 +61,27 @@ export function ProjectSelectionPage({ user }: { user: User }) {
         setIsSettingsOpen(true);
     };
 
+    const handleArchiveProject = async (project: ProjectWithMetadata) => {
+        if (!firestore) return;
+        try {
+            const newStatus = project.status === 'Archived' ? 'Active' : 'Archived';
+            await updateDoc(doc(firestore, 'projects', project.id), { status: newStatus });
+
+            setProjects(prev => prev.map(p => p.id === project.id ? { ...p, status: newStatus } : p));
+             toast({
+                title: `Project ${newStatus === 'Archived' ? 'Archived' : 'Restored'}`,
+                description: `"${project.name}" has been ${newStatus === 'Archived' ? 'archived' : 'restored'}.`,
+            });
+        } catch (error) {
+            console.error("Error updating project status:", error);
+             toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not update project status."
+            });
+        }
+    }
+
     useEffect(() => {
         if (user) {
             user.getIdTokenResult().then((idTokenResult) => {
@@ -83,19 +97,22 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             setIsLoading(true);
 
             try {
+                let fetchedProjects: ProjectWithMetadata[] = [];
+
                 if (isAdmin) {
                     const projectsQuery = query(collection(firestore, 'projects'));
                     const querySnapshot = await getDocs(projectsQuery);
-                    const fetchedProjects: ProjectWithMetadata[] = querySnapshot.docs.map(snap => {
+                    fetchedProjects = querySnapshot.docs.map(snap => {
                          const data = snap.data() as Project;
                          return {
                              ...data,
                              id: snap.id,
                              createdAt: data.createdAt ? (data.createdAt as any).toDate() : new Date(),
+                             startDate: data.startDate ? (data.startDate as any).toDate() : undefined,
+                             finishDate: data.finishDate ? (data.finishDate as any).toDate() : undefined,
+                             lastModified: data.lastModified ? (data.lastModified as any).toDate() : undefined,
                          } as ProjectWithMetadata;
                     });
-                    setProjects(fetchedProjects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-
                 } else {
                     const userDocRef = doc(firestore, 'users', user.uid);
                     const userDoc = await getDoc(userDocRef);
@@ -105,7 +122,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                         if (projectIds.length > 0) {
                             const projectPromises = projectIds.map((id: string) => getDoc(doc(firestore, 'projects', id)));
                             const projectSnapshots = await Promise.all(projectPromises);
-                            const fetchedProjects: ProjectWithMetadata[] = projectSnapshots
+                            fetchedProjects = projectSnapshots
                                 .filter(snap => snap.exists())
                                 .map(snap => {
                                     const data = snap.data() as Project;
@@ -113,16 +130,15 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                                         ...data,
                                         id: snap.id,
                                         createdAt: data.createdAt ? (data.createdAt as any).toDate() : new Date(),
+                                        startDate: data.startDate ? (data.startDate as any).toDate() : undefined,
+                                        finishDate: data.finishDate ? (data.finishDate as any).toDate() : undefined,
+                                        lastModified: data.lastModified ? (data.lastModified as any).toDate() : undefined,
                                     } as ProjectWithMetadata;
                                 });
-                            setProjects(fetchedProjects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-                        } else {
-                            setProjects([]);
                         }
-                    } else {
-                        setProjects([]);
                     }
                 }
+                setProjects(fetchedProjects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
             } catch (error) {
                 console.error("Error fetching projects:", error);
                 toast({
@@ -152,7 +168,10 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                 ownerId: user.uid,
                 createdAt: new Date(),
                 memberIds: [user.uid],
-                initials: 'MN'
+                initials: 'MN',
+                status: 'Active',
+                taskCount: initialTasks.length,
+                lastModified: new Date(),
             });
 
             const memberDocRef = doc(firestore, 'projects', newProjectId, 'members', user.uid);
@@ -214,14 +233,20 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             const initialBatch = writeBatch(firestore);
             
             // 1. Create the new project document
-            const sourceData = sourceProjectDoc.data();
+            const sourceData = sourceProjectDoc.data() as Project;
             initialBatch.set(doc(firestore, 'projects', newProjectId), {
                 id: newProjectId,
                 name: `${sourceData.name} (Clone)`,
                 ownerId: user.uid,
                 createdAt: new Date(),
                 memberIds: [user.uid],
-                initials: sourceData.initials || sourceData.name.substring(0, 2).toUpperCase()
+                initials: sourceData.initials || sourceData.name.substring(0, 2).toUpperCase(),
+                status: 'Active',
+                taskCount: sourceData.taskCount,
+                startDate: sourceData.startDate,
+                finishDate: sourceData.finishDate,
+                duration: sourceData.duration,
+                lastModified: new Date(),
             });
 
             // 2. Create the owner's member document for the new project
@@ -270,7 +295,14 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             
             const newProjectDoc = await getDoc(doc(firestore, 'projects', newProjectId));
             const newProject = newProjectDoc.data() as Project;
-            setProjects(prev => [{...newProject, id: newProjectId, createdAt: newProject.createdAt ? (newProject.createdAt as any).toDate() : new Date()} as ProjectWithMetadata, ...prev].sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
+            setProjects(prev => [{
+                ...newProject,
+                id: newProjectId,
+                createdAt: newProject.createdAt ? (newProject.createdAt as any).toDate() : new Date(),
+                startDate: newProject.startDate ? (newProject.startDate as any).toDate() : undefined,
+                finishDate: newProject.finishDate ? (newProject.finishDate as any).toDate() : undefined,
+                lastModified: newProject.lastModified ? (newProject.lastModified as any).toDate() : undefined,
+            } as ProjectWithMetadata, ...prev].sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
 
         } catch (error) {
              console.error("Error cloning project:", error);
@@ -385,62 +417,33 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                 </div>
             </header>
 
-            {projects.length > 0 ? (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {projects.map(project => (
-                        <Card key={project.id}>
-                            <CardHeader>
-                                <CardTitle>{project.name}</CardTitle>
-                                <CardDescription>
-                                    Created {formatDistanceToNow(project.createdAt, { addSuffix: true })}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-sm text-muted-foreground">
-                                    {project.description || 'No description.'}
-                                </p>
-                            </CardContent>
-                            <CardFooter className="flex justify-between">
-                                <Button onClick={() => router.push(`/${project.id}`)}>Open</Button>
-                                <div className="flex gap-2">
-                                     <Button variant="outline" size="icon" onClick={() => handleCloneProject(project.id)} disabled={!!isCloning} title="Clone project">
-                                        {isCloning === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
-                                    </Button>
-                                    {(isAdmin || project.ownerId === user.uid) && (
-                                        <Button variant="outline" size="icon" onClick={() => handleOpenSettings(project)} title="Project settings">
-                                            <Settings className="h-4 w-4" />
-                                        </Button>
-                                    )}
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="destructive" size="icon" disabled={!isAdmin && project.ownerId !== user.uid || !!isDeleting} onClick={() => setProjectToDelete(project)} title="Delete project">
-                                                {isDeleting === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This will permanently delete the project "{project.name}" and all of its data. This action cannot be undone.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={handleDeleteProject} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
-                            </CardFooter>
-                        </Card>
-                    ))}
-                </div>
-            ) : (
-                <div className="text-center py-16 border-2 border-dashed rounded-lg">
-                    <h2 className="text-xl font-semibold text-muted-foreground">No projects yet</h2>
-                    <p className="text-muted-foreground mt-2">Get started by creating your first project.</p>
-                </div>
-            )}
+            <ProjectList
+                projects={projects}
+                user={user}
+                isAdmin={isAdmin}
+                isCloning={isCloning}
+                onOpen={(id) => router.push(`/${id}`)}
+                onClone={handleCloneProject}
+                onArchive={handleArchiveProject}
+                onSettings={handleOpenSettings}
+                onDelete={setProjectToDelete}
+            />
+
+            <AlertDialog open={!!projectToDelete} onOpenChange={(open) => !open && setProjectToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete the project "{projectToDelete?.name}" and all of its data. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteProject} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             {selectedProject && (
                 <ProjectSettingsDialog
                     open={isSettingsOpen}
