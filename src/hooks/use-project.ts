@@ -189,44 +189,63 @@ const toFirestoreTask = (task: Task) => {
 function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) {
     const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string }[] }>({ subprojects: [] });
 
+    const cacheRef = useRef<Record<string, { tasks: Task[], links: Link[], projectName: string, initials?: string, color?: string }>>({});
+    const unsubsRef = useRef<Record<string, { meta: () => void, tasks: () => void, links: () => void }>>({});
+
+    // Keep track of current IDs to ensure order in updateData
+    const subprojectIdsRef = useRef(subprojectIds);
+    subprojectIdsRef.current = subprojectIds;
+
+    const updateData = useCallback(() => {
+        const ids = subprojectIdsRef.current || [];
+        const allSubprojects = ids.map(id => {
+             const cached = cacheRef.current[id];
+             if (!cached) return null;
+             return { projectId: id, ...cached };
+        }).filter((item): item is { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string } => item !== null);
+
+        setData({ subprojects: allSubprojects });
+    }, []);
+
     useEffect(() => {
-        if (!subprojectIds || subprojectIds.length === 0 || !firestore) {
-            setData({ subprojects: [] });
-            return;
-        }
+        if (!firestore) return;
 
-        const unsubscribes: (() => void)[] = [];
-        const localCache: Record<string, { tasks: Task[], links: Link[], projectName: string, initials?: string, color?: string }> = {};
+        const currentIds = subprojectIds || [];
+        const activeIds = Object.keys(unsubsRef.current);
 
-        // Initialize cache
-        subprojectIds.forEach(id => localCache[id] = { tasks: [], links: [], projectName: 'Loading...' });
+        const added = currentIds.filter(id => !activeIds.includes(id));
+        const removed = activeIds.filter(id => !currentIds.includes(id));
 
-        const updateData = () => {
-            const allSubprojects = Object.entries(localCache).map(([id, data]) => ({
-                projectId: id,
-                ...data
-            }));
-            setData({ subprojects: allSubprojects });
-        };
+        // Remove listeners for removed projects
+        removed.forEach(id => {
+            if (unsubsRef.current[id]) {
+                unsubsRef.current[id].meta();
+                unsubsRef.current[id].tasks();
+                unsubsRef.current[id].links();
+                delete unsubsRef.current[id];
+            }
+            delete cacheRef.current[id];
+        });
 
-        subprojectIds.forEach(pId => {
-             // Project Metadata
-             const projectUnsub = onSnapshot(doc(firestore, 'projects', pId), (snap) => {
+        // Add listeners for new projects
+        added.forEach(pId => {
+            cacheRef.current[pId] = { tasks: [], links: [], projectName: 'Loading...' };
+
+            const projectUnsub = onSnapshot(doc(firestore, 'projects', pId), (snap) => {
                 const data = snap.data();
                 if (data) {
-                    localCache[pId].projectName = data.name;
-                    localCache[pId].initials = data.initials || data.name.substring(0, 2).toUpperCase();
-                    localCache[pId].color = data.color;
+                    cacheRef.current[pId].projectName = data.name;
+                    cacheRef.current[pId].initials = data.initials || data.name.substring(0, 2).toUpperCase();
+                    cacheRef.current[pId].color = data.color;
                     updateData();
                 }
+            }, (error) => {
+                console.error(`Error fetching metadata for subproject ${pId}:`, error);
             });
-            unsubscribes.push(projectUnsub);
 
-            // Tasks
             const tasksUnsub = onSnapshot(collection(firestore, 'projects', pId, 'tasks'), (snap) => {
                 const tasks = snap.docs.map(d => {
                      const data = d.data();
-                     // Helper to handle Firestore timestamps
                      const safeToDate = (value: any): Date | null => {
                         if (!value) return null;
                         if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
@@ -249,21 +268,40 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
 
                 tasks.sort((a, b) => (a.order || 0) - (b.order || 0));
 
-                localCache[pId].tasks = tasks;
+                cacheRef.current[pId].tasks = tasks;
                 updateData();
+            }, (error) => {
+                console.error(`Error fetching tasks for subproject ${pId}:`, error);
             });
-            unsubscribes.push(tasksUnsub);
 
-            // Links
             const linksUnsub = onSnapshot(collection(firestore, 'projects', pId, 'links'), (snap) => {
-                localCache[pId].links = snap.docs.map(d => ({ ...d.data(), id: d.id, sourceProjectId: pId } as Link));
+                cacheRef.current[pId].links = snap.docs.map(d => ({ ...d.data(), id: d.id, sourceProjectId: pId } as Link));
                 updateData();
+            }, (error) => {
+                console.error(`Error fetching links for subproject ${pId}:`, error);
             });
-            unsubscribes.push(linksUnsub);
+
+            unsubsRef.current[pId] = { meta: projectUnsub, tasks: tasksUnsub, links: linksUnsub };
         });
 
-        return () => unsubscribes.forEach(u => u());
-    }, [JSON.stringify(subprojectIds), firestore]);
+        // If ids changed (added or removed), trigger update to reflect new list (even if data hasn't arrived yet)
+        if (added.length > 0 || removed.length > 0) {
+            updateData();
+        }
+
+    }, [JSON.stringify(subprojectIds), firestore, updateData]);
+
+    // Cleanup all on unmount
+    useEffect(() => {
+        return () => {
+             Object.values(unsubsRef.current).forEach(group => {
+                group.meta();
+                group.tasks();
+                group.links();
+            });
+            unsubsRef.current = {};
+        }
+    }, []);
 
     return data;
 }
