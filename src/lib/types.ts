@@ -172,6 +172,7 @@ export interface GanttSettings {
   theme?: 'light' | 'dark' | 'sepia';
   customStyles?: Record<string, string>;
   comparisonBaselineId?: string | null;
+  buttonLocation?: 'top' | 'side';
 }
 
 export interface StylePreset {
