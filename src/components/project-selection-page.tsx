@@ -151,7 +151,8 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                 name: 'My New Project',
                 ownerId: user.uid,
                 createdAt: new Date(),
-                memberIds: [user.uid]
+                memberIds: [user.uid],
+                initials: 'MN'
             });
 
             const memberDocRef = doc(firestore, 'projects', newProjectId, 'members', user.uid);
@@ -213,12 +214,14 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             const initialBatch = writeBatch(firestore);
             
             // 1. Create the new project document
+            const sourceData = sourceProjectDoc.data();
             initialBatch.set(doc(firestore, 'projects', newProjectId), {
                 id: newProjectId,
-                name: `${sourceProjectDoc.data().name} (Clone)`,
+                name: `${sourceData.name} (Clone)`,
                 ownerId: user.uid,
                 createdAt: new Date(),
-                memberIds: [user.uid]
+                memberIds: [user.uid],
+                initials: sourceData.initials || sourceData.name.substring(0, 2).toUpperCase()
             });
 
             // 2. Create the owner's member document for the new project
