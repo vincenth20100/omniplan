@@ -1635,6 +1635,22 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     case 'ADD_LINK': {
         const { source, target } = action.payload;
 
+        const existingLink = state.links.find(l => l.source === source && l.target === target);
+        if (existingLink) {
+             return {
+                ...state,
+                notifications: [
+                    ...state.notifications,
+                    {
+                        id: `toast-duplicate-link-${Date.now()}`,
+                        type: 'toast',
+                        title: "Link Already Exists",
+                        description: "A dependency between these tasks already exists."
+                    }
+                ]
+            };
+        }
+
         if (isCycle(source, target, state.links, state.tasks)) {
             return {
                 ...state,
@@ -1692,13 +1708,22 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             return `${relatedTaskWbs}${l.type}${lagString}`;
         }));
         
+        const linkParseRegex = /^([A-Za-z0-9.-]+?)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
         const newRelationsStrings = value.split(',').map(s => s.trim()).filter(Boolean);
-        const newRelationsSet = new Set(newRelationsStrings);
+
+        // Deduplicate strings based on WBS (target/source task) to enforce one link per pair.
+        const uniqueRelationsMap = new Map<string, string>();
+        for (const rel of newRelationsStrings) {
+            const match = rel.match(linkParseRegex);
+            if (match) {
+                const wbs = match[1];
+                uniqueRelationsMap.set(wbs, rel); // Last one wins
+            }
+        }
+        const newRelationsSet = new Set(uniqueRelationsMap.values());
         
         const relationsToRemove = [...existingRelations].filter(r => !newRelationsSet.has(r));
         const relationsToAdd = [...newRelationsSet].filter(r => !existingRelations.has(r));
-
-        const linkParseRegex = /^([A-Za-z0-9.-]+?)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
 
         for (const rel of relationsToAdd) {
             const match = rel.match(linkParseRegex);
@@ -1734,7 +1759,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
              return relationsToRemove.includes(relationString);
         });
 
-        const newLinkObjects: Link[] = relationsToAdd.map((rel) => {
+        const newLinkObjects: Link[] = relationsToAdd.map((rel): Link | null => {
             const match = rel.match(linkParseRegex);
             if (!match) return null;
             
