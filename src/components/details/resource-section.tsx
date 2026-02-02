@@ -63,7 +63,7 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
   }
 
   const handleSchedulingTypeChange = (isEffortDriven: boolean) => {
-      const updates: any = { id: task.id, schedulingType: isEffortDriven ? 'effort' : 'duration' };
+      const updates: Partial<Task> & { id: string } = { id: task.id, schedulingType: isEffortDriven ? 'effort' : 'duration' };
 
       if (isEffortDriven) {
           // Switching TO Effort Driven.
