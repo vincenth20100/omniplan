@@ -44,7 +44,7 @@ export const TimelineHeader = React.memo(({ startDate, endDate, scale }: { start
 
     return (
         <div className="sticky top-0 z-20 bg-card">
-            <div className="relative flex border-b h-6">
+            <div className="relative flex border-b h-12">
                 {months.map((month) => (
                     <div
                         key={month.name}
@@ -57,7 +57,7 @@ export const TimelineHeader = React.memo(({ startDate, endDate, scale }: { start
                     </div>
                 ))}
             </div>
-            <div className="relative flex h-6">
+            <div className="relative flex h-12">
                 {showDayView ? (
                     days.map((day, index) => (
                         <div
