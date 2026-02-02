@@ -63,9 +63,24 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
   }
 
   const handleSchedulingTypeChange = (isEffortDriven: boolean) => {
+      const updates: Partial<Task> & { id: string } = { id: task.id, schedulingType: isEffortDriven ? 'effort' : 'duration' };
+
+      if (isEffortDriven) {
+          // Switching TO Effort Driven.
+          // Calculate current work from duration and units to preserve it.
+          const totalUnits = assignedResources.reduce((sum, a) => sum + (a.units || 0), 0);
+          const effectiveUnits = totalUnits > 0 ? totalUnits : 1;
+          const currentDuration = task.duration || 0;
+
+          // Work (hours) = Duration (days) * 8 (hours/day) * Units
+          const calculatedWork = currentDuration * 8 * effectiveUnits;
+
+          updates.work = calculatedWork;
+      }
+
       dispatch({
           type: 'UPDATE_TASK',
-          payload: { id: task.id, schedulingType: isEffortDriven ? 'effort' : 'duration' }
+          payload: updates
       });
   }
   
