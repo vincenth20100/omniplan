@@ -60,6 +60,38 @@ const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensi
     const left = offsetDays * scale;
     const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
     const top = index * rowHeight + (rowHeight - summaryBarHeight) / 2;
+    const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
+
+    // Fallback if no segments found (safe rendering)
+    if (segments.length === 0) {
+        return (
+            <div
+                key={task.id}
+                ref={barRef}
+                className={cn(
+                    "absolute flex items-center group transition-all duration-200",
+                    selectedTaskIds.includes(task.id) ? "ring-2 ring-offset-2 ring-accent ring-offset-card" : "hover:ring-1 hover:ring-accent",
+                    task.isCritical && ganttSettings.highlightCriticalPath ? "bg-destructive/15 border-2 border-destructive/90 rounded-sm" : "bg-muted border-2 border-primary/90 rounded-sm"
+                )}
+                style={{
+                    top: `${top}px`,
+                    left: `${left}px`,
+                    width: `${width}px`,
+                    height: `${summaryBarHeight}px`
+                }}
+                onClick={(e) => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
+            >
+                <div className={cn(
+                    "absolute -left-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
+                    task.isCritical && ganttSettings.highlightCriticalPath ? "border-t-[7px] border-t-destructive/90" : "border-t-[7px] border-t-primary/90"
+                )}></div>
+                <div className={cn(
+                    "absolute -right-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
+                    task.isCritical && ganttSettings.highlightCriticalPath ? "border-t-[7px] border-t-destructive/90" : "border-t-[7px] border-t-primary/90"
+                )}></div>
+            </div>
+        )
+    }
     
     return (
          <div 
@@ -82,6 +114,7 @@ const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensi
                 return (
                     <div
                         key={segIndex}
+                        title={`${format(segment.start, dateFormat)} - ${format(segment.finish, dateFormat)}`}
                         className={cn(
                             "absolute flex items-center group",
                             task.isCritical && ganttSettings.highlightCriticalPath ? "bg-destructive/15 border-2 border-destructive/90 rounded-sm" : "bg-muted border-2 border-primary/90 rounded-sm",
