@@ -854,7 +854,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             costPerHour: 0,
             order: maxOrder + 1,
         };
-        if (initials) {
+        if (initials !== undefined) {
             newResource.initials = initials;
         }
         const newResources = [...state.resources, newResource];
@@ -2300,7 +2300,13 @@ export function useProject(user: User, projectId: string | null) {
         
         if (finalAction.type === 'UPDATE_RESOURCE') {
             const { id, ...updateData } = finalAction.payload as { id: string };
-            batch.update(doc(firestore, 'projects', projectId, 'resources', id), updateData);
+            const cleanUpdateData: Record<string, any> = { ...updateData };
+            for (const key in cleanUpdateData) {
+                if (cleanUpdateData[key] === undefined) {
+                    cleanUpdateData[key] = null;
+                }
+            }
+            batch.update(doc(firestore, 'projects', projectId, 'resources', id), cleanUpdateData);
         }
         if (finalAction.type === 'UPDATE_CALENDAR') {
             const { id, ...updateData } = finalAction.payload as { id: string };
