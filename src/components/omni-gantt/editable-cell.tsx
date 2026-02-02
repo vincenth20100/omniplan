@@ -73,28 +73,6 @@ export function EditableCell({
         }
     };
 
-    // This effect handles clicking outside the input to commit changes
-    useEffect(() => {
-        if (!isEditing) return;
-
-        const handlePointerDown = (event: PointerEvent) => {
-            if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
-                event.preventDefault();
-                event.stopPropagation();
-                inputRef.current.blur();
-            }
-        };
-
-        const timer = setTimeout(() => {
-            document.addEventListener('pointerdown', handlePointerDown, true);
-        }, 0);
-
-        return () => {
-            clearTimeout(timer);
-            document.removeEventListener('pointerdown', handlePointerDown, true);
-        };
-    }, [isEditing, handleBlur]);
-
     return (
         <div className={cn("w-full h-full flex items-center cursor-text", className)} onClick={() => !isControlled && !internalIsEditing && setInternalIsEditing(true)}>
              {isEditing ? (

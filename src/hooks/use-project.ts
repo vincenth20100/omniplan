@@ -1677,6 +1677,10 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         const { taskId, field, value } = action.payload;
         const { tasks, links, columns, calendars, defaultCalendarId } = state;
         const wbsToIdMap = new Map(tasks.filter(t => t.wbs).map(t => [t.wbs!, t.id]));
+        const displayWbsToIdMap = new Map(tasks.filter(t => t.wbs).map(t => {
+             const prefix = t.projectInitials ? `${t.projectInitials}-` : '';
+             return [`${prefix}${t.wbs}`, t.id];
+        }));
         const idToWbsMap = new Map(tasks.map(t => [t.id, t.wbs || '']));
 
         const existingLinks = links.filter(l => (field === 'predecessors' ? l.target : l.source) === taskId);
@@ -1694,13 +1698,13 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         const relationsToRemove = [...existingRelations].filter(r => !newRelationsSet.has(r));
         const relationsToAdd = [...newRelationsSet].filter(r => !existingRelations.has(r));
 
-        const linkParseRegex = /^([\d.]+)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
+        const linkParseRegex = /^([A-Za-z0-9.-]+?)(FS|SS|FF|SF)?([+-]\d+d)?$/i;
 
         for (const rel of relationsToAdd) {
             const match = rel.match(linkParseRegex);
             if (!match) continue; 
             const wbs = match[1];
-            const relatedTaskId = wbsToIdMap.get(wbs);
+            const relatedTaskId = wbsToIdMap.get(wbs) || displayWbsToIdMap.get(wbs);
             if (relatedTaskId && relatedTaskId !== taskId) {
                 const source = field === 'predecessors' ? relatedTaskId : taskId;
                 const target = field === 'predecessors' ? taskId : relatedTaskId;
@@ -1738,7 +1742,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             const type = (match[2] || 'FS').toUpperCase() as LinkType;
             const lagStr = match[3];
             const lag = lagStr ? parseInt(lagStr) : 0;
-            const relatedTaskId = wbsToIdMap.get(wbs);
+            const relatedTaskId = wbsToIdMap.get(wbs) || displayWbsToIdMap.get(wbs);
 
             if (relatedTaskId && relatedTaskId !== taskId) {
                 const source = field === 'predecessors' ? relatedTaskId : taskId;
