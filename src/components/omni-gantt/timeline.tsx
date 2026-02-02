@@ -66,7 +66,6 @@ const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensi
     if (segments.length === 0) {
         return (
             <div
-                key={task.id}
                 ref={barRef}
                 className={cn(
                     "absolute flex items-center group transition-all duration-200",
