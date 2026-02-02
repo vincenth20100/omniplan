@@ -460,6 +460,9 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         canUndo={canUndo}
         canRedo={canRedo}
         canRemove={canRemove}
+        user={user}
+        currentProjectId={projectId}
+        existingSubprojectIds={project?.subprojectIds}
     />
   ) : (
     <>
