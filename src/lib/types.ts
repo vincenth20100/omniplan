@@ -252,6 +252,16 @@ export interface Project {
   subprojectIds?: string[];
   initials?: string;
   color?: string;
+
+  // Metrics & Metadata
+  taskCount?: number;
+  startDate?: any;
+  finishDate?: any;
+  duration?: number;
+  lastModified?: any;
+  lastModifiedBy?: string;
+  status?: string;
+  linkedProjectIds?: string[];
 }
 
 export interface ProjectMember {

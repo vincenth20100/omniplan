@@ -2423,6 +2423,48 @@ export function useProject(user: User, projectId: string | null) {
             }
         }
 
+        // Update Project Metrics
+        const nonGhostTasks = newState.tasks.filter(t => !t.isGhost);
+        const taskCount = nonGhostTasks.length;
+
+        let startDate: Date | null = null;
+        let finishDate: Date | null = null;
+
+        if (taskCount > 0) {
+            const startTimes = nonGhostTasks.map(t => t.start ? t.start.getTime() : Infinity);
+            const finishTimes = nonGhostTasks.map(t => t.finish ? t.finish.getTime() : -Infinity);
+
+            const minStart = Math.min(...startTimes);
+            const maxFinish = Math.max(...finishTimes);
+
+            if (minStart !== Infinity) startDate = new Date(minStart);
+            if (maxFinish !== -Infinity) finishDate = new Date(maxFinish);
+        }
+
+        let duration = 0;
+        if (startDate && finishDate) {
+            const diffTime = Math.abs(finishDate.getTime() - startDate.getTime());
+            duration = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        const linkedProjectIds = new Set<string>();
+        newState.links.forEach(l => {
+            if (l.sourceProjectId && l.sourceProjectId !== projectId) linkedProjectIds.add(l.sourceProjectId);
+            if (l.targetProjectId && l.targetProjectId !== projectId) linkedProjectIds.add(l.targetProjectId);
+        });
+
+        if (projectId) {
+            batch.update(doc(firestore, 'projects', projectId), {
+                taskCount,
+                startDate: startDate,
+                finishDate: finishDate,
+                duration,
+                lastModified: new Date(),
+                lastModifiedBy: user.uid,
+                linkedProjectIds: Array.from(linkedProjectIds)
+            });
+        }
+
         batch.commit().then(() => {
             internalDispatch({ type: '_APPLY_STATE_CHANGE', payload: { newState, originalAction: finalAction } });
         }).catch(e => {
