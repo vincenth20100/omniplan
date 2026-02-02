@@ -2630,7 +2630,8 @@ export function useProject(user: User, projectId: string | null) {
                  }
              }
 
-             if (linkProjectId) {
+             // Only auto-delete duplicates if they belong to the current project to avoid affecting subprojects
+             if (linkProjectId === projectId) {
                  duplicatesToDelete.push({ id: link.id, projectId: linkProjectId });
              }
         } else {
