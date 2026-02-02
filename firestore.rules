@@ -57,6 +57,11 @@ service cloud.firestore {
     }
 
 
+    // --- Global Links (for Collection Group Queries) ---
+    match /{document=**}/links/{linkId} {
+      allow read: if (resource.data.sourceProjectId != null && isProjectViewer(resource.data.sourceProjectId)) || (resource.data.targetProjectId != null && isProjectViewer(resource.data.targetProjectId));
+    }
+
     // --- Projects and Subcollections ---
     match /projects/{projectId} {
       // Project Document

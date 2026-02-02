@@ -340,7 +340,7 @@ function useExternalData(projectId: string | null, firestore: any, localLinks: L
             if (warnedRef.current) return;
 
             if (e.code === 'permission-denied') {
-                 console.log("External links query skipped due to permissions (expected for cross-project links without access).");
+                 console.debug("External links query skipped due to permissions (expected for cross-project links without access).");
                  warnedRef.current = true;
             } else if (e.code === 'failed-precondition') {
                  console.warn("External links query failed (likely missing index).", e.message);
