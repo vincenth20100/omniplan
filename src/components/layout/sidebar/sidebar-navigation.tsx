@@ -119,6 +119,12 @@ export function SidebarNavigation({
                                 <span>Calendars</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
+                         <SidebarMenuItem>
+                            <SidebarMenuButton onClick={() => onNavigate('subprojects' as SidebarView)} disabled={!isEditor} tooltip="Manage Subprojects">
+                                <FolderTree />
+                                <span>Subprojects</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
                     </SidebarMenu>
                 </SidebarGroupContent>
             </SidebarGroup>

@@ -10,13 +10,15 @@ import { ResourceView } from "@/components/resources/resource-view";
 import { CalendarView } from "@/components/calendars/calendar-view";
 import { GanttSettingsContent } from "@/components/gantt-settings/gantt-settings-content";
 import { HistoryList } from "@/components/history/history-list";
+import { SubprojectManagerContent } from "@/components/subproject-manager-content";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import type { ProjectState, HistoryEntry } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
 import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
+import type { User } from 'firebase/auth';
 
-export type SidebarView = 'main' | 'resources' | 'calendars' | 'filters' | 'grouping' | 'gantt-settings' | 'history' | 'shortcuts' | 'find-replace' | 'print' | 'columns' | 'manage-views';
+export type SidebarView = 'main' | 'resources' | 'calendars' | 'filters' | 'grouping' | 'gantt-settings' | 'history' | 'shortcuts' | 'find-replace' | 'print' | 'columns' | 'manage-views' | 'subprojects';
 
 export function MobileSidebarContainer({
     view,
@@ -31,6 +33,9 @@ export function MobileSidebarContainer({
     canUndo,
     canRedo,
     canRemove,
+    user,
+    currentProjectId,
+    existingSubprojectIds,
 }: {
     view: SidebarView;
     onNavigate: (view: SidebarView) => void;
@@ -44,6 +49,9 @@ export function MobileSidebarContainer({
     canUndo: boolean;
     canRedo: boolean;
     canRemove: boolean;
+    user: User;
+    currentProjectId: string;
+    existingSubprojectIds?: string[];
 }) {
     const { state, setOpenMobile, isMobile } = useSidebar();
 
@@ -110,6 +118,17 @@ export function MobileSidebarContainer({
                     columns={projectState.columns}
                     dispatch={dispatch}
                     onCancel={handleBack}
+                />
+            );
+            break;
+        case 'subprojects':
+            title = 'Manage Subprojects';
+            content = (
+                <SubprojectManagerContent
+                    user={user}
+                    currentProjectId={currentProjectId}
+                    existingSubprojectIds={existingSubprojectIds}
+                    onClose={handleBack}
                 />
             );
             break;
