@@ -1076,9 +1076,13 @@ export function TaskTable({
     const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
     const { rowHeight } = DENSITY_SETTINGS[uiDensity];
 
+    const totalWidth = React.useMemo(() => {
+        return orderedAndVisibleColumns.reduce((acc, col) => acc + col.width, 0) + 40;
+    }, [orderedAndVisibleColumns]);
+
     const content = (
         <div className="pb-40">
-                <Table className="w-auto border-collapse">
+                <Table className="border-collapse table-fixed" style={{ width: `${totalWidth}px` }}>
                     <colgroup>
                         <col style={{ width: '40px' }} />
                         {orderedAndVisibleColumns.map((col) => (
