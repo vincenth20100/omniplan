@@ -802,19 +802,38 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     case 'UPDATE_TASK': {
         const { id, ...update } = action.payload;
 
+        let newUpdate = { ...update };
+        const existingTask = state.tasks.find(t => t.id === id);
+
+        // If we are updating work and it's effort driven, recalculate duration
+        if (existingTask && 'work' in update) {
+             const isEffortDriven = (update.schedulingType || existingTask.schedulingType) === 'effort';
+             if (isEffortDriven) {
+                 const newWork = update.work || 0;
+                 // Get assignments for this task to calculate total units
+                 const taskAssignments = state.assignments.filter(a => a.taskId === id);
+                 const totalUnits = taskAssignments.reduce((sum, a) => sum + (a.units || 0), 0);
+                 const effectiveUnits = totalUnits > 0 ? totalUnits : 1;
+
+                 // Duration (days) = Work (hours) / (Units * 8 hours/day)
+                 const newDuration = newWork / (effectiveUnits * 8);
+                 newUpdate.duration = newDuration;
+             }
+        }
+
         let requiresReschedule = false;
         if (
-            'start' in update ||
-            'finish' in update ||
-            'duration' in update ||
-            'constraintType' in update ||
-            'constraintDate' in update
+            'start' in newUpdate ||
+            'finish' in newUpdate ||
+            'duration' in newUpdate ||
+            'constraintType' in newUpdate ||
+            'constraintDate' in newUpdate
         ) {
             requiresReschedule = true;
         }
 
         const updatedTasks = state.tasks.map(t =>
-            t.id === id ? { ...t, ...update } : t
+            t.id === id ? { ...t, ...newUpdate } : t
         );
         
         // If an update doesn't affect the schedule, we can skip the expensive reschedule
