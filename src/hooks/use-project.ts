@@ -223,7 +223,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
             unsubscribes.push(projectUnsub);
 
             // Tasks
-            const tasksUnsub = onSnapshot(query(collection(firestore, 'projects', pId, 'tasks'), orderBy('order')), (snap) => {
+            const tasksUnsub = onSnapshot(collection(firestore, 'projects', pId, 'tasks'), (snap) => {
                 const tasks = snap.docs.map(d => {
                      const data = d.data();
                      // Helper to handle Firestore timestamps
@@ -246,6 +246,9 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
                          deadline: safeToDate(data.deadline),
                      } as Task;
                 });
+
+                tasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+
                 localCache[pId].tasks = tasks;
                 updateData();
             });
