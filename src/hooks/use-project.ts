@@ -1266,7 +1266,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
                     };
                 });
                 
-                const newLinksFromPaste: Link[] = pastedLinks.map(link => ({
+                const rawNewLinks: Link[] = pastedLinks.map(link => ({
                     ...link,
                     id: `link-${Date.now()}-${Math.random()}`.replace('.', ''),
                     source: idMap.get(link.source)!,
@@ -1274,11 +1274,19 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
                     sourceProjectId: inheritedProjectId,
                     targetProjectId: inheritedProjectId,
                 }));
+
+                // Deduplicate new links internally
+                const uniqueNewLinksMap = new Map<string, Link>();
+                rawNewLinks.forEach(l => uniqueNewLinksMap.set(`${l.source}-${l.target}`, l));
+
+                // Deduplicate against existing links
+                const existingKeys = new Set(state.links.map(l => `${l.source}-${l.target}`));
+                const finalNewLinks = Array.from(uniqueNewLinksMap.values()).filter(l => !existingKeys.has(`${l.source}-${l.target}`));
                 
                 const allTasks = [...state.tasks];
                 allTasks.splice(targetIndex, 0, ...newTasks);
                 
-                const allLinks = [...state.links, ...newLinksFromPaste];
+                const allLinks = [...state.links, ...finalNewLinks];
                 
                 const scheduledTasks = runScheduler(allTasks, allLinks, state.columns, state.calendars, state.defaultCalendarId);
                 const newSelectedIds = newTasks.map(t => t.id);
@@ -2600,7 +2608,58 @@ export function useProject(user: User, projectId: string | null) {
     const externalLinksFiltered = externalData.links.filter(l => !subprojectLinks.some(sl => sl.id === l.id) && !(collections.links.data || []).some(ml => ml.id === l.id));
 
     const allTasks = [...mainTasks, ...subprojectTasks, ...externalTasksFiltered];
-    const allLinks = [...(collections.links.data || []), ...subprojectLinks, ...externalLinksFiltered];
+
+    // Deduplicate links for display and schedule
+    const rawLinks = [...(collections.links.data || []), ...subprojectLinks, ...externalLinksFiltered];
+    const uniqueLinksMap = new Map<string, Link>();
+    const duplicatesToDelete: { id: string, projectId: string }[] = [];
+
+    rawLinks.forEach(link => {
+        const key = `${link.source}-${link.target}`;
+        if (uniqueLinksMap.has(key)) {
+             // Duplicate found.
+             // Determine if it resides in a collection we can write to for cleanup.
+             let linkProjectId: string | null = null;
+
+             if (collections.links.data?.some(l => l.id === link.id)) {
+                 linkProjectId = projectId;
+             } else {
+                 const sub = subprojectsData.subprojects.find(s => s.links.some(l => l.id === link.id));
+                 if (sub) {
+                      linkProjectId = sub.projectId;
+                 }
+             }
+
+             if (linkProjectId) {
+                 duplicatesToDelete.push({ id: link.id, projectId: linkProjectId });
+             }
+        } else {
+             uniqueLinksMap.set(key, link);
+        }
+    });
+
+    const allLinks = Array.from(uniqueLinksMap.values());
+
+    // Auto-cleanup duplicates if permissions allow
+    if (duplicatesToDelete.length > 0 && isEditorOrOwner) {
+         // Use setTimeout to avoid side-effects during render/synchronous execution
+         setTimeout(() => {
+             const batch = writeBatch(firestore);
+             let count = 0;
+             duplicatesToDelete.forEach(d => {
+                 const ref = doc(firestore, 'projects', d.projectId, 'links', d.id);
+                 batch.delete(ref);
+                 count++;
+             });
+             if (count > 0) {
+                batch.commit().then(() => {
+                    console.log(`Auto-cleaned ${count} duplicate links.`);
+                }).catch(e => {
+                    console.error("Failed to auto-clean duplicate links:", e);
+                });
+             }
+         }, 2000);
+    }
 
     const projectColors: Record<string, string> = {};
     if (projectId) projectColors[projectId] = projectData?.color || '#ef4444';
