@@ -2379,6 +2379,8 @@ export function useProject(user: User, projectId: string | null) {
         }
 
         newState.tasks.forEach(newTask => {
+            if (newTask.id.startsWith('subproject-')) return;
+
             const oldTask = currentState.tasks.find(t => t.id === newTask.id);
             const targetProjectId = newTask.projectId || projectId;
 
