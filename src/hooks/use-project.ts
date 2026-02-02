@@ -2483,7 +2483,17 @@ export function useProject(user: User, projectId: string | null) {
                 filters: newState.filters,
                 stylePresets: newState.stylePresets,
             };
-            batch.set(sharedSettingsDocRef, settingsToUpdate, { merge: true });
+
+            const hasSettingsChanged =
+                newState.columns !== currentState.columns ||
+                newState.visibleColumns !== currentState.visibleColumns ||
+                newState.grouping !== currentState.grouping ||
+                newState.filters !== currentState.filters ||
+                newState.stylePresets !== currentState.stylePresets;
+
+            if (hasSettingsChanged) {
+                batch.set(sharedSettingsDocRef, settingsToUpdate, { merge: true });
+            }
             
             if (finalAction.type === 'SAVE_VIEW_AS') {
                  const newView = newState.views.find(v => v.id === newState.currentViewId);
