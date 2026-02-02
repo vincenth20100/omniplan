@@ -25,6 +25,7 @@ import { type RenderableRow, type TaskRow } from './gantt-chart';
 import { parseDuration, formatDuration } from '@/lib/duration';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { calendarService } from '@/lib/calendar';
+import { DENSITY_SETTINGS } from '@/lib/settings';
 
 const TaskCellRenderer = React.memo(({
     task,
@@ -1073,10 +1074,11 @@ export function TaskTable({
 
     const defaultCalendar = React.useMemo(() => calendars.find(c => c.id === defaultCalendarId) || calendars[0] || null, [calendars, defaultCalendarId]);
     const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
+    const { rowHeight } = DENSITY_SETTINGS[uiDensity];
 
     const content = (
         <div className="pb-40">
-                <Table className="w-auto">
+                <Table className="w-auto border-collapse">
                     <colgroup>
                         <col style={{ width: '40px' }} />
                         {orderedAndVisibleColumns.map((col) => (
@@ -1176,7 +1178,11 @@ export function TaskTable({
                         {renderableRows.map((item, rowIndex) => {
                             if (item.itemType === 'group') {
                                 return (
-                                    <TableRow key={item.id} className="bg-muted/50 hover:bg-muted/50 font-semibold">
+                                    <TableRow
+                                        key={item.id}
+                                        className="bg-muted/50 hover:bg-muted/50 font-semibold"
+                                        style={{ height: `${rowHeight}px` }}
+                                    >
                                         <TableCell colSpan={orderedAndVisibleColumns.length + 1} className="p-0">
                                             <div 
                                                 className="flex items-center gap-2 h-full"
@@ -1202,6 +1208,7 @@ export function TaskTable({
                             return (
                                 <TableRow
                                     key={task.id}
+                                    style={{ height: `${rowHeight}px` }}
                                     onDragOver={(e) => handleDragOver(e, task.id)}
                                     data-density={uiDensity}
                                     data-level={level}
