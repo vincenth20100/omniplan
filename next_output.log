@@ -1,0 +1,11 @@
+   ▲ Next.js 15.5.9 (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.2:3000
+
+ ✓ Starting...
+ ✓ Ready in 1428ms
+ ○ Compiling /verify ...
+ ✓ Compiled /verify in 10.3s
+ GET /verify 200 in 12292ms
+ GET /verify 200 in 506ms
+[?25h

@@ -36,7 +36,7 @@ export function ColumnConfigDialog({
     column?: Omit<ColumnSpec, 'width'> | null
 }) {
     const [name, setName] = useState('');
-    const [type, setType] = useState<'text' | 'number' | 'selection'>('text');
+    const [type, setType] = useState<ColumnSpec['type']>('text');
     const [options, setOptions] = useState('');
 
     useEffect(() => {
@@ -71,7 +71,7 @@ export function ColumnConfigDialog({
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="type" className="text-right">Type</Label>
-                        <Select value={type} onValueChange={(v: 'text' | 'number' | 'selection') => setType(v)}>
+                        <Select value={type} onValueChange={(v: ColumnSpec['type']) => v && setType(v)}>
                             <SelectTrigger className="col-span-3">
                                 <SelectValue placeholder="Select a type" />
                             </SelectTrigger>
@@ -79,6 +79,7 @@ export function ColumnConfigDialog({
                                 <SelectItem value="text">Text</SelectItem>
                                 <SelectItem value="number">Number</SelectItem>
                                 <SelectItem value="selection">Selection</SelectItem>
+                                <SelectItem value="date">Date</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
