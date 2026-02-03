@@ -1,13 +1,13 @@
 'use client';
 
 import { useReducer, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember, StylePreset, Baseline } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember, StylePreset, Baseline, Snapshot, PersistentHistoryEntry } from '@/lib/types';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
 import { parseDuration, formatDuration } from '@/lib/duration';
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, writeBatch, query, orderBy, setDoc, onSnapshot, arrayUnion, arrayRemove, collectionGroup, where } from 'firebase/firestore';
+import { collection, doc, writeBatch, query, orderBy, setDoc, onSnapshot, arrayUnion, arrayRemove, collectionGroup, where, limit, serverTimestamp, addDoc, deleteDoc } from 'firebase/firestore';
 import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { User } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
@@ -194,6 +194,25 @@ const toFirestoreResource = (resource: Resource) => {
         }
     }
     return cleanResource;
+}
+
+const getPayloadDescription = (action: Action, tasks: Task[]): string | undefined => {
+    if ('payload' in action && action.payload && typeof action.payload === 'object') {
+        if ('name' in action.payload) return String((action.payload as any).name);
+        const task = tasks.find(t => 'id' in (action.payload as any) && t.id === (action.payload as any).id);
+        if (task) return task.name;
+    }
+    return undefined;
+}
+
+const sanitizeRestoredTask = (task: any): Task => {
+    const sanitized = { ...task };
+    Object.keys(sanitized).forEach(key => {
+        if (sanitized[key] === null) {
+            sanitized[key] = undefined;
+        }
+    });
+    return sanitized as Task;
 }
 
 function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) {
@@ -2113,6 +2132,8 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
 export function useProject(user: User, projectId: string | null) {
   const [historyState, internalDispatch] = useReducer(undoable(projectReducer), historyInitialState);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [viewingSnapshotId, setViewingSnapshotId] = useState<string | null>(null);
+  const [previewState, setPreviewState] = useState<ProjectState | null>(null);
   const firestore = useFirestore();
   const { toast } = useToast();
   const historyStateRef = useRef(historyState);
@@ -2200,6 +2221,24 @@ export function useProject(user: User, projectId: string | null) {
     if (!user || !projectId) {
         internalDispatch(action);
         return;
+    }
+
+    if (viewingSnapshotId) {
+        const viewActions: Action['type'][] = [
+            'SET_VIEW', 'SET_GROUPING', 'SET_FILTERS', 'UPDATE_GANTT_SETTINGS',
+            'SET_UI_DENSITY', 'SET_COLUMNS', 'TOGGLE_TASK_COLLAPSE',
+            'COLLAPSE_ALL', 'EXPAND_ALL', 'SET_REPRESENTATION', 'SORT_TASKS',
+            'SET_ROW_SELECTION', 'SET_CELL_SELECTION'
+        ];
+        if (!viewActions.includes(action.type)) {
+             toast({ title: "Read Only", description: "You are viewing a snapshot. Exit preview to make changes." });
+             return;
+        }
+        if (previewState) {
+             const newPreviewState = projectReducer(previewState, action);
+             setPreviewState(newPreviewState);
+             return;
+        }
     }
 
     let finalAction = action;
@@ -2344,7 +2383,17 @@ export function useProject(user: User, projectId: string | null) {
             batch.update(doc(firestore, 'projects', projectId, 'calendars', id), updateData);
         }
 
-        batch.commit().catch(e => {
+        batch.commit().then(() => {
+            if (isEditAction(finalAction)) {
+                 addDoc(collection(firestore, 'projects', projectId, 'history'), {
+                     actionType: finalAction.type,
+                     payloadDescription: getPayloadDescription(finalAction, historyStateRef.current.present.tasks),
+                     timestamp: serverTimestamp(),
+                     userId: user.uid,
+                     userName: user.displayName || user.email || 'Unknown User'
+                 });
+            }
+        }).catch(e => {
             console.error(`Optimistic action ${finalAction.type} failed to commit.`, e);
             toast({
               variant: 'destructive',
@@ -2553,6 +2602,16 @@ export function useProject(user: User, projectId: string | null) {
 
         batch.commit().then(() => {
             internalDispatch({ type: '_APPLY_STATE_CHANGE', payload: { newState, originalAction: finalAction } });
+
+            if (isEditAction(finalAction)) {
+                 addDoc(collection(firestore, 'projects', projectId, 'history'), {
+                     actionType: finalAction.type,
+                     payloadDescription: getPayloadDescription(finalAction, historyStateRef.current.present.tasks),
+                     timestamp: serverTimestamp(),
+                     userId: user.uid,
+                     userName: user.displayName || user.email || 'Unknown User'
+                 });
+            }
         }).catch(e => {
             console.error(`Action ${finalAction.type} failed to commit.`, e);
             toast({
@@ -2574,6 +2633,8 @@ export function useProject(user: User, projectId: string | null) {
     sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => (projectId && member) ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId, member?.userId, member?.role])),
     userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
     baselines: useCollection<Baseline>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId, member?.userId, member?.role])),
+    history: useCollection<PersistentHistoryEntry>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'history'), orderBy('timestamp', 'desc'), limit(60)) : null, [firestore, projectId, member?.userId, member?.role])),
+    snapshots: useCollection<Snapshot>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'snapshots'), orderBy('createdAt', 'desc')) : null, [firestore, projectId, member?.userId, member?.role])),
   };
   
   // Effect 1: Data Synchronization from Firestore
@@ -2885,17 +2946,107 @@ export function useProject(user: User, projectId: string | null) {
     };
   }, []);
 
-  const getPayloadDescription = (action: Action): string | undefined => {
-    if ('payload' in action && action.payload && typeof action.payload === 'object') {
-        if ('name' in action.payload) return String(action.payload.name);
-        const task = historyState.present.tasks.find(t => 'id' in (action.payload as any) && t.id === (action.payload as any).id);
-        if (task) return task.name;
-    }
-    return undefined;
-  }
+  const saveSnapshot = useCallback(async (name: string) => {
+      if (!projectId || !isEditorOrOwner || !user) return;
+
+      const currentState = historyStateRef.current.present;
+
+      const stateToSave = {
+          tasks: currentState.tasks.map(t => toFirestoreTask(t)),
+          links: currentState.links,
+          resources: currentState.resources.map(r => toFirestoreResource(r)),
+          assignments: currentState.assignments,
+          calendars: currentState.calendars,
+          baselines: currentState.baselines,
+          projectColors: currentState.projectColors,
+          columns: currentState.columns,
+          visibleColumns: currentState.visibleColumns,
+          grouping: currentState.grouping,
+          groupingState: currentState.groupingState,
+          filters: currentState.filters,
+          views: currentState.views,
+          currentViewId: currentState.currentViewId,
+          ganttSettings: currentState.ganttSettings,
+          stylePresets: currentState.stylePresets,
+          activeStylePresetId: currentState.activeStylePresetId,
+          uiDensity: currentState.uiDensity,
+      };
+
+      try {
+          await addDoc(collection(firestore, 'projects', projectId, 'snapshots'), {
+              name,
+              createdAt: serverTimestamp(),
+              createdBy: user.uid,
+              data: JSON.stringify(stateToSave)
+          });
+          toast({ title: "Snapshot Saved", description: `Snapshot "${name}" has been saved.` });
+      } catch (e) {
+          console.error("Error saving snapshot:", e);
+          toast({ variant: "destructive", title: "Error", description: "Failed to save snapshot." });
+      }
+  }, [projectId, isEditorOrOwner, user, firestore, toast]);
+
+  const restoreSnapshot = useCallback(async (snapshot: Snapshot) => {
+      if (!isEditorOrOwner) return;
+      try {
+          const parsedState = JSON.parse(snapshot.data, (key, value) => {
+              if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+                  return new Date(value);
+              }
+              return value;
+          });
+
+          if (parsedState.tasks) {
+              parsedState.tasks = parsedState.tasks.map(sanitizeRestoredTask);
+          }
+
+          dispatch({ type: 'LOAD_PROJECT', payload: parsedState });
+          toast({ title: "Snapshot Restored", description: `Project restored to "${snapshot.name}".` });
+      } catch (e) {
+          console.error("Error restoring snapshot:", e);
+          toast({ variant: "destructive", title: "Error", description: "Failed to restore snapshot." });
+      }
+  }, [dispatch, isEditorOrOwner, toast]);
+
+  const deleteSnapshot = useCallback(async (snapshotId: string) => {
+      if (!projectId || !isEditorOrOwner) return;
+      try {
+          await deleteDoc(doc(firestore, 'projects', projectId, 'snapshots', snapshotId));
+          toast({ title: "Snapshot Deleted" });
+      } catch (e) {
+           console.error("Error deleting snapshot:", e);
+           toast({ variant: "destructive", title: "Error", description: "Failed to delete snapshot." });
+      }
+  }, [projectId, isEditorOrOwner, firestore, toast]);
+
+  const previewSnapshot = useCallback((snapshot: Snapshot) => {
+      try {
+          const parsedState = JSON.parse(snapshot.data, (key, value) => {
+              if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+                  return new Date(value);
+              }
+              return value;
+          });
+
+          if (parsedState.tasks) {
+              parsedState.tasks = parsedState.tasks.map(sanitizeRestoredTask);
+          }
+
+          setPreviewState(parsedState);
+          setViewingSnapshotId(snapshot.id);
+      } catch (e) {
+          console.error("Error parsing snapshot for preview:", e);
+          toast({ variant: "destructive", title: "Error", description: "Failed to preview snapshot." });
+      }
+  }, [toast]);
+
+  const exitPreview = useCallback(() => {
+      setViewingSnapshotId(null);
+      setPreviewState(null);
+  }, []);
 
   return { 
-    state: historyState.present, 
+    state: viewingSnapshotId && previewState ? previewState : historyState.present,
     dispatch,
     isLoaded: isLoaded && projectId && !isCheckingAdmin && !isMemberLoading,
     isEditorOrOwner,
@@ -2904,10 +3055,18 @@ export function useProject(user: User, projectId: string | null) {
     history: {
         log: historyState.past.map(h => ({
             actionType: h.action.type,
-            payloadDescription: getPayloadDescription(h.action),
+            payloadDescription: getPayloadDescription(h.action, historyState.present.tasks),
             timestamp: new Date()
         })),
         index: historyState.past.length -1
-    }
+    },
+    persistentHistory: collections.history.data || [],
+    snapshots: collections.snapshots.data || [],
+    saveSnapshot,
+    restoreSnapshot,
+    deleteSnapshot,
+    previewSnapshot,
+    exitPreview,
+    isPreviewMode: !!viewingSnapshotId,
   };
 }

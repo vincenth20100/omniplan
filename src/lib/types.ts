@@ -303,3 +303,17 @@ export type TaskRow = {
 };
 
 export type RenderableRow = GroupRow | TaskRow;
+
+export interface Snapshot {
+    id: string;
+    name: string;
+    createdAt: Date;
+    createdBy: string;
+    data: string;
+}
+
+export interface PersistentHistoryEntry extends HistoryEntry {
+    id: string;
+    userId?: string;
+    userName?: string;
+}
