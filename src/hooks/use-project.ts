@@ -2565,7 +2565,7 @@ export function useProject(user: User, projectId: string | null) {
   }, [user, projectId, firestore, toast, isEditorOrOwner]);
   
   const collections = {
-    tasks: useCollection<Task>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'tasks'), orderBy('order')) : null, [firestore, projectId, member])),
+    tasks: useCollection<Task>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'tasks') : null, [firestore, projectId, member])),
     links: linksCollection,
     resources: useCollection<Resource>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId, member])),
     assignments: useCollection<Assignment>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId, member])),
@@ -2607,7 +2607,7 @@ export function useProject(user: User, projectId: string | null) {
         finish: safeToDate(t.finish) || new Date(),
         constraintDate: safeToDate(t.constraintDate),
         deadline: safeToDate(t.deadline)
-    }));
+    })).sort((a, b) => (a.order || 0) - (b.order || 0));
 
     // Process subprojects
     const subprojectTasks: Task[] = [];
