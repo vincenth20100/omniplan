@@ -76,6 +76,9 @@ export function ProjectSettingsDialog({
     const [name, setName] = useState(project.name);
     const [initials, setInitials] = useState(project.initials || '');
     const [description, setDescription] = useState(project.description || '');
+    const [color, setColor] = useState(project.color || '#ef4444');
+    const [textColor, setTextColor] = useState(project.textColor || '');
+    const [criticalPathColor, setCriticalPathColor] = useState(project.criticalPathColor || '');
     const [members, setMembers] = useState<EditableMember[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     
@@ -121,6 +124,9 @@ export function ProjectSettingsDialog({
             setName(project.name);
             setInitials(project.initials || project.name.substring(0, 2).toUpperCase());
             setDescription(project.description || '');
+            setColor(project.color || '#ef4444');
+            setTextColor(project.textColor || '');
+            setCriticalPathColor(project.criticalPathColor || '');
             setMembers(originalMembers);
             setSubprojectIds(project.subprojectIds || []);
             
@@ -162,6 +168,9 @@ export function ProjectSettingsDialog({
             if (name !== project.name) projectUpdates.name = name;
             if (initials !== (project.initials || '')) projectUpdates.initials = initials;
             if (description !== (project.description || '')) projectUpdates.description = description;
+            if (color !== (project.color || '#ef4444')) projectUpdates.color = color;
+            if (textColor !== (project.textColor || '')) projectUpdates.textColor = textColor;
+            if (criticalPathColor !== (project.criticalPathColor || '')) projectUpdates.criticalPathColor = criticalPathColor;
 
             if (JSON.stringify(subprojectIds) !== JSON.stringify(project.subprojectIds || [])) {
                 projectUpdates.subprojectIds = subprojectIds;
@@ -285,6 +294,27 @@ export function ProjectSettingsDialog({
                                             maxLength={5}
                                             placeholder="e.g. PRJ"
                                         />
+                                    </div>
+                                    <div className="col-span-2 sm:col-span-1">
+                                        <Label>Project Color</Label>
+                                        <div className="flex gap-2">
+                                            <Input type="color" value={color} onChange={e => setColor(e.target.value)} className="w-12 p-1 h-9" />
+                                            <Input value={color} onChange={e => setColor(e.target.value)} className="flex-1" placeholder="#RRGGBB" />
+                                        </div>
+                                    </div>
+                                    <div className="col-span-2 sm:col-span-1">
+                                        <Label>Text Color</Label>
+                                        <div className="flex gap-2">
+                                            <Input type="color" value={textColor} onChange={e => setTextColor(e.target.value)} className="w-12 p-1 h-9" />
+                                            <Input value={textColor} onChange={e => setTextColor(e.target.value)} className="flex-1" placeholder="Optional" />
+                                        </div>
+                                    </div>
+                                    <div className="col-span-2 sm:col-span-1">
+                                        <Label>Critical Path Color</Label>
+                                        <div className="flex gap-2">
+                                            <Input type="color" value={criticalPathColor} onChange={e => setCriticalPathColor(e.target.value)} className="w-12 p-1 h-9" />
+                                            <Input value={criticalPathColor} onChange={e => setCriticalPathColor(e.target.value)} className="flex-1" placeholder="Optional" />
+                                        </div>
                                     </div>
                                 </div>
                                 <div>

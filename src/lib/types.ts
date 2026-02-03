@@ -212,6 +212,8 @@ export interface ProjectState {
     
     // Selection state
   projectColors: Record<string, string>;
+  projectTextColors: Record<string, string>;
+  projectCriticalPathColors: Record<string, string>;
 
     selectionMode: SelectionMode;
     selectedTaskIds: string[];
@@ -252,6 +254,8 @@ export interface Project {
   subprojectIds?: string[];
   initials?: string;
   color?: string;
+  textColor?: string;
+  criticalPathColor?: string;
 
   // Metrics & Metadata
   taskCount?: number;

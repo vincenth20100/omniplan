@@ -38,11 +38,16 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
     // State for "Add Project" flow
     const [selectedProjectToAdd, setSelectedProjectToAdd] = useState<Project | null>(null);
     const [initialsToAdd, setInitialsToAdd] = useState('');
+    const [colorToAdd, setColorToAdd] = useState('');
+    const [textColorToAdd, setTextColorToAdd] = useState('');
+    const [criticalPathColorToAdd, setCriticalPathColorToAdd] = useState('');
 
     // State for "Edit Project" flow
     const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
     const [editInitials, setEditInitials] = useState('');
     const [editColor, setEditColor] = useState('');
+    const [editTextColor, setEditTextColor] = useState('');
+    const [editCriticalPathColor, setEditCriticalPathColor] = useState('');
 
     useEffect(() => {
         if (user) {
@@ -119,6 +124,9 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
     const handleSelectProject = (project: Project) => {
         setSelectedProjectToAdd(project);
         setInitialsToAdd(project.initials || project.name.substring(0, 2).toUpperCase());
+        setColorToAdd(project.color || '#ef4444');
+        setTextColorToAdd(project.textColor || '');
+        setCriticalPathColorToAdd(project.criticalPathColor || '');
     };
 
     const handleConfirmInsert = async () => {
@@ -130,8 +138,19 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
 
         setIsSaving(true);
         try {
-            if (selectedProjectToAdd.initials !== initialsToAdd.trim()) {
-                await updateDoc(doc(firestore, 'projects', selectedProjectToAdd.id), { initials: initialsToAdd.trim() });
+            const hasChanges =
+                selectedProjectToAdd.initials !== initialsToAdd.trim() ||
+                selectedProjectToAdd.color !== colorToAdd ||
+                selectedProjectToAdd.textColor !== textColorToAdd ||
+                selectedProjectToAdd.criticalPathColor !== criticalPathColorToAdd;
+
+            if (hasChanges) {
+                await updateDoc(doc(firestore, 'projects', selectedProjectToAdd.id), {
+                    initials: initialsToAdd.trim(),
+                    color: colorToAdd,
+                    textColor: textColorToAdd,
+                    criticalPathColor: criticalPathColorToAdd
+                });
             }
             await updateDoc(doc(firestore, 'projects', currentProjectId), {
                 subprojectIds: arrayUnion(selectedProjectToAdd.id)
@@ -168,6 +187,8 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
         setEditingProjectId(project.id);
         setEditInitials(project.initials || '');
         setEditColor(project.color || '#ef4444');
+        setEditTextColor(project.textColor || '');
+        setEditCriticalPathColor(project.criticalPathColor || '');
     };
 
     const cancelEditing = () => {
@@ -180,9 +201,17 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
         try {
             await updateDoc(doc(firestore, 'projects', projectId), {
                 initials: editInitials.trim(),
-                color: editColor
+                color: editColor,
+                textColor: editTextColor,
+                criticalPathColor: editCriticalPathColor,
             });
-            setLinkedProjects(prev => prev.map(p => p.id === projectId ? { ...p, initials: editInitials.trim(), color: editColor } : p));
+            setLinkedProjects(prev => prev.map(p => p.id === projectId ? {
+                ...p,
+                initials: editInitials.trim(),
+                color: editColor,
+                textColor: editTextColor,
+                criticalPathColor: editCriticalPathColor
+            } : p));
             setEditingProjectId(null);
             toast({ title: "Updated", description: "Project settings updated." });
         } catch (error) {
@@ -200,16 +229,72 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
                     <h4 className="font-medium">{selectedProjectToAdd.name}</h4>
                     <p className="text-sm text-muted-foreground">{selectedProjectToAdd.description || 'No description'}</p>
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="project-initials">Project Initials <span className="text-destructive">*</span></Label>
-                    <Input
-                        id="project-initials"
-                        value={initialsToAdd}
-                        onChange={(e) => setInitialsToAdd(e.target.value.toUpperCase())}
-                        placeholder="e.g. PRJ1"
-                        maxLength={5}
-                    />
-                    <p className="text-xs text-muted-foreground">Prefix for tasks in cross-project links (e.g., PRJ1-1.2).</p>
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="project-initials">Project Initials <span className="text-destructive">*</span></Label>
+                        <Input
+                            id="project-initials"
+                            value={initialsToAdd}
+                            onChange={(e) => setInitialsToAdd(e.target.value.toUpperCase())}
+                            placeholder="e.g. PRJ1"
+                            maxLength={5}
+                        />
+                        <p className="text-xs text-muted-foreground">Prefix for tasks in cross-project links (e.g., PRJ1-1.2).</p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                            <Label className="text-xs">Project Color</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    type="color"
+                                    value={colorToAdd}
+                                    onChange={(e) => setColorToAdd(e.target.value)}
+                                    className="h-8 w-12 p-1"
+                                />
+                                <Input
+                                    value={colorToAdd}
+                                    onChange={(e) => setColorToAdd(e.target.value)}
+                                    className="h-8 flex-1 text-xs"
+                                    placeholder="#RRGGBB"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Text Color</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    type="color"
+                                    value={textColorToAdd}
+                                    onChange={(e) => setTextColorToAdd(e.target.value)}
+                                    className="h-8 w-12 p-1"
+                                />
+                                <Input
+                                    value={textColorToAdd}
+                                    onChange={(e) => setTextColorToAdd(e.target.value)}
+                                    className="h-8 flex-1 text-xs"
+                                    placeholder="Optional"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Critical Path Color</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    type="color"
+                                    value={criticalPathColorToAdd}
+                                    onChange={(e) => setCriticalPathColorToAdd(e.target.value)}
+                                    className="h-8 w-12 p-1"
+                                />
+                                <Input
+                                    value={criticalPathColorToAdd}
+                                    onChange={(e) => setCriticalPathColorToAdd(e.target.value)}
+                                    className="h-8 flex-1 text-xs"
+                                    placeholder="Optional"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div className="flex gap-2 mt-4">
                     <Button variant="outline" onClick={() => setSelectedProjectToAdd(null)} disabled={isSaving}>Back</Button>
@@ -273,7 +358,7 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label className="text-xs">Color</Label>
+                                            <Label className="text-xs">Project Color</Label>
                                             <div className="flex gap-2">
                                                 <Input
                                                     type="color"
@@ -284,8 +369,42 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
                                                 <Input
                                                     value={editColor}
                                                     onChange={(e) => setEditColor(e.target.value)}
-                                                    className="h-8 flex-1"
+                                                    className="h-8 flex-1 text-xs"
                                                     placeholder="#RRGGBB"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Text Color</Label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="color"
+                                                    value={editTextColor}
+                                                    onChange={(e) => setEditTextColor(e.target.value)}
+                                                    className="h-8 w-12 p-1"
+                                                />
+                                                <Input
+                                                    value={editTextColor}
+                                                    onChange={(e) => setEditTextColor(e.target.value)}
+                                                    className="h-8 flex-1 text-xs"
+                                                    placeholder="Default"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Critical Path Color</Label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="color"
+                                                    value={editCriticalPathColor}
+                                                    onChange={(e) => setEditCriticalPathColor(e.target.value)}
+                                                    className="h-8 w-12 p-1"
+                                                />
+                                                <Input
+                                                    value={editCriticalPathColor}
+                                                    onChange={(e) => setEditCriticalPathColor(e.target.value)}
+                                                    className="h-8 flex-1 text-xs"
+                                                    placeholder="Default"
                                                 />
                                             </div>
                                         </div>

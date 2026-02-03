@@ -87,7 +87,9 @@ export function GanttChart({
             viewportRef: timelineViewportRef,
             onScroll: () => handleVerticalScroll('timeline'),
             uiDensity, defaultCalendar, ganttSettings, baselines,
-            projectColors: projectState.projectColors
+            projectColors: projectState.projectColors,
+            projectTextColors: projectState.projectTextColors,
+            projectCriticalPathColors: projectState.projectCriticalPathColors,
     };
 
     if (disableScroll) {
