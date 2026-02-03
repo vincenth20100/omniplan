@@ -2146,7 +2146,7 @@ export function useProject(user: User, projectId: string | null) {
   const projectDocRef = useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]);
   const { data: projectData } = useDoc<Project>(projectDocRef);
 
-  const linksCollection = useCollection<Link>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId, member]));
+  const linksCollection = useCollection<Link>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId, member?.userId, member?.role]));
 
   const subprojectsData = useSubprojectData(projectData?.subprojectIds, firestore);
   const externalData = useExternalData(projectId, firestore, linksCollection.data);
@@ -2565,15 +2565,15 @@ export function useProject(user: User, projectId: string | null) {
   }, [user, projectId, firestore, toast, isEditorOrOwner]);
   
   const collections = {
-    tasks: useCollection<Task>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'tasks') : null, [firestore, projectId, member])),
+    tasks: useCollection<Task>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'tasks') : null, [firestore, projectId, member?.userId, member?.role])),
     links: linksCollection,
-    resources: useCollection<Resource>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId, member])),
-    assignments: useCollection<Assignment>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId, member])),
-    calendars: useCollection<Calendar>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId, member])),
-    views: useCollection<View>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId, member])),
-    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => (projectId && member) ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId, member])),
+    resources: useCollection<Resource>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId, member?.userId, member?.role])),
+    assignments: useCollection<Assignment>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId, member?.userId, member?.role])),
+    calendars: useCollection<Calendar>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId, member?.userId, member?.role])),
+    views: useCollection<View>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId, member?.userId, member?.role])),
+    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => (projectId && member) ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId, member?.userId, member?.role])),
     userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
-    baselines: useCollection<Baseline>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId, member])),
+    baselines: useCollection<Baseline>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId, member?.userId, member?.role])),
   };
   
   // Effect 1: Data Synchronization from Firestore
@@ -2753,7 +2753,7 @@ export function useProject(user: User, projectId: string | null) {
         setIsLoaded(true);
     }
   }, [
-    projectId, isMemberLoading, isCheckingAdmin, member,
+    projectId, isMemberLoading, isCheckingAdmin,
     collections.tasks.data, collections.tasks.isLoading,
     subprojectsData.subprojects,
     externalData.tasks, externalData.links,
