@@ -166,7 +166,7 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
                         })}
                          <TableRow>
                             <TableCell colSpan={5} className="p-1">
-                                <Popover open={open} onOpenChange={setOpen}>
+                                <Popover open={open} onOpenChange={setOpen} modal={true}>
                                 <PopoverTrigger asChild>
                                     <div className="relative w-full cursor-text" onClick={() => setOpen(true)}>
                                         <Input
@@ -177,7 +177,7 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
                                         <Plus className="absolute right-2 top-2.5 h-3 w-3 text-muted-foreground pointer-events-none" />
                                     </div>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[400px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                <PopoverContent className="w-[300px] sm:w-[400px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                                     <ResourceComboboxContent
                                         allResources={resources}
                                         excludedResourceIds={assignedResources.map(a => a.resourceId)}
