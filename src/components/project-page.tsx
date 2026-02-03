@@ -3,6 +3,7 @@
 import { MainLayout } from '@/components/layout/main-layout';
 import { GanttChart } from '@/components/omni-gantt/gantt-chart';
 import { KanbanView } from '@/components/kanban/kanban-view';
+import { ResourceUsageView } from '@/components/resources/resource-usage-view';
 import { TaskDetailsPanel } from '@/components/details/task-details-panel';
 import { useProject } from '@/hooks/use-project';
 import { FileExplorer } from '@/components/file-management/file-explorer';
@@ -10,7 +11,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, FolderTree, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, FolderTree, ArrowLeft, TableProperties } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect, useMemo } from 'react';
@@ -512,11 +513,14 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             }}
             aria-label="View mode"
         >
-            <ToggleGroupItem value="gantt" aria-label="Gantt view">
+            <ToggleGroupItem value="gantt" aria-label="Gantt view" title="Gantt Chart">
                 <GanttChartSquare />
             </ToggleGroupItem>
-            <ToggleGroupItem value="kanban" aria-label="Kanban view">
+            <ToggleGroupItem value="kanban" aria-label="Kanban view" title="Kanban Board">
                 <LayoutGrid />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="resource-usage" aria-label="Resource Usage" title="Resource Usage">
+                <TableProperties />
             </ToggleGroupItem>
         </ToggleGroup>
 
@@ -549,6 +553,10 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
 
     if (state.currentRepresentation === 'kanban') {
       return <KanbanView projectState={state} dispatch={dispatch} />;
+    }
+
+    if (state.currentRepresentation === 'resource-usage') {
+      return <ResourceUsageView projectState={state} dispatch={dispatch} />;
     }
 
     const ganttChartComponent = <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} projectName={project?.name} />;

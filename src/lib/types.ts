@@ -198,7 +198,7 @@ export interface HistoryEntry {
     payloadDescription?: string;
 }
 
-export type Representation = 'gantt' | 'kanban';
+export type Representation = 'gantt' | 'kanban' | 'resource-usage';
 
 export interface ProjectState {
     tasks: Task[];
