@@ -286,3 +286,20 @@ export interface Invitation {
   role: 'editor' | 'viewer';
   invitedBy: string;
 }
+
+export type GroupRow = {
+    itemType: 'group';
+    id: string;
+    level: number;
+    name: string;
+    childCount: number;
+    isCollapsed: boolean;
+};
+
+export type TaskRow = {
+    itemType: 'task';
+    data: Task;
+    displayLevel: number;
+};
+
+export type RenderableRow = GroupRow | TaskRow;
