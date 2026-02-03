@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import type { Task, Link, UiDensity, Calendar, GanttSettings, Baseline } from '@/lib/types';
+import type { Task, Link, UiDensity, Calendar, GanttSettings, Baseline, RenderableRow, TaskRow } from '@/lib/types';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { TimelineHeader } from './timeline-header';
@@ -12,7 +12,6 @@ import { addDays, differenceInDays, min, max, startOfDay, differenceInCalendarDa
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
-import { type RenderableRow, type TaskRow } from './gantt-chart';
 import { calendarService } from '@/lib/calendar';
 import { cn } from '@/lib/utils';
 

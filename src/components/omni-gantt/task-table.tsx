@@ -1,5 +1,5 @@
 'use client';
-import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings, Baseline, SelectionMode, Filter } from '@/lib/types';
+import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings, Baseline, SelectionMode, Filter, RenderableRow, TaskRow } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from "@/components/ui/input";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from '../ui/button';
 import { ColumnConfigDialog, type ColumnConfig } from '../view-options/column-config-dialog';
-import { type RenderableRow, type TaskRow } from './gantt-chart';
 import { parseDuration, formatDuration } from '@/lib/duration';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { calendarService } from '@/lib/calendar';
