@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { Representation, GanttSettings, ProjectMember, Project } from '@/lib/types';
-import { PrintPreviewDialog } from './print-preview';
+import { PDFExportDialog } from './pdf-export-dialog';
 import { ProjectMembers } from './project-members';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -700,7 +700,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             onOpenChange={setIsFindReplaceOpen}
             onFindReplace={handleFindReplace}
           />
-          <PrintPreviewDialog
+          <PDFExportDialog
             open={isPrintPreviewOpen}
             onOpenChange={setIsPrintPreviewOpen}
             projectState={state}

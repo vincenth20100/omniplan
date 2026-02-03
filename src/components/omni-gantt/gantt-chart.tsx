@@ -26,7 +26,7 @@ export type TaskRow = {
 
 export type RenderableRow = GroupRow | TaskRow;
 
-export function GanttChart({ projectState, dispatch, uiDensity, projectName }: { projectState: ProjectState, dispatch: any, uiDensity: UiDensity, projectName?: string }) {
+export function GanttChart({ projectState, dispatch, uiDensity, projectName, disableScroll }: { projectState: ProjectState, dispatch: any, uiDensity: UiDensity, projectName?: string, disableScroll?: boolean }) {
     const tableViewportRef = useRef<HTMLDivElement>(null);
     const timelineViewportRef = useRef<HTMLDivElement>(null);
     const isSyncingVerticalScroll = useRef(false);
@@ -351,6 +351,25 @@ export function GanttChart({ projectState, dispatch, uiDensity, projectName }: {
             uiDensity, defaultCalendar, ganttSettings, baselines,
             projectColors: projectState.projectColors
     };
+
+    if (disableScroll) {
+        return (
+            <div className="flex flex-row items-start bg-card">
+                <div className="flex-shrink-0 border-r">
+                    <TaskTable
+                        {...commonTaskTableProps}
+                        disableScroll={true}
+                    />
+                </div>
+                <div className="flex-grow min-w-0">
+                    <Timeline
+                        {...commonTimelineProps}
+                        disableScroll={true}
+                    />
+                </div>
+            </div>
+        );
+    }
 
     if (isMobile) {
         return (
