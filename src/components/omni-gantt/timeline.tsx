@@ -228,14 +228,18 @@ export function Timeline({
   const { rowHeight, barHeight } = DENSITY_SETTINGS[uiDensity];
 
   const scale = useMemo(() => {
+    const zoom = ganttSettings.zoom || 1;
     switch (ganttSettings.viewMode) {
-      case 'month': return 5;
-      case 'week': return 15;
+      case 'year': return 0.5 * zoom;
+      case 'semester': return 1 * zoom;
+      case 'quarter': return 2 * zoom;
+      case 'month': return 5 * zoom;
+      case 'week': return 15 * zoom;
       case 'day':
       default:
-        return 40;
+        return 40 * zoom;
     }
-  }, [ganttSettings.viewMode]);
+  }, [ganttSettings.viewMode, ganttSettings.zoom]);
 
 
   React.useEffect(() => {
@@ -303,7 +307,7 @@ export function Timeline({
 
   const content = (
           <div style={{ width: totalWidth, minHeight: '100%' }} className="relative pb-40">
-            <TimelineHeader startDate={viewStartDate} endDate={viewEndDate} scale={scale} />
+            <TimelineHeader startDate={viewStartDate} endDate={viewEndDate} scale={scale} viewMode={ganttSettings.viewMode} />
             <div className="relative h-full" style={{height: `${totalHeight}px`}}>
               {defaultCalendar && ganttSettings.highlightNonWorkingTime && days.map((day, index) => {
                     if (!calendarService.isWorkingDay(day, defaultCalendar)) {

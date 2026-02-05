@@ -43,6 +43,14 @@ import { SetBaselineDialog } from './set-baseline-dialog';
 import { SubprojectManagerDialog } from './subproject-manager-dialog';
 import { THEME_VARIABLES } from '@/lib/theme-config';
 import { MobileSidebarContainer, type SidebarView } from '@/components/layout/sidebar/mobile-sidebar-container';
+import { Slider } from "@/components/ui/slider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -222,21 +230,16 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
     dispatch({ type: 'TOGGLE_MULTI_SELECT_MODE' });
   };
   
-  const zoomLevels: GanttSettings['viewMode'][] = ['day', 'week', 'month'];
-  const currentZoomIndex = zoomLevels.indexOf(state.ganttSettings.viewMode);
+  const currentZoom = state.ganttSettings.zoom || 1;
 
   const handleZoomIn = () => {
-    if (currentZoomIndex > 0) {
-        const newViewMode = zoomLevels[currentZoomIndex - 1];
-        dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, viewMode: newViewMode }});
-    }
+    const newZoom = Math.min(currentZoom + 0.1, 5);
+    dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, zoom: newZoom }});
   };
 
   const handleZoomOut = () => {
-      if (currentZoomIndex < zoomLevels.length - 1) {
-          const newViewMode = zoomLevels[currentZoomIndex + 1];
-          dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, viewMode: newViewMode }});
-      }
+    const newZoom = Math.max(currentZoom - 0.1, 0.1);
+    dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, zoom: newZoom }});
   };
 
   const handleSetComparisonBaseline = (baselineId: string | null) => {
@@ -353,12 +356,47 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'EXPAND_ALL' })} title="Expand Selection/All">
             <ChevronsDown />
         </Button>
-        <Button variant="outline" size="icon" onClick={handleZoomOut} disabled={state.currentRepresentation !== 'gantt' || currentZoomIndex >= zoomLevels.length - 1} title="Zoom Out">
-            <ZoomOut />
-        </Button>
-        <Button variant="outline" size="icon" onClick={handleZoomIn} disabled={state.currentRepresentation !== 'gantt' || currentZoomIndex <= 0} title="Zoom In">
-            <ZoomIn />
-        </Button>
+
+        <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-card">
+             <Select
+                value={state.ganttSettings.viewMode}
+                onValueChange={(v: any) => dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, viewMode: v }})}
+                disabled={state.currentRepresentation !== 'gantt'}
+             >
+                <SelectTrigger className="w-[100px] h-8 border-none focus:ring-0">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="day">Day</SelectItem>
+                    <SelectItem value="week">Week</SelectItem>
+                    <SelectItem value="month">Month</SelectItem>
+                    <SelectItem value="quarter">Quarter</SelectItem>
+                    <SelectItem value="semester">Semester</SelectItem>
+                    <SelectItem value="year">Year</SelectItem>
+                </SelectContent>
+             </Select>
+
+             <Separator orientation="vertical" className="h-6" />
+
+             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut} title="Zoom Out" disabled={state.currentRepresentation !== 'gantt' || currentZoom <= 0.1}>
+                <ZoomOut className="h-4 w-4" />
+             </Button>
+
+             <Slider
+                value={[currentZoom]}
+                min={0.1}
+                max={5}
+                step={0.1}
+                onValueChange={(vals) => dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, zoom: vals[0] }})}
+                className="w-[80px]"
+                disabled={state.currentRepresentation !== 'gantt'}
+             />
+
+             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn} title="Zoom In" disabled={state.currentRepresentation !== 'gantt' || currentZoom >= 5}>
+                 <ZoomIn className="h-4 w-4" />
+             </Button>
+        </div>
+
         {isLoaded && !isMobile && (
           <>
             <ColumnSelector visibleColumns={state.visibleColumns} columns={state.columns} dispatch={dispatch} disabled={!isEditorOrOwner} />
