@@ -24,10 +24,11 @@ import {
 } from 'date-fns';
 import { calendarService } from '@/lib/calendar';
 import { cn } from '@/lib/utils';
-import { ChevronRight, ChevronDown, User, BarChart2, Hash } from 'lucide-react';
+import { ChevronRight, ChevronDown, User, BarChart2, Hash, AreaChart } from 'lucide-react';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { ResourceTable } from './resource-table';
+import { ResourceLoadChart } from './resource-load-chart';
 import {
   Select,
   SelectContent,
@@ -37,13 +38,12 @@ import {
 } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Separator } from "@/components/ui/separator";
+import { Toggle } from "@/components/ui/toggle";
 
 const ROW_HEIGHT = 40;
 const HEADER_HEIGHT = 96;
 const CELL_WIDTH_DAY = 40;
-const CELL_WIDTH_WEEK = 100; // Total width for a week column if aggregated? Or px per day?
-// scale is px per day.
-// If aggregated per week, cell width = 7 * scale.
+const CELL_WIDTH_WEEK = 100;
 
 const calculateResourceUsage = (
     tasks: Task[],
@@ -138,9 +138,15 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
     const [filters, setFilters] = useState<Record<string, string>>({});
 
+    // New State for Chart
+    const [showLoadChart, setShowLoadChart] = useState(false);
+
     const tableViewportRef = useRef<HTMLDivElement>(null);
     const timelineViewportRef = useRef<HTMLDivElement>(null);
+    const chartViewportRef = useRef<HTMLDivElement>(null);
+
     const isSyncingVerticalScroll = useRef(false);
+    const isSyncingHorizontalScroll = useRef(false);
 
     // Initial View Range Calculation
     useEffect(() => {
@@ -262,17 +268,31 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
         setExpandedResourceIds(newSet);
     };
 
-    const handleVerticalScroll = useCallback((scroller: 'table' | 'timeline') => {
-        if (isSyncingVerticalScroll.current) {
-            isSyncingVerticalScroll.current = false;
-            return;
-        }
-
-        isSyncingVerticalScroll.current = true;
-        if (scroller === 'table' && tableViewportRef.current && timelineViewportRef.current) {
-            timelineViewportRef.current.scrollTop = tableViewportRef.current.scrollTop;
-        } else if (scroller === 'timeline' && tableViewportRef.current && timelineViewportRef.current) {
-            tableViewportRef.current.scrollTop = timelineViewportRef.current.scrollTop;
+    const handleScroll = useCallback((scroller: 'table' | 'timeline' | 'chart', axis: 'vertical' | 'horizontal') => {
+        if (axis === 'vertical') {
+             if (isSyncingVerticalScroll.current) {
+                isSyncingVerticalScroll.current = false;
+                return;
+            }
+            isSyncingVerticalScroll.current = true;
+            // Sync Table <-> Timeline
+            if (scroller === 'table' && timelineViewportRef.current && tableViewportRef.current) {
+                timelineViewportRef.current.scrollTop = tableViewportRef.current.scrollTop;
+            } else if (scroller === 'timeline' && tableViewportRef.current && timelineViewportRef.current) {
+                tableViewportRef.current.scrollTop = timelineViewportRef.current.scrollTop;
+            }
+        } else if (axis === 'horizontal') {
+             if (isSyncingHorizontalScroll.current) {
+                isSyncingHorizontalScroll.current = false;
+                return;
+            }
+            isSyncingHorizontalScroll.current = true;
+            // Sync Timeline <-> Chart
+             if (scroller === 'timeline' && chartViewportRef.current && timelineViewportRef.current) {
+                chartViewportRef.current.scrollLeft = timelineViewportRef.current.scrollLeft;
+            } else if (scroller === 'chart' && timelineViewportRef.current && chartViewportRef.current) {
+                 timelineViewportRef.current.scrollLeft = chartViewportRef.current.scrollLeft;
+            }
         }
     }, []);
 
@@ -297,17 +317,126 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
         }
     }, [viewRange, viewMode]);
 
+    // Calculate chart data
+    const chartData = useMemo(() => {
+        if (!showLoadChart || !viewRange) return [];
+
+        // Map visible rows to a quick lookup if needed, but we iterate timePeriods primarily
+        // Only consider Resource type rows for the aggregated chart
+        const resourceRows = visibleRows.filter(r => r.type === 'resource');
+
+        return timePeriods.map(period => {
+            const dataPoint: any = { name: period.key };
+
+            resourceRows.forEach(row => {
+                 let periodWork = 0;
+                 let d = period.start;
+                 while (d <= period.end) {
+                    const k = format(d, 'yyyy-MM-dd');
+                    periodWork += row.dailyWork[k] || 0;
+                    d = addDays(d, 1);
+                 }
+                 if (periodWork > 0) {
+                     dataPoint[row.resourceId] = periodWork;
+                 }
+            });
+            return dataPoint;
+        });
+    }, [showLoadChart, viewRange, timePeriods, visibleRows]);
+
     if (!viewRange) return <div>Loading...</div>;
 
     // Calculate total width based on periods and scale
-    // For day: width = 1 * scale
-    // For week: width = 7 * scale
-    // For month: width = daysInMonth * scale
     let totalWidth = 0;
     timePeriods.forEach(p => {
         const days = differenceInDays(p.end, p.start) + 1;
         totalWidth += days * scale;
     });
+
+    const GridContent = (
+         <div className="flex flex-col h-full">
+            <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
+                    <ScrollAreaPrimitive.Viewport
+                    ref={timelineViewportRef}
+                    className="h-full w-full rounded-[inherit]"
+                    onScroll={(e) => {
+                        handleScroll('timeline', 'vertical');
+                        if (showLoadChart) handleScroll('timeline', 'horizontal');
+                    }}
+                >
+                    <div style={{ width: totalWidth, minHeight: '100%' }} className="relative">
+                        <TimelineHeader startDate={viewRange.start} endDate={viewRange.end} scale={scale} />
+
+                        <div className="relative">
+                            {/* Grid Rows */}
+                            {visibleRows.map((row, index) => {
+                                    return (
+                                    <div
+                                        key={row.id}
+                                        className="flex border-b"
+                                        style={{ height: ROW_HEIGHT }}
+                                    >
+                                        {timePeriods.map((period) => {
+                                            const periodDays = differenceInDays(period.end, period.start) + 1;
+                                            const width = periodDays * scale;
+
+                                            // Aggregate work
+                                            let periodWork = 0;
+                                            let workingDays = 0;
+
+                                            let d = period.start;
+                                            while (d <= period.end) {
+                                                const k = format(d, 'yyyy-MM-dd');
+                                                periodWork += row.dailyWork[k] || 0;
+                                                if (!defaultCalendar || calendarService.isWorkingDay(d, defaultCalendar)) {
+                                                    workingDays++;
+                                                }
+                                                d = addDays(d, 1);
+                                            }
+
+                                            const capacity = (row.data as Resource).availability ? (row.data as Resource).availability! * 8 * workingDays : 8 * workingDays;
+                                            const isOverallocated = row.type === 'resource' && periodWork > capacity;
+                                            const loadPercent = capacity > 0 ? (periodWork / capacity) * 100 : 0;
+
+                                            return (
+                                                <div
+                                                    key={period.key}
+                                                    className={cn(
+                                                        "flex-shrink-0 flex items-center justify-center text-xs border-r tabular-nums relative",
+                                                        isOverallocated ? "font-bold" : ""
+                                                    )}
+                                                    style={{ width }}
+                                                >
+                                                    {displayMode === 'bar' && periodWork > 0 ? (
+                                                            <div className="w-full h-full px-1 py-2 flex items-end justify-center bg-transparent z-0">
+                                                            <div
+                                                                className={cn(
+                                                                    "w-full rounded-sm transition-all",
+                                                                    isOverallocated ? "bg-destructive" : "bg-primary"
+                                                                )}
+                                                                style={{ height: `${Math.min(loadPercent, 100)}%` }}
+                                                                title={`${Math.round(loadPercent)}% Load`}
+                                                            />
+                                                            </div>
+                                                    ) : (
+                                                        <span className={cn(isOverallocated && "text-destructive")}>
+                                                            {periodWork > 0 ? `${Math.round(periodWork * 10) / 10}h` : ''}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </ScrollAreaPrimitive.Viewport>
+                <ScrollBar orientation="vertical" />
+                <ScrollBar orientation="horizontal" />
+            </ScrollAreaPrimitive.Root>
+        </div>
+    );
 
     return (
         <div className="border rounded-lg overflow-hidden h-full flex flex-col bg-card">
@@ -334,6 +463,19 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
                         <BarChart2 className="h-4 w-4 mr-1"/> Load
                     </ToggleGroupItem>
                 </ToggleGroup>
+
+                <Separator orientation="vertical" className="h-6" />
+
+                <Toggle
+                    pressed={showLoadChart}
+                    onPressedChange={setShowLoadChart}
+                    size="sm"
+                    aria-label="Toggle load chart"
+                    className="gap-2"
+                >
+                    <AreaChart className="h-4 w-4" />
+                    <span className="text-xs">Load Chart</span>
+                </Toggle>
             </div>
 
             <ResizablePanelGroup direction="horizontal" className="h-full">
@@ -344,7 +486,7 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
                         expandedResourceIds={expandedResourceIds}
                         onToggleExpand={toggleExpand}
                         viewportRef={tableViewportRef}
-                        onScroll={() => handleVerticalScroll('table')}
+                        onScroll={() => handleScroll('table', 'vertical')}
                         sortColumn={sortColumn}
                         sortDirection={sortDirection}
                         onSort={handleSort}
@@ -355,90 +497,34 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
 
                 <ResizableHandle withHandle />
 
-                {/* Right Panel: Time Grid */}
+                {/* Right Panel: Time Grid & Chart */}
                 <ResizablePanel defaultSize={70}>
-                    <div className="flex flex-col h-full">
-                        <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
-                             <ScrollAreaPrimitive.Viewport
-                                ref={timelineViewportRef}
-                                className="h-full w-full rounded-[inherit]"
-                                onScroll={() => handleVerticalScroll('timeline')}
-                            >
-                                <div style={{ width: totalWidth, minHeight: '100%' }} className="relative">
-                                    <TimelineHeader startDate={viewRange.start} endDate={viewRange.end} scale={scale} />
-
-                                    <div className="relative">
-                                        {/* Grid Rows */}
-                                        {visibleRows.map((row, index) => {
-                                             return (
-                                                <div
-                                                    key={row.id}
-                                                    className="flex border-b"
-                                                    style={{ height: ROW_HEIGHT }}
-                                                >
-                                                    {timePeriods.map((period) => {
-                                                        const periodDays = differenceInDays(period.end, period.start) + 1;
-                                                        const width = periodDays * scale;
-
-                                                        // Aggregate work
-                                                        let periodWork = 0;
-                                                        let workingDays = 0;
-
-                                                        // This loop could be optimized but since max days is 31 (month) it's ok.
-                                                        let d = period.start;
-                                                        while (d <= period.end) {
-                                                            const k = format(d, 'yyyy-MM-dd');
-                                                            periodWork += row.dailyWork[k] || 0;
-                                                            if (!defaultCalendar || calendarService.isWorkingDay(d, defaultCalendar)) {
-                                                                workingDays++;
-                                                            }
-                                                            d = addDays(d, 1);
-                                                        }
-
-                                                        const capacity = (row.data as Resource).availability ? (row.data as Resource).availability! * 8 * workingDays : 8 * workingDays;
-                                                        // If it's a task row, capacity isn't really relevant in the same way, but we can compare to 8h/day standard
-
-                                                        const isOverallocated = row.type === 'resource' && periodWork > capacity;
-                                                        const loadPercent = capacity > 0 ? (periodWork / capacity) * 100 : 0;
-
-                                                        return (
-                                                            <div
-                                                                key={period.key}
-                                                                className={cn(
-                                                                    "flex-shrink-0 flex items-center justify-center text-xs border-r tabular-nums relative",
-                                                                    isOverallocated ? "font-bold" : ""
-                                                                )}
-                                                                style={{ width }}
-                                                            >
-                                                                {displayMode === 'bar' && periodWork > 0 ? (
-                                                                     <div className="w-full h-full px-1 py-2 flex items-end justify-center bg-transparent z-0">
-                                                                        <div
-                                                                            className={cn(
-                                                                                "w-full rounded-sm transition-all",
-                                                                                isOverallocated ? "bg-destructive" : "bg-primary"
-                                                                            )}
-                                                                            style={{ height: `${Math.min(loadPercent, 100)}%` }}
-                                                                            title={`${Math.round(loadPercent)}% Load`}
-                                                                        />
-                                                                     </div>
-                                                                ) : (
-                                                                    <span className={cn(isOverallocated && "text-destructive")}>
-                                                                        {periodWork > 0 ? `${Math.round(periodWork * 10) / 10}h` : ''}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            );
-                                        })}
+                    {showLoadChart ? (
+                        <ResizablePanelGroup direction="vertical">
+                            <ResizablePanel defaultSize={70}>
+                                {GridContent}
+                            </ResizablePanel>
+                            <ResizableHandle withHandle />
+                            <ResizablePanel defaultSize={30}>
+                                <div className="h-full w-full relative">
+                                    <div
+                                        ref={chartViewportRef}
+                                        className="h-full w-full overflow-x-auto overflow-y-hidden"
+                                        onScroll={() => handleScroll('chart', 'horizontal')}
+                                    >
+                                        <ResourceLoadChart
+                                            data={chartData}
+                                            resources={resources}
+                                            width={totalWidth}
+                                            height={200} // This is relative, component uses 100% of container height
+                                        />
                                     </div>
                                 </div>
-                            </ScrollAreaPrimitive.Viewport>
-                            <ScrollBar orientation="vertical" />
-                            <ScrollBar orientation="horizontal" />
-                        </ScrollAreaPrimitive.Root>
-                    </div>
+                            </ResizablePanel>
+                        </ResizablePanelGroup>
+                    ) : (
+                        GridContent
+                    )}
                 </ResizablePanel>
             </ResizablePanelGroup>
         </div>
