@@ -148,7 +148,7 @@ service cloud.firestore {
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
-      match /history_logs/{historyLogId} {
+      match /history/{historyId} {
         allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
         allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
