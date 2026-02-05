@@ -166,6 +166,17 @@ type Action =
   | { type: 'SET_REPRESENTATION', payload: Representation }
   | { type: 'SORT_TASKS', payload: { columnId: string } };
 
+const sanitizeForFirestore = (obj: any): any => {
+    if (obj === undefined) return null;
+    if (obj === null || typeof obj !== 'object' || obj instanceof Date) return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
+    const res: any = {};
+    for (const k in obj) {
+        res[k] = sanitizeForFirestore(obj[k]);
+    }
+    return res;
+};
+
 /**
  * Creates a "clean" task object suitable for Firestore,
  * removing calculated fields and converting `undefined` to `null`.
@@ -179,18 +190,13 @@ const toFirestoreTask = (task: Task, options?: { keepViewOptions?: boolean }) =>
       delete cleanTask.isCollapsed;
   }
 
-  // Ensure no undefined values are sent
-  for (const key in cleanTask) {
-    if (cleanTask[key] === undefined) {
-      cleanTask[key] = null;
-    }
+  const sanitized = sanitizeForFirestore(cleanTask);
+  
+  if (sanitized.notes) {
+      sanitized.notes = sanitized.notes.map((n: Note) => ({...n, timestamp: n.timestamp}));
   }
   
-  if (cleanTask.notes) {
-      cleanTask.notes = cleanTask.notes.map((n: Note) => ({...n, timestamp: n.timestamp}));
-  }
-  
-  return cleanTask;
+  return sanitized;
 };
 
 const toFirestoreResource = (resource: Resource) => {
@@ -2377,14 +2383,8 @@ export function useProject(user: User, projectId: string | null) {
             }
         }
 
-        if (finalAction.type === 'UPDATE_TASK' || finalAction.type === 'ADD_NOTE_TO_TASK') {
-            let taskId: string;
-            if (finalAction.type === 'UPDATE_TASK') {
-                taskId = finalAction.payload.id;
-            } else {
-                taskId = (finalAction.payload as any).taskId; // Type cast safe based on optimisticActions
-            }
-
+        if (finalAction.type === 'UPDATE_TASK') {
+            const taskId = finalAction.payload.id;
             const updatedTask = newState.tasks.find(t => t.id === taskId);
             const targetProjectId = updatedTask?.projectId || projectId;
 
@@ -2392,6 +2392,22 @@ export function useProject(user: User, projectId: string | null) {
                 const { ...updateData } = toFirestoreTask(updatedTask);
                 batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), updateData);
             }
+        }
+
+        if (finalAction.type === 'ADD_NOTE_TO_TASK') {
+             const taskId = finalAction.payload.taskId;
+             const updatedTask = newState.tasks.find(t => t.id === taskId);
+             const targetProjectId = updatedTask?.projectId || projectId;
+
+             if (updatedTask && updatedTask.notes && updatedTask.notes.length > 0) {
+                 const newNote = updatedTask.notes[updatedTask.notes.length - 1];
+                 const authorName = user.displayName || user.email || 'User';
+                 const noteToSave = sanitizeForFirestore({ ...newNote, author: authorName });
+
+                 batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), {
+                     notes: arrayUnion(noteToSave)
+                 });
+             }
         }
         
         if (finalAction.type === 'UPDATE_RESOURCE') {
