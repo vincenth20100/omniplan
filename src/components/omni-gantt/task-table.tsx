@@ -1210,6 +1210,10 @@ export function TaskTable({
 
                             const visibleTaskIndex = taskIdToVisibleIndex.get(task.id) ?? -1;
 
+                            const isRowSelected = selectedTaskIds.includes(task.id);
+                            const isRowInActiveRange = selectionMode === 'cell' && selectionRange && visibleTaskIndex !== -1 && visibleTaskIndex >= selectionRange.rowStart && visibleTaskIndex <= selectionRange.rowEnd;
+                            const shouldHighlightRow = isRowSelected && (selectionMode === 'row' || !isRowInActiveRange);
+
                             return (
                                 <TableRow
                                     key={task.id}
@@ -1222,8 +1226,8 @@ export function TaskTable({
                                         "cursor-pointer", 
                                         "transition-all duration-150",
                                         "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                        selectionMode === 'row' && selectedTaskIds.includes(task.id) && "bg-primary/20",
-                                        selectionMode !== 'row' || !selectedTaskIds.includes(task.id) ? "hover:bg-muted/50" : "hover:bg-primary/10",
+                                        shouldHighlightRow && "bg-primary/20",
+                                        !shouldHighlightRow ? "hover:bg-muted/50" : "hover:bg-primary/10",
                                         draggedIds?.includes(task.id) && "opacity-30",
                                         !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && grouping.length === 0 && {
                                             "border-t-2 border-primary": dropIndicator.position === 'top',
@@ -1291,6 +1295,7 @@ export function TaskTable({
                                                             taskId: task.id,
                                                             columnId: column.id,
                                                             shiftKey: e.shiftKey,
+                                                            ctrlKey: e.ctrlKey || e.metaKey,
                                                         }
                                                     });
                                                     if (isMobile) {
