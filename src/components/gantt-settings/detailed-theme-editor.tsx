@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { THEME_VARIABLES, THEME_PRESETS, ThemeVariableConfig } from "@/lib/theme-config";
-import type { GanttSettings, StylePreset } from "@/lib/types";
+import type { GanttSettings, StylePreset, TaskLabelSetting } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Check, Copy, RotateCcw, Save, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, RotateCcw, Save, Plus, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
@@ -279,13 +279,19 @@ export function DetailedThemeEditor({
 }) {
     const [baseTheme, setBaseTheme] = useState<'light' | 'dark' | 'sepia'>(settings.theme || 'dark');
     const [customStyles, setCustomStyles] = useState<Record<string, string>>({});
+    const [taskLabels, setTaskLabels] = useState<TaskLabelSetting[]>(settings.taskLabels || []);
     const [presetName, setPresetName] = useState('');
     const [selectedPresetId, setSelectedPresetId] = useState<string>('custom');
+
+    // New label state
+    const [newLabelField, setNewLabelField] = useState('name');
+    const [newLabelLocation, setNewLabelLocation] = useState<'inside' | 'left' | 'right' | 'top' | 'bottom'>('inside');
 
     // Initialize state when opening
     useEffect(() => {
         if (open) {
             setBaseTheme(settings.theme || 'dark');
+            setTaskLabels(settings.taskLabels || []);
 
             // Map legacy keys to new keys for editing
             const legacyMap: Record<string, string> = {
@@ -333,6 +339,8 @@ export function DetailedThemeEditor({
         if (preset) {
             setBaseTheme(preset.settings.theme);
             setCustomStyles(preset.settings.customStyles || {});
+            // Note: Presets currently don't store taskLabels, but they could.
+            // If they did, we would set them here.
         }
     };
 
@@ -340,9 +348,18 @@ export function DetailedThemeEditor({
         onSave({
             ...settings,
             theme: baseTheme,
-            customStyles
+            customStyles,
+            taskLabels
         });
         onOpenChange(false);
+    };
+
+    const handleAddTaskLabel = () => {
+        setTaskLabels([...taskLabels, { field: newLabelField, location: newLabelLocation }]);
+    };
+
+    const handleRemoveTaskLabel = (index: number) => {
+        setTaskLabels(taskLabels.filter((_, i) => i !== index));
     };
 
     const handleSaveAsPreset = () => {
@@ -475,6 +492,55 @@ export function DetailedThemeEditor({
                                                 </AccordionContent>
                                             </AccordionItem>
                                         ))}
+
+                                        {/* Task Labels Section */}
+                                        <AccordionItem value="task-labels">
+                                            <AccordionTrigger>Task Labels</AccordionTrigger>
+                                            <AccordionContent className="pt-2 space-y-4">
+                                                <div className="space-y-2">
+                                                    {taskLabels.map((label, index) => (
+                                                        <div key={index} className="flex items-center justify-between bg-muted/50 p-2 rounded text-sm">
+                                                            <span>{label.field} <span className="text-muted-foreground text-xs">({label.location})</span></span>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveTaskLabel(index)}>
+                                                                <X className="h-3 w-3" />
+                                                            </Button>
+                                                        </div>
+                                                    ))}
+                                                    {taskLabels.length === 0 && <p className="text-xs text-muted-foreground italic">No custom labels configured.</p>}
+                                                </div>
+
+                                                <div className="space-y-2 border-t pt-2">
+                                                    <Label className="text-xs">Add New Label</Label>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <Select value={newLabelField} onValueChange={setNewLabelField}>
+                                                            <SelectTrigger className="h-8 text-xs">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="name">Name</SelectItem>
+                                                                <SelectItem value="start">Start Date</SelectItem>
+                                                                <SelectItem value="finish">End Date</SelectItem>
+                                                                <SelectItem value="duration">Duration</SelectItem>
+                                                                <SelectItem value="percentComplete">% Complete</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Select value={newLabelLocation} onValueChange={(v: any) => setNewLabelLocation(v)}>
+                                                            <SelectTrigger className="h-8 text-xs">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="inside">Inside</SelectItem>
+                                                                <SelectItem value="left">Left</SelectItem>
+                                                                <SelectItem value="right">Right</SelectItem>
+                                                                <SelectItem value="top">Above</SelectItem>
+                                                                <SelectItem value="bottom">Below</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <Button size="sm" className="w-full" onClick={handleAddTaskLabel}>Add Label</Button>
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
                                     </Accordion>
 
                                     <Separator />
