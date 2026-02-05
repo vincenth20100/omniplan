@@ -160,7 +160,8 @@ export interface View {
 }
 
 export interface GanttSettings {
-  viewMode: 'day' | 'week' | 'month';
+  viewMode: 'day' | 'week' | 'month' | 'quarter' | 'semester' | 'year';
+  zoom?: number;
   showDependencies: boolean;
   showProgress: boolean;
   highlightNonWorkingTime: boolean;

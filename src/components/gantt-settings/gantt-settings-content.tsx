@@ -138,7 +138,7 @@ export function GanttSettingsContent({
                   <Label htmlFor="view-mode">Default Zoom</Label>
                   <Select
                     value={settings.viewMode}
-                    onValueChange={(value: 'day' | 'week' | 'month') => handleSettingChange('viewMode', value)}
+                    onValueChange={(value: 'day' | 'week' | 'month' | 'quarter' | 'semester' | 'year') => handleSettingChange('viewMode', value)}
                     disabled={!isEditor}
                   >
                     <SelectTrigger id="view-mode" className="w-[180px]">
@@ -148,6 +148,9 @@ export function GanttSettingsContent({
                       <SelectItem value="day">Day</SelectItem>
                       <SelectItem value="week">Week</SelectItem>
                       <SelectItem value="month">Month</SelectItem>
+                      <SelectItem value="quarter">Quarter</SelectItem>
+                      <SelectItem value="semester">Semester</SelectItem>
+                      <SelectItem value="year">Year</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
