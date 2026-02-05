@@ -1,34 +1,49 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import type { ProjectState, Resource, Task, Assignment, Calendar } from '@/lib/types';
+import type { ProjectState, Resource, Task, Assignment, Calendar, ResourceUsageRow } from '@/lib/types';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { TimelineHeader } from '@/components/omni-gantt/timeline-header';
-import { startOfDay, addDays, differenceInCalendarDays, eachDayOfInterval, min, max, format, isSameDay } from 'date-fns';
+import {
+    startOfDay,
+    addDays,
+    differenceInCalendarDays,
+    eachDayOfInterval,
+    min,
+    max,
+    format,
+    isSameDay,
+    startOfWeek,
+    endOfWeek,
+    startOfMonth,
+    endOfMonth,
+    eachWeekOfInterval,
+    eachMonthOfInterval,
+    differenceInDays,
+    isWeekend as isWeekendFn
+} from 'date-fns';
 import { calendarService } from '@/lib/calendar';
 import { cn } from '@/lib/utils';
-import { ChevronRight, ChevronDown, User } from 'lucide-react';
+import { ChevronRight, ChevronDown, User, BarChart2, Hash } from 'lucide-react';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
+import { ResourceTable } from './resource-table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Separator } from "@/components/ui/separator";
 
 const ROW_HEIGHT = 40;
-const HEADER_HEIGHT = 96; // 48px month + 48px day/week
+const HEADER_HEIGHT = 96;
 const CELL_WIDTH_DAY = 40;
-const CELL_WIDTH_WEEK = 100;
-const CELL_WIDTH_MONTH = 50; // Dynamic based on days, but this is a fallback scaling factor
-
-interface ResourceUsageRow {
-    id: string;
-    type: 'resource' | 'task';
-    data: Resource | Task;
-    resourceId: string;
-    name: string;
-    totalWork: number;
-    dailyWork: Record<string, number>; // ISO date -> hours
-    level: number;
-    isExpanded?: boolean;
-    assignments?: Assignment[];
-}
+const CELL_WIDTH_WEEK = 100; // Total width for a week column if aggregated? Or px per day?
+// scale is px per day.
+// If aggregated per week, cell width = 7 * scale.
 
 const calculateResourceUsage = (
     tasks: Task[],
@@ -56,11 +71,6 @@ const calculateResourceUsage = (
             const units = assignment.units || 1;
             const taskDailyWork: Record<string, number> = {};
             let taskTotalWork = 0;
-
-            // Simple distribution: 8 hours * units per working day
-            // Only calculate within the view range for performance, or full task range?
-            // Better to calculate full task range to get accurate totals, but maybe just view range for rendering?
-            // Let's go with full task range but clipped to view for the daily map.
 
             const taskStart = startOfDay(task.start);
             const taskFinish = startOfDay(task.finish);
@@ -121,6 +131,13 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
     const [expandedResourceIds, setExpandedResourceIds] = useState<Set<string>>(new Set(resources.map(r => r.id)));
     const [viewRange, setViewRange] = useState<{start: Date, end: Date} | null>(null);
 
+    // View Controls
+    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>(ganttSettings.viewMode || 'day');
+    const [displayMode, setDisplayMode] = useState<'hours' | 'bar'>('hours');
+    const [sortColumn, setSortColumn] = useState<string | null>(null);
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+    const [filters, setFilters] = useState<Record<string, string>>({});
+
     const tableViewportRef = useRef<HTMLDivElement>(null);
     const timelineViewportRef = useRef<HTMLDivElement>(null);
     const isSyncingVerticalScroll = useRef(false);
@@ -141,16 +158,16 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
                  end: addDays(today, 21)
              });
         }
-    }, [tasks.length]); // Only recalc if task count changes or on mount
+    }, [tasks.length]);
 
     const scale = useMemo(() => {
-        switch (ganttSettings.viewMode) {
-            case 'month': return CELL_WIDTH_MONTH; // This logic needs to be consistent with TimelineHeader
-            case 'week': return CELL_WIDTH_WEEK / 7; // Approx
+        switch (viewMode) {
+            case 'month': return 2; // Very compressed for month view
+            case 'week': return 15; // Compressed for week view
             case 'day':
             default: return CELL_WIDTH_DAY;
         }
-    }, [ganttSettings.viewMode]);
+    }, [viewMode]);
 
     // Recalculate usage data
     const usageData = useMemo(() => {
@@ -159,11 +176,81 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
     }, [tasks, resources, assignments, defaultCalendar, viewRange]);
 
     const visibleRows = useMemo(() => {
-        return usageData.filter(row => {
-            if (row.type === 'resource') return true;
-            return expandedResourceIds.has(row.resourceId);
+        // 1. Group by resource
+        const groups: { resource: ResourceUsageRow, tasks: ResourceUsageRow[] }[] = [];
+        let currentGroup: { resource: ResourceUsageRow, tasks: ResourceUsageRow[] } | null = null;
+
+        usageData.forEach(row => {
+            if (row.type === 'resource') {
+                if (currentGroup) groups.push(currentGroup);
+                currentGroup = { resource: row, tasks: [] };
+            } else if (currentGroup && row.type === 'task') {
+                currentGroup.tasks.push(row);
+            }
         });
-    }, [usageData, expandedResourceIds]);
+        if (currentGroup) groups.push(currentGroup);
+
+        // 2. Filter
+        let filteredGroups = groups.filter(group => {
+            // Check Name filter
+            if (filters.name && !group.resource.name.toLowerCase().includes(filters.name.toLowerCase())) return false;
+            // Check Type filter
+            if (filters.type && (group.resource.data as Resource).type.toLowerCase() !== filters.type.toLowerCase()) return false;
+
+            return true;
+        });
+
+        // 3. Sort
+        if (sortColumn && sortDirection) {
+            filteredGroups.sort((a, b) => {
+                let valA: any = '';
+                let valB: any = '';
+
+                if (sortColumn === 'name') {
+                    valA = a.resource.name;
+                    valB = b.resource.name;
+                } else if (sortColumn === 'type') {
+                    valA = (a.resource.data as Resource).type;
+                    valB = (b.resource.data as Resource).type;
+                } else if (sortColumn === 'maxUnits') {
+                    valA = (a.resource.data as Resource).availability || 1;
+                    valB = (b.resource.data as Resource).availability || 1;
+                } else if (sortColumn === 'totalWork') {
+                    valA = a.resource.totalWork;
+                    valB = b.resource.totalWork;
+                }
+
+                if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        // 4. Flatten
+        const flatRows: ResourceUsageRow[] = [];
+        filteredGroups.forEach(group => {
+            flatRows.push(group.resource);
+            if (expandedResourceIds.has(group.resource.resourceId)) {
+                flatRows.push(...group.tasks);
+            }
+        });
+
+        return flatRows;
+    }, [usageData, expandedResourceIds, sortColumn, sortDirection, filters]);
+
+    const handleSort = (columnId: string) => {
+        if (sortColumn === columnId) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : prev === 'desc' ? null : 'asc');
+            if (sortDirection === 'desc') setSortColumn(null);
+        } else {
+            setSortColumn(columnId);
+            setSortDirection('asc');
+        }
+    };
+
+    const handleFilterChange = (columnId: string, value: string) => {
+        setFilters(prev => ({ ...prev, [columnId]: value }));
+    };
 
     const toggleExpand = (resourceId: string) => {
         const newSet = new Set(expandedResourceIds);
@@ -189,58 +276,81 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
         }
     }, []);
 
+    const timePeriods = useMemo(() => {
+        if (!viewRange) return [];
+        if (viewMode === 'day') {
+            return eachDayOfInterval({ start: viewRange.start, end: viewRange.end }).map(d => ({ start: d, end: d, key: format(d, 'yyyy-MM-dd') }));
+        } else if (viewMode === 'week') {
+            const start = startOfWeek(viewRange.start, { weekStartsOn: 1 });
+            return eachWeekOfInterval({ start, end: viewRange.end }, { weekStartsOn: 1 }).map(d => ({
+                start: d,
+                end: addDays(d, 6),
+                key: format(d, 'yyyy-w')
+            }));
+        } else {
+            const start = startOfMonth(viewRange.start);
+            return eachMonthOfInterval({ start, end: viewRange.end }).map(d => ({
+                start: d,
+                end: endOfMonth(d),
+                key: format(d, 'yyyy-MM')
+            }));
+        }
+    }, [viewRange, viewMode]);
+
     if (!viewRange) return <div>Loading...</div>;
 
-    const days = eachDayOfInterval({ start: viewRange.start, end: viewRange.end });
-    const totalWidth = days.length * scale;
+    // Calculate total width based on periods and scale
+    // For day: width = 1 * scale
+    // For week: width = 7 * scale
+    // For month: width = daysInMonth * scale
+    let totalWidth = 0;
+    timePeriods.forEach(p => {
+        const days = differenceInDays(p.end, p.start) + 1;
+        totalWidth += days * scale;
+    });
 
     return (
         <div className="border rounded-lg overflow-hidden h-full flex flex-col bg-card">
-            <ResizablePanelGroup direction="horizontal" className="h-full">
-                {/* Left Panel: Resource/Task Table */}
-                <ResizablePanel defaultSize={30} minSize={20}>
-                    <div className="flex flex-col h-full border-r">
-                        {/* Header */}
-                        <div className="flex items-center border-b bg-muted/50 px-4 font-semibold text-sm" style={{ height: HEADER_HEIGHT }}>
-                            <div className="flex-1">Resource Name</div>
-                            <div className="w-24 text-right">Total Work</div>
-                        </div>
+            {/* Toolbar */}
+            <div className="flex items-center gap-4 p-2 border-b bg-card">
+                 <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
+                   <SelectTrigger className="w-[140px] h-8 text-xs">
+                      <SelectValue placeholder="View Mode" />
+                   </SelectTrigger>
+                   <SelectContent>
+                      <SelectItem value="day">Days</SelectItem>
+                      <SelectItem value="week">Weeks</SelectItem>
+                      <SelectItem value="month">Months</SelectItem>
+                   </SelectContent>
+                </Select>
 
-                        {/* Rows */}
-                        <ScrollAreaPrimitive.Root className="flex-1 w-full relative overflow-hidden bg-background">
-                            <ScrollAreaPrimitive.Viewport
-                                ref={tableViewportRef}
-                                className="h-full w-full rounded-[inherit]"
-                                onScroll={() => handleVerticalScroll('table')}
-                            >
-                                {visibleRows.map(row => (
-                                    <div
-                                        key={row.id}
-                                        className={cn(
-                                            "flex items-center px-4 border-b hover:bg-muted/50 transition-colors",
-                                            row.type === 'resource' ? "bg-muted/20 font-medium" : "text-muted-foreground"
-                                        )}
-                                        style={{ height: ROW_HEIGHT, paddingLeft: `${row.level * 20 + 16}px` }}
-                                    >
-                                        <div className="flex-1 flex items-center gap-2 overflow-hidden">
-                                            {row.type === 'resource' && (
-                                                <button onClick={() => toggleExpand(row.resourceId)} className="p-0.5 hover:bg-muted rounded">
-                                                    {expandedResourceIds.has(row.resourceId) ? <ChevronDown className="h-4 w-4"/> : <ChevronRight className="h-4 w-4"/>}
-                                                </button>
-                                            )}
-                                            {row.type === 'resource' ? <User className="h-4 w-4 text-primary" /> : null}
-                                            <span className="truncate">{row.name}</span>
-                                        </div>
-                                        <div className="w-24 text-right tabular-nums text-sm">
-                                            {row.totalWork}h
-                                        </div>
-                                    </div>
-                                ))}
-                            </ScrollAreaPrimitive.Viewport>
-                             <ScrollBar orientation="vertical" />
-                             <ScrollBar orientation="horizontal" />
-                        </ScrollAreaPrimitive.Root>
-                    </div>
+                <Separator orientation="vertical" className="h-6" />
+
+                <ToggleGroup type="single" value={displayMode} onValueChange={(v) => v && setDisplayMode(v as any)}>
+                    <ToggleGroupItem value="hours" size="sm" className="text-xs px-2 h-8" title="Show Hours">
+                        <Hash className="h-4 w-4 mr-1"/> Hours
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="bar" size="sm" className="text-xs px-2 h-8" title="Show Load Bar">
+                        <BarChart2 className="h-4 w-4 mr-1"/> Load
+                    </ToggleGroupItem>
+                </ToggleGroup>
+            </div>
+
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+                {/* Left Panel: Resource Table */}
+                <ResizablePanel defaultSize={30} minSize={20}>
+                    <ResourceTable
+                        rows={visibleRows}
+                        expandedResourceIds={expandedResourceIds}
+                        onToggleExpand={toggleExpand}
+                        viewportRef={tableViewportRef}
+                        onScroll={() => handleVerticalScroll('table')}
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                        onSort={handleSort}
+                        filters={filters}
+                        onFilterChange={handleFilterChange}
+                    />
                 </ResizablePanel>
 
                 <ResizableHandle withHandle />
@@ -266,25 +376,56 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
                                                     className="flex border-b"
                                                     style={{ height: ROW_HEIGHT }}
                                                 >
-                                                    {days.map((day, i) => {
-                                                        const dateKey = format(day, 'yyyy-MM-dd');
-                                                        const work = row.dailyWork[dateKey];
-                                                        const isWeekend = !defaultCalendar || !calendarService.isWorkingDay(day, defaultCalendar);
+                                                    {timePeriods.map((period) => {
+                                                        const periodDays = differenceInDays(period.end, period.start) + 1;
+                                                        const width = periodDays * scale;
 
-                                                        // Check specific day overallocation for resource
-                                                        const isDayOverallocated = row.type === 'resource' && work > (8 * ((row.data as Resource).availability || 1));
+                                                        // Aggregate work
+                                                        let periodWork = 0;
+                                                        let workingDays = 0;
+
+                                                        // This loop could be optimized but since max days is 31 (month) it's ok.
+                                                        let d = period.start;
+                                                        while (d <= period.end) {
+                                                            const k = format(d, 'yyyy-MM-dd');
+                                                            periodWork += row.dailyWork[k] || 0;
+                                                            if (!defaultCalendar || calendarService.isWorkingDay(d, defaultCalendar)) {
+                                                                workingDays++;
+                                                            }
+                                                            d = addDays(d, 1);
+                                                        }
+
+                                                        const capacity = (row.data as Resource).availability ? (row.data as Resource).availability! * 8 * workingDays : 8 * workingDays;
+                                                        // If it's a task row, capacity isn't really relevant in the same way, but we can compare to 8h/day standard
+
+                                                        const isOverallocated = row.type === 'resource' && periodWork > capacity;
+                                                        const loadPercent = capacity > 0 ? (periodWork / capacity) * 100 : 0;
 
                                                         return (
                                                             <div
-                                                                key={dateKey}
+                                                                key={period.key}
                                                                 className={cn(
-                                                                    "flex-shrink-0 flex items-center justify-center text-xs border-r tabular-nums",
-                                                                    isWeekend ? "bg-muted/30" : "",
-                                                                    isDayOverallocated ? "text-destructive font-bold" : ""
+                                                                    "flex-shrink-0 flex items-center justify-center text-xs border-r tabular-nums relative",
+                                                                    isOverallocated ? "font-bold" : ""
                                                                 )}
-                                                                style={{ width: scale }}
+                                                                style={{ width }}
                                                             >
-                                                                {work ? `${work}h` : ''}
+                                                                {displayMode === 'bar' && periodWork > 0 ? (
+                                                                     <div className="w-full h-full px-1 py-2 flex items-end justify-center bg-transparent z-0">
+                                                                        <div
+                                                                            className={cn(
+                                                                                "w-full rounded-sm transition-all",
+                                                                                isOverallocated ? "bg-destructive" : "bg-primary"
+                                                                            )}
+                                                                            style={{ height: `${Math.min(loadPercent, 100)}%` }}
+                                                                            title={`${Math.round(loadPercent)}% Load`}
+                                                                        />
+                                                                     </div>
+                                                                ) : (
+                                                                    <span className={cn(isOverallocated && "text-destructive")}>
+                                                                        {periodWork > 0 ? `${Math.round(periodWork * 10) / 10}h` : ''}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         );
                                                     })}
