@@ -26,13 +26,16 @@ export function EditableCell({
     const isEditing = isControlled ? isEditingProp : internalIsEditing;
 
     const [currentValue, setCurrentValue] = useState(value);
+    const currentValueRef = useRef(currentValue);
     const inputRef = useRef<HTMLInputElement>(null);
     const hasSavedOnBlur = useRef(false);
 
     useEffect(() => {
         if (isEditing) {
             hasSavedOnBlur.current = false;
-            setCurrentValue(initialValue !== undefined ? initialValue : value);
+            const newValue = initialValue !== undefined ? initialValue : value;
+            setCurrentValue(newValue);
+            currentValueRef.current = newValue;
         }
     }, [isEditing, initialValue, value]);
 
@@ -57,17 +60,19 @@ export function EditableCell({
         if (prevIsEditing.current && !isEditing) {
             // Check if we need to save when transitioning from editing to not editing
             // This is a fallback for when blur doesn't fire (e.g. mobile tap outside or component unmount)
-            if (!hasSavedOnBlur.current && currentValue !== value) {
-                onSave(currentValue);
+            if (!hasSavedOnBlur.current && currentValueRef.current !== value) {
+                onSave(currentValueRef.current);
             }
         }
         prevIsEditing.current = isEditing;
-    }, [isEditing, currentValue, value, onSave]);
+    }, [isEditing, value, onSave]);
 
 
     const handleBlur = useCallback(() => {
-        if (inputRef.current && inputRef.current.value !== value) {
-            onSave(inputRef.current.value);
+        // Use currentValueRef to get the latest value without relying on the input element
+        // which might be unmounting or unavailable.
+        if (currentValueRef.current !== value) {
+            onSave(currentValueRef.current);
             hasSavedOnBlur.current = true;
         }
         if (isControlled) {
@@ -84,12 +89,21 @@ export function EditableCell({
         } else if (e.key === 'Escape') {
             e.preventDefault();
             // To prevent saving on escape, reset the input's value before blurring
-            setCurrentValue(value);
+            const originalValue = value;
+            setCurrentValue(originalValue);
+            currentValueRef.current = originalValue;
+
             if (inputRef.current) {
-                inputRef.current.value = value;
+                inputRef.current.value = originalValue;
             }
             (e.target as HTMLInputElement).blur();
         }
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newValue = e.target.value;
+        setCurrentValue(newValue);
+        currentValueRef.current = newValue;
     };
 
     return (
@@ -99,7 +113,7 @@ export function EditableCell({
                     ref={inputRef}
                     type="text"
                     value={currentValue}
-                    onChange={(e) => setCurrentValue(e.target.value)}
+                    onChange={handleChange}
                     onBlur={handleBlur}
                     onKeyDown={handleKeyDown}
                     className={cn("h-full p-0 border-transparent focus:border-input rounded-none bg-transparent focus:bg-card focus:ring-0 focus-visible:ring-1 focus-visible:ring-ring", inputClassName || className)}
