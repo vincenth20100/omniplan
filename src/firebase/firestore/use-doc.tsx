@@ -24,6 +24,11 @@ export interface UseDocResult<T> {
   error: FirestoreError | Error | null; // Error object, or null.
 }
 
+export interface UseDocOptions {
+  includeMetadataChanges?: boolean;
+  suppressGlobalError?: boolean;
+}
+
 /**
  * React hook to subscribe to a single Firestore document in real-time.
  * Handles nullable references.
@@ -36,10 +41,12 @@ export interface UseDocResult<T> {
  * @template T Optional type for document data. Defaults to any.
  * @param {DocumentReference<DocumentData> | null | undefined} docRef -
  * The Firestore DocumentReference. Waits if null/undefined.
+ * @param {UseDocOptions} options - Optional configuration options.
  * @returns {UseDocResult<T>} Object with data, isLoading, error.
  */
 export function useDoc<T = any>(
   memoizedDocRef: DocumentReference<DocumentData> | null | undefined,
+  options?: UseDocOptions
 ): UseDocResult<T> {
   type StateDataType = WithId<T> | null;
 
@@ -61,6 +68,7 @@ export function useDoc<T = any>(
 
     const unsubscribe = onSnapshot(
       memoizedDocRef,
+      { includeMetadataChanges: options?.includeMetadataChanges ?? false },
       (snapshot: DocumentSnapshot<DocumentData>) => {
         if (snapshot.exists()) {
           setData({ ...(snapshot.data() as T), id: snapshot.id });
@@ -82,12 +90,14 @@ export function useDoc<T = any>(
         setIsLoading(false)
 
         // trigger global error propagation
-        errorEmitter.emit('permission-error', contextualError);
+        if (!options?.suppressGlobalError) {
+            errorEmitter.emit('permission-error', contextualError);
+        }
       }
     );
 
     return () => unsubscribe();
-  }, [memoizedDocRef]); // Re-run if the memoizedDocRef changes.
+  }, [memoizedDocRef, options?.includeMetadataChanges, options?.suppressGlobalError]); // Re-run if the memoizedDocRef or options change.
 
   return { data, isLoading, error };
 }
