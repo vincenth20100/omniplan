@@ -370,6 +370,7 @@ export function Timeline({
                               uiDensity={uiDensity}
                               showProgress={ganttSettings.showProgress}
                               showTaskLabels={ganttSettings.showTaskLabels}
+                              taskLabels={ganttSettings.taskLabels}
                               highlightCriticalPath={ganttSettings.highlightCriticalPath}
                               defaultCalendar={defaultCalendar}
                               dateFormat={dateFormat}

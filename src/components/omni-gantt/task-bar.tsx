@@ -1,7 +1,7 @@
 'use client';
 import React, { useRef, useEffect } from 'react';
 import { differenceInCalendarDays, addDays, format } from 'date-fns';
-import type { Task, UiDensity, Calendar } from '@/lib/types';
+import type { Task, UiDensity, Calendar, TaskLabelSetting } from '@/lib/types';
 import { cn, getProjectColor } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
 import { Flame } from 'lucide-react';
@@ -9,7 +9,7 @@ import { DENSITY_SETTINGS } from '@/lib/settings';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {} }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, taskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {} }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
@@ -21,6 +21,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     uiDensity: UiDensity;
     showProgress: boolean;
     showTaskLabels: boolean;
+    taskLabels?: TaskLabelSetting[];
     highlightCriticalPath: boolean;
     defaultCalendar: Calendar | null;
     dateFormat: string;
@@ -217,14 +218,58 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                     style={{ width: `${task.percentComplete}%`, ...(customStyle.background || customStyle.backgroundColor ? { filter: 'brightness(0.8)', background: customStyle.background || customStyle.backgroundColor } : {}) }}
                 />
             )}
-             <div className={cn(
-                "relative px-2 text-sm truncate w-full flex justify-between items-center",
-                isSummary ? "text-card-foreground font-medium" : (!customTextStyle.color ? "text-primary-foreground" : ""),
-                !showTaskLabels && "text-transparent"
-            )} style={customTextStyle}>
-                <span>{task.name}</span>
-                {!isSummary && task.schedulingConflict && <Flame className="h-4 w-4 text-destructive-foreground flex-shrink-0" />}
-            </div>
+             {(!taskLabels || taskLabels.length === 0) ? (
+                 <div className={cn(
+                    "relative px-2 text-sm truncate w-full flex justify-between items-center",
+                    isSummary ? "text-card-foreground font-medium" : (!customTextStyle.color ? "text-primary-foreground" : ""),
+                    !showTaskLabels && "text-transparent"
+                )} style={customTextStyle}>
+                    <span>{task.name}</span>
+                    {!isSummary && task.schedulingConflict && <Flame className="h-4 w-4 text-destructive-foreground flex-shrink-0" />}
+                </div>
+             ) : showTaskLabels && (
+                <>
+                 {taskLabels.map((labelSetting, index) => {
+                     let content = '';
+                     switch(labelSetting.field) {
+                         case 'name': content = task.name; break;
+                         case 'start': content = format(task.start, dateFormat); break;
+                         case 'finish': content = format(task.finish, dateFormat); break;
+                         case 'duration': content = `${task.duration} ${task.durationUnit || 'd'}`; break;
+                         case 'percentComplete': content = `${task.percentComplete}%`; break;
+                         default: content = (task as any)[labelSetting.field] || '';
+                     }
+
+                     const positionClasses = {
+                         inside: "left-0 top-0 w-full h-full flex items-center px-2 overflow-visible",
+                         left: "right-full top-1/2 -translate-y-1/2 mr-2 justify-end",
+                         right: "left-full top-1/2 -translate-y-1/2 ml-2 justify-start",
+                         top: "bottom-full left-1/2 -translate-x-1/2 mb-1 justify-center",
+                         bottom: "top-full left-1/2 -translate-x-1/2 mt-1 justify-center"
+                     };
+
+                     const isInside = labelSetting.location === 'inside';
+                     const finalTextColorClass = isInside
+                        ? (isSummary ? "text-card-foreground font-medium" : (!customTextStyle.color ? "text-primary-foreground" : ""))
+                        : (isSummary ? "text-foreground font-medium" : "text-foreground");
+
+                     return (
+                         <div
+                            key={index}
+                            className={cn(
+                                "absolute text-xs whitespace-nowrap pointer-events-none flex z-20 drop-shadow-md",
+                                positionClasses[labelSetting.location],
+                                finalTextColorClass,
+                            )}
+                            style={isInside ? customTextStyle : {}}
+                         >
+                            {content}
+                            {isInside && !isSummary && task.schedulingConflict && <Flame className="h-4 w-4 text-destructive-foreground flex-shrink-0 ml-2" />}
+                         </div>
+                     );
+                 })}
+                </>
+             )}
             {!isSummary && (
                 <div 
                     className="absolute right-0 top-0 w-2 h-full cursor-ew-resize"

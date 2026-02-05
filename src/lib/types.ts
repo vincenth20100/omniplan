@@ -159,9 +159,15 @@ export interface View {
   filters: Filter[];
 }
 
+export interface TaskLabelSetting {
+    field: string;
+    location: 'inside' | 'left' | 'right' | 'top' | 'bottom';
+}
+
 export interface GanttSettings {
   viewMode: 'day' | 'week' | 'month' | 'quarter' | 'semester' | 'year';
   zoom?: number;
+  taskLabels?: TaskLabelSetting[];
   showDependencies: boolean;
   showProgress: boolean;
   highlightNonWorkingTime: boolean;
