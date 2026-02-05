@@ -2671,6 +2671,10 @@ export function useProject(user: User, projectId: string | null) {
         return;
     };
 
+    const projectColors: Record<string, string> = {};
+    const projectTextColors: Record<string, string> = {};
+    const projectCriticalPathColors: Record<string, string> = {};
+
     const safeToDate = (value: any): Date | null => {
         if (!value) return null;
         if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
@@ -2793,10 +2797,6 @@ export function useProject(user: User, projectId: string | null) {
              }
          }, 2000);
     }
-
-    const projectColors: Record<string, string> = {};
-    const projectTextColors: Record<string, string> = {};
-    const projectCriticalPathColors: Record<string, string> = {};
 
     if (projectId) {
         projectColors[projectId] = projectData?.color || '#ef4444';

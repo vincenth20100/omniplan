@@ -9,7 +9,7 @@ import { DENSITY_SETTINGS } from '@/lib/settings';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors, projectTextColors, projectCriticalPathColors }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {} }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
