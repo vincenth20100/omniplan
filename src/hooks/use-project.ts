@@ -2181,13 +2181,14 @@ export function useProject(user: User, projectId: string | null) {
   }, [user, projectId]);
 
   const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
-      useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user])
+      useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user]),
+      { includeMetadataChanges: true, suppressGlobalError: true }
   );
   
   const projectDocRef = useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]);
   const { data: projectData } = useDoc<Project>(projectDocRef);
 
-  const linksCollection = useCollection<Link>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId, member?.userId, member?.role]));
+  const linksCollection = useCollection<Link>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId, member]), { suppressGlobalError: true });
 
   const subprojectsData = useSubprojectData(projectData?.subprojectIds, firestore);
   const externalData = useExternalData(projectId, firestore, linksCollection.data);
@@ -2644,17 +2645,17 @@ export function useProject(user: User, projectId: string | null) {
   }, [user, projectId, firestore, toast, isEditorOrOwner]);
   
   const collections = {
-    tasks: useCollection<Task>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'tasks') : null, [firestore, projectId, member?.userId, member?.role])),
+    tasks: useCollection<Task>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'tasks') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
     links: linksCollection,
-    resources: useCollection<Resource>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId, member?.userId, member?.role])),
-    assignments: useCollection<Assignment>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId, member?.userId, member?.role])),
-    calendars: useCollection<Calendar>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId, member?.userId, member?.role])),
-    views: useCollection<View>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId, member?.userId, member?.role])),
-    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => (projectId && member) ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId, member?.userId, member?.role])),
+    resources: useCollection<Resource>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
+    assignments: useCollection<Assignment>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
+    calendars: useCollection<Calendar>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
+    views: useCollection<View>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
+    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => (projectId && member) ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
     userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
-    baselines: useCollection<Baseline>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId, member?.userId, member?.role])),
-    history: useCollection<PersistentHistoryEntry>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'history'), orderBy('timestamp', 'desc'), limit(60)) : null, [firestore, projectId, member?.userId, member?.role])),
-    snapshots: useCollection<Snapshot>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'snapshots'), orderBy('createdAt', 'desc')) : null, [firestore, projectId, member?.userId, member?.role])),
+    baselines: useCollection<Baseline>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
+    history: useCollection<PersistentHistoryEntry>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'history'), orderBy('timestamp', 'desc'), limit(60)) : null, [firestore, projectId, member]), { suppressGlobalError: true }),
+    snapshots: useCollection<Snapshot>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'snapshots'), orderBy('createdAt', 'desc')) : null, [firestore, projectId, member]), { suppressGlobalError: true }),
   };
   
   // Effect 1: Data Synchronization from Firestore
