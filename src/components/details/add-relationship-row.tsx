@@ -56,7 +56,7 @@ export function AddRelationshipRow({
 
     return (
         <TableRow>
-            <TableCell colSpan={6} className={cn(cellClass, "p-0")}>
+            <TableCell colSpan={7} className={cn(cellClass, "p-0")}>
                 <div className={cellInnerDivClass}>
                     <Popover open={open} onOpenChange={setOpen} modal={true}>
                       <PopoverTrigger asChild>
