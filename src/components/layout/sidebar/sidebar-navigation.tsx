@@ -15,7 +15,11 @@ import {
     Undo2,
     Redo2,
     Layers,
-    Columns3
+    Columns3,
+    Indent,
+    Outdent,
+    ChevronsUp,
+    ChevronsDown
 } from 'lucide-react';
 import {
     SidebarMenu,
@@ -26,7 +30,7 @@ import {
     SidebarGroupContent,
     SidebarSeparator
 } from "@/components/ui/sidebar";
-import type { SidebarView } from "./mobile-sidebar-container";
+import type { SidebarView } from "./project-sidebar";
 import type { ProjectState } from "@/lib/types";
 
 export function SidebarNavigation({
@@ -35,6 +39,8 @@ export function SidebarNavigation({
     canUndo,
     canRedo,
     canRemove,
+    canIndent,
+    canOutdent,
     isEditor,
 }: {
     onNavigate: (view: SidebarView) => void;
@@ -42,6 +48,8 @@ export function SidebarNavigation({
     canUndo: boolean;
     canRedo: boolean;
     canRemove: boolean;
+    canIndent?: boolean;
+    canOutdent?: boolean;
     isEditor: boolean;
 }) {
 
@@ -61,12 +69,6 @@ export function SidebarNavigation({
                                 <span>Add Task</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
-                        {/* Insert Project triggers a dialog, handled via state in ProjectPage.
-                            If we want it here, we might need a way to trigger that dialog.
-                            For now, let's omit or assume we can trigger it differently.
-                            The user asked for "New files" which usually means Add Task in this context.
-                            Let's skip Insert Project if we can't trigger the dialog easily from here without more props.
-                        */}
                          <SidebarMenuItem>
                             <SidebarMenuButton
                                 onClick={() => dispatch({ type: 'UNDO' })}
@@ -95,6 +97,26 @@ export function SidebarNavigation({
                             >
                                 <Trash2 />
                                 <span>Delete</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton
+                                onClick={() => dispatch({ type: 'INDENT_TASK' })}
+                                disabled={!canIndent || !isEditor}
+                                tooltip="Indent Task"
+                            >
+                                <Indent />
+                                <span>Indent</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton
+                                onClick={() => dispatch({ type: 'OUTDENT_TASK' })}
+                                disabled={!canOutdent || !isEditor}
+                                tooltip="Outdent Task"
+                            >
+                                <Outdent />
+                                <span>Outdent</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     </SidebarMenu>
@@ -151,6 +173,18 @@ export function SidebarNavigation({
                             <SidebarMenuButton onClick={() => onNavigate('grouping')} tooltip="Grouping">
                                 <FolderTree />
                                 <span>Grouping</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                         <SidebarMenuItem>
+                            <SidebarMenuButton onClick={() => dispatch({ type: 'COLLAPSE_ALL' })} tooltip="Collapse All">
+                                <ChevronsUp />
+                                <span>Collapse All</span>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                         <SidebarMenuItem>
+                            <SidebarMenuButton onClick={() => dispatch({ type: 'EXPAND_ALL' })} tooltip="Expand All">
+                                <ChevronsDown />
+                                <span>Expand All</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
