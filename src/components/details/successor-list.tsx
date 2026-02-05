@@ -25,7 +25,8 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
         task: 200,
         type: 80,
         lag: 60,
-        date: 110,
+        start: 110,
+        finish: 110,
         actions: 40,
     });
 
@@ -104,21 +105,6 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                          finish: null
                      };
 
-                     const getDateForLink = () => {
-                        if (!targetTask) return null;
-                        switch (link.type) {
-                            case 'FS':
-                            case 'SS':
-                                return targetTask.start;
-                            case 'FF':
-                            case 'SF':
-                                return targetTask.finish;
-                            default:
-                                return null;
-                        }
-                    };
-                     const linkDate = getDateForLink();
-
                      return (
                          <div key={link.id} className="border rounded-md p-3 bg-card shadow-sm">
                              <div className="flex justify-between items-start mb-2">
@@ -131,7 +117,7 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                                 </Button>
                              </div>
 
-                             <div className="grid grid-cols-3 gap-3">
+                             <div className="grid grid-cols-4 gap-3">
                                  <div>
                                      <span className="text-[10px] uppercase text-muted-foreground font-semibold">Type</span>
                                      <div className="border rounded h-8 mt-1">
@@ -162,9 +148,15 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                                       </div>
                                  </div>
                                  <div>
-                                      <span className="text-[10px] uppercase text-muted-foreground font-semibold">Date</span>
+                                      <span className="text-[10px] uppercase text-muted-foreground font-semibold">Start</span>
                                       <div className="h-8 mt-1 flex items-center text-xs text-muted-foreground truncate">
-                                        {linkDate ? format(linkDate, dateFormat) : '-'}
+                                        {displayTask.start ? format(displayTask.start, dateFormat) : '-'}
+                                      </div>
+                                 </div>
+                                 <div>
+                                      <span className="text-[10px] uppercase text-muted-foreground font-semibold">Finish</span>
+                                      <div className="h-8 mt-1 flex items-center text-xs text-muted-foreground truncate">
+                                        {displayTask.finish ? format(displayTask.finish, dateFormat) : '-'}
                                       </div>
                                  </div>
                              </div>
@@ -204,14 +196,15 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
 
     return (
         <ScrollArea className="border rounded-md min-h-0 w-full">
-            <div className="min-w-[540px]">
+            <div className="min-w-[650px]">
                 <Table style={{ tableLayout: 'fixed' }} className="w-auto">
                     <colgroup>
                     <col style={{ width: `${colWidths.id}px` }} />
                     <col style={{ width: `${colWidths.task}px` }} />
                     <col style={{ width: `${colWidths.type}px` }} />
                     <col style={{ width: `${colWidths.lag}px` }} />
-                    <col style={{ width: `${colWidths.date}px` }} />
+                    <col style={{ width: `${colWidths.start}px` }} />
+                    <col style={{ width: `${colWidths.finish}px` }} />
                     <col style={{ width: `${colWidths.actions}px` }} />
                 </colgroup>
                 <TableHeader>
@@ -227,7 +220,8 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                         <ResizableHeader id="task" name="Task" />
                         <ResizableHeader id="type" name="Type" />
                         <ResizableHeader id="lag" name="Lag" />
-                        <ResizableHeader id="date" name="Date" />
+                        <ResizableHeader id="start" name="Start" />
+                        <ResizableHeader id="finish" name="Finish" />
                         <ResizableHeader id="actions" name="" />
                     </TableRow>
                 </TableHeader>
@@ -241,21 +235,6 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                              finish: null
                         };
 
-                        const getDateForLink = () => {
-                            if (!targetTask) return null;
-                            switch (link.type) {
-                                case 'FS':
-                                case 'SS':
-                                    return targetTask.start;
-                                case 'FF':
-                                case 'SF':
-                                    return targetTask.finish;
-                                default:
-                                    return null;
-                            }
-                        };
-                        const linkDate = getDateForLink();
-                        
                         return (
                             <TableRow 
                                 key={link.id}
@@ -321,7 +300,12 @@ export function SuccessorList({ currentTaskId, successorLinks, allTasks, dispatc
                                 </TableCell>
                                 <TableCell className={cellClass}>
                                     <div className={cellInnerDivClass}>
-                                        {linkDate ? format(linkDate, dateFormat) : ''}
+                                        {displayTask.start ? format(displayTask.start, dateFormat) : ''}
+                                    </div>
+                                </TableCell>
+                                <TableCell className={cellClass}>
+                                    <div className={cellInnerDivClass}>
+                                        {displayTask.finish ? format(displayTask.finish, dateFormat) : ''}
                                     </div>
                                 </TableCell>
                                <TableCell className={cellClass}>
