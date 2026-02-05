@@ -1,6 +1,5 @@
 'use client';
 
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { Button } from "../ui/button";
 import type { HistoryEntry } from "@/lib/types";
@@ -39,9 +38,9 @@ export function HistoryList({
   }
 
   return (
-    <ScrollArea className="h-full mt-4">
+    <div className="mt-4">
             {history.length > 0 ? (
-                 <div className="flex flex-col-reverse gap-6 pr-4 pb-4">
+                 <div className="flex flex-col gap-6 pr-4 pb-4">
                     {dayKeys.map(day => (
                         <div key={day}>
                             <div className="sticky top-0 bg-card py-2 z-10">
@@ -71,6 +70,6 @@ export function HistoryList({
                     No actions have been recorded yet.
                 </div>
             )}
-    </ScrollArea>
+    </div>
   );
 }
