@@ -104,7 +104,7 @@ type Action =
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
   | { type: 'UPDATE_LINK'; payload: Partial<Link> & { id: string } }
   | { type: 'SET_ROW_SELECTION', payload: { taskId: string, shiftKey?: boolean, ctrlKey?: boolean } }
-  | { type: 'SET_CELL_SELECTION', payload: { taskId: string, columnId: string, shiftKey?: boolean } }
+  | { type: 'SET_CELL_SELECTION', payload: { taskId: string, columnId: string, shiftKey?: boolean, ctrlKey?: boolean } }
   | { type: 'LINK_TASKS' }
   | { type: 'ADD_LINK'; payload: { source: string, target: string, type: LinkType, lag: number } }
   | { type: 'SET_CONFLICTS'; payload: { taskId: string, conflictDescription: string }[] }
@@ -579,27 +579,24 @@ function getVisibleTasks(tasks: Task[]): Task[] {
 };
 
 function getTaskIdsInSelection(state: ProjectState): Set<string> {
-    if (state.selectionMode === 'row') {
-        return new Set(state.selectedTaskIds);
-    }
+    const taskIds = new Set(state.selectedTaskIds);
+
     if (state.selectionMode === 'cell' && state.anchorCell && state.focusCell) {
         const visibleTasks = getVisibleTasks(state.tasks);
-        const taskIds = new Set<string>();
         
         const r1 = visibleTasks.findIndex(t => t.id === state.anchorCell!.taskId);
         const r2 = visibleTasks.findIndex(t => t.id === state.focusCell!.taskId);
 
-        if (r1 === -1 || r2 === -1) return taskIds;
+        if (r1 !== -1 && r2 !== -1) {
+            const rowStart = Math.min(r1, r2);
+            const rowEnd = Math.max(r1, r2);
 
-        const rowStart = Math.min(r1, r2);
-        const rowEnd = Math.max(r1, r2);
-        
-        for (let i = rowStart; i <= rowEnd; i++) {
-            taskIds.add(visibleTasks[i].id);
+            for (let i = rowStart; i <= rowEnd; i++) {
+                taskIds.add(visibleTasks[i].id);
+            }
         }
-        return taskIds;
     }
-    return new Set();
+    return taskIds;
 }
 
 function expandSummaryLinks(links: Link[], tasks: Task[]): Link[] {
@@ -1042,20 +1039,37 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         };
     }
     case 'SET_CELL_SELECTION': {
-        const { taskId, columnId, shiftKey } = action.payload;
+        const { taskId, columnId, shiftKey, ctrlKey } = action.payload;
         const newFocusCell = { taskId, columnId };
         
-        // If not shift-clicking or if we were in row mode, the anchor becomes the new focus.
-        const newAnchorCell = (!shiftKey || state.selectionMode !== 'cell')
-            ? newFocusCell
-            : state.anchorCell || state.focusCell || newFocusCell;
+        let newSelectedTaskIds = state.selectedTaskIds;
+        let newAnchorCell = state.anchorCell;
+
+        if (ctrlKey || state.multiSelectMode) {
+             if (newSelectedTaskIds.includes(taskId)) {
+                 newSelectedTaskIds = newSelectedTaskIds.filter(id => id !== taskId);
+             } else {
+                 newSelectedTaskIds = [...newSelectedTaskIds, taskId];
+            }
+            newAnchorCell = newFocusCell;
+        } else if (shiftKey) {
+             newAnchorCell = (!shiftKey || state.selectionMode !== 'cell')
+                ? newFocusCell
+                : state.anchorCell || state.focusCell || newFocusCell;
+             // Keep existing selectedTaskIds during range selection extension?
+             // Or clear? Standard behavior usually implies extending active selection.
+             // For now, we preserve them.
+        } else {
+             newSelectedTaskIds = [taskId];
+             newAnchorCell = newFocusCell;
+        }
 
         return {
             ...state,
             selectionMode: 'cell',
             focusCell: newFocusCell,
             anchorCell: newAnchorCell,
-            selectedTaskIds: [],
+            selectedTaskIds: newSelectedTaskIds,
             selectionAnchor: null,
             editingCell: null,
         };
