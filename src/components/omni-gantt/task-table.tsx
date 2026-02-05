@@ -6,7 +6,7 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag, GripVertical, ArrowUp, ArrowDown, Pin, PinOff } from 'lucide-react';
+import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag, GripVertical, ArrowUp, ArrowDown, Pin, PinOff, History } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
@@ -45,6 +45,7 @@ const TaskCellRenderer = React.memo(({
     dateFormat,
     ganttSettings,
     baselines,
+    onOpenHistory,
 }: {
     task: Task;
     column: ColumnSpec;
@@ -64,6 +65,7 @@ const TaskCellRenderer = React.memo(({
     dateFormat: string;
     ganttSettings: GanttSettings;
     baselines: Baseline[];
+    onOpenHistory?: () => void;
 }) => {
     const isEditable = !task.isSummary || grouping.length > 0;
 
@@ -400,6 +402,48 @@ const TaskCellRenderer = React.memo(({
             const textClass = variance > 0 ? 'text-destructive' : variance < 0 ? 'text-chart-2' : '';
             return <div className={cn("text-right pr-4", textClass)}>{variance !== 0 ? `${variance > 0 ? '+' : ''}${variance}d` : '0d'}</div>;
         }
+        case 'lastComment': {
+            const lastNote = task.notes && task.notes.length > 0 ? task.notes[task.notes.length - 1] : null;
+            const value = lastNote ? lastNote.content : '';
+
+            return (
+                <div className="flex items-center justify-between w-full h-full">
+                    <div className="flex-grow min-w-0">
+                        <EditableCell
+                            value={value}
+                            onSave={(newValue) => {
+                                if (lastNote) {
+                                    // Update existing last note
+                                    if (newValue !== lastNote.content) {
+                                        dispatch({ type: 'UPDATE_NOTE', payload: { taskId: task.id, noteId: lastNote.id, content: newValue } });
+                                    }
+                                } else {
+                                    // Add new note
+                                    if (newValue.trim()) {
+                                        dispatch({ type: 'ADD_NOTE_TO_TASK', payload: { taskId: task.id, content: newValue } });
+                                    }
+                                }
+                            }}
+                            className="truncate w-full"
+                            isEditing={isEditing}
+                            initialValue={editingInitialValue}
+                            onStopEditing={onStopEditing}
+                        />
+                    </div>
+                    {onOpenHistory && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 flex-shrink-0 ml-1 opacity-50 hover:opacity-100"
+                            onClick={(e) => { e.stopPropagation(); onOpenHistory(); }}
+                            title="View History Log"
+                        >
+                            <History className="h-3 w-3" />
+                        </Button>
+                    )}
+                </div>
+            );
+        }
         default: {
             if (column.id.startsWith('custom-')) {
                 if (task.isSummary && grouping.length === 0) {
@@ -483,6 +527,7 @@ export function TaskTable({
     disableScroll,
     onToggleFixed,
     isFixed,
+    onOpenHistory,
 }: { 
     tasks: Task[];
     links: Link[];
@@ -512,6 +557,7 @@ export function TaskTable({
     disableScroll?: boolean,
     onToggleFixed?: () => void,
     isFixed?: boolean,
+    onOpenHistory?: () => void;
 }) {
     const stateRef = useRef({ tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode, anchorCell });
     const isMobile = useIsMobile();
@@ -579,6 +625,10 @@ export function TaskTable({
                     else if (l.lag < 0) lagString = `${l.lag}d`;
                     return `${displayWbs}${l.type}${lagString}`;
                 }).join(', ');
+            }
+            case 'lastComment': {
+                const lastNote = task.notes && task.notes.length > 0 ? task.notes[task.notes.length - 1] : null;
+                return lastNote ? lastNote.content : '';
             }
             default:
                 if (columnId.startsWith('custom-')) {
@@ -1347,6 +1397,7 @@ export function TaskTable({
                                                         dateFormat={dateFormat}
                                                         ganttSettings={ganttSettings}
                                                         baselines={baselines}
+                                                        onOpenHistory={onOpenHistory}
                                                 />
                                                 </div>
                                             </TableCell>

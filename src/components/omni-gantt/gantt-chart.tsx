@@ -17,7 +17,8 @@ export function GanttChart({
     projectName,
     disableScroll,
     showTable = true,
-    showTimeline = true
+    showTimeline = true,
+    onOpenHistory
 }: {
     projectState: ProjectState,
     dispatch: any,
@@ -25,7 +26,8 @@ export function GanttChart({
     projectName?: string,
     disableScroll?: boolean,
     showTable?: boolean,
-    showTimeline?: boolean
+    showTimeline?: boolean,
+    onOpenHistory?: () => void
 }) {
     const tableViewportRef = useRef<HTMLDivElement>(null);
     const timelineViewportRef = useRef<HTMLDivElement>(null);
@@ -78,7 +80,8 @@ export function GanttChart({
             viewportRef: tableViewportRef,
             onScroll: () => handleVerticalScroll('table'),
             uiDensity, onToggleGroup: handleToggleGroup,
-            sortColumn, sortDirection
+            sortColumn, sortDirection,
+            onOpenHistory
     };
 
     const commonTimelineProps = {

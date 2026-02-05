@@ -467,7 +467,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
       return <ResourceUsageView projectState={state} dispatch={dispatch} />;
     }
 
-    const ganttChartComponent = <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} projectName={project?.name} />;
+    const ganttChartComponent = <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} projectName={project?.name} onOpenHistory={() => setIsHistoryOpen(true)} />;
     const resourceViewComponent = <ResourceUsageView projectState={state} dispatch={dispatch} />;
 
     if (isMobile) {
