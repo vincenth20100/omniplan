@@ -173,6 +173,8 @@ export function Timeline({
     ganttSettings: GanttSettings,
     baselines: Baseline[],
     projectColors?: Record<string, string>,
+    projectTextColors?: Record<string, string>,
+    projectCriticalPathColors?: Record<string, string>,
     disableScroll?: boolean,
 }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
@@ -366,6 +368,8 @@ export function Timeline({
                               defaultCalendar={defaultCalendar}
                               dateFormat={dateFormat}
                               projectColors={projectColors}
+                              projectTextColors={projectTextColors}
+                              projectCriticalPathColors={projectCriticalPathColors}
                             />
                           )}
                           {baselineTask && !task.isSummary && (

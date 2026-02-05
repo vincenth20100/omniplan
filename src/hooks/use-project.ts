@@ -66,6 +66,8 @@ const initialState: ProjectState = {
   defaultCalendarId: null,
   baselines: [],
   projectColors: {},
+  projectTextColors: {},
+  projectCriticalPathColors: {},
   
   // Selection
   selectionMode: 'row',
@@ -96,7 +98,7 @@ const initialState: ProjectState = {
 };
 
 type Action =
-  | { type: 'SET_PROJECT_DATA', payload: { tasks: Task[], links: Link[], resources: Resource[], assignments: Assignment[], calendars: Calendar[], baselines: Baseline[], projectColors: Record<string, string> } }
+  | { type: 'SET_PROJECT_DATA', payload: { tasks: Task[], links: Link[], resources: Resource[], assignments: Assignment[], calendars: Calendar[], baselines: Baseline[], projectColors: Record<string, string>, projectTextColors: Record<string, string>, projectCriticalPathColors: Record<string, string> } }
   | { type: 'SET_PERSISTED_STATE', payload: { views: View[], sharedSettings: typeof defaultAppSettings | null, userPreferences: typeof defaultUserPreferences | null, member: ProjectMember | null } }
   | { type: 'SCHEDULE_PROJECT' }
   | { type: 'UPDATE_TASK'; payload: Partial<Task> & { id: string } }
@@ -216,9 +218,9 @@ const sanitizeRestoredTask = (task: any): Task => {
 }
 
 function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) {
-    const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string }[] }>({ subprojects: [] });
+    const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string, textColor?: string, criticalPathColor?: string }[] }>({ subprojects: [] });
 
-    const cacheRef = useRef<Record<string, { tasks: Task[], links: Link[], projectName: string, initials?: string, color?: string }>>({});
+    const cacheRef = useRef<Record<string, { tasks: Task[], links: Link[], projectName: string, initials?: string, color?: string, textColor?: string, criticalPathColor?: string }>>({});
     const unsubsRef = useRef<Record<string, { meta: () => void, tasks: () => void, links: () => void }>>({});
 
     // Keep track of current IDs to ensure order in updateData
@@ -231,7 +233,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
              const cached = cacheRef.current[id];
              if (!cached) return null;
              return { projectId: id, ...cached };
-        }).filter((item): item is { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string } => item !== null);
+        }).filter((item): item is { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string, textColor?: string, criticalPathColor?: string } => item !== null);
 
         setData({ subprojects: allSubprojects });
     }, []);
@@ -266,6 +268,8 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
                     cacheRef.current[pId].projectName = data.name;
                     cacheRef.current[pId].initials = data.initials || data.name.substring(0, 2).toUpperCase();
                     cacheRef.current[pId].color = data.color;
+                    cacheRef.current[pId].textColor = data.textColor;
+                    cacheRef.current[pId].criticalPathColor = data.criticalPathColor;
                     updateData();
                 }
             }, (error) => {
@@ -746,7 +750,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     
   switch (action.type) {
     case 'SET_PROJECT_DATA': {
-      const { tasks, links, resources, assignments, calendars, baselines, projectColors } = action.payload;
+      const { tasks, links, resources, assignments, calendars, baselines, projectColors, projectTextColors, projectCriticalPathColors } = action.payload;
       const defaultCalendarId = state.defaultCalendarId || calendars.find(c => c.name === "Standard")?.id || calendars[0]?.id || null;
       const scheduledTasks = runScheduler(tasks, links, state.columns, calendars, defaultCalendarId);
       return {
@@ -759,6 +763,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         baselines: baselines || [],
         defaultCalendarId,
         projectColors,
+        projectTextColors,
+        projectCriticalPathColors,
       };
     }
     case 'SET_PERSISTED_STATE': {
@@ -2775,9 +2781,18 @@ export function useProject(user: User, projectId: string | null) {
     }
 
     const projectColors: Record<string, string> = {};
-    if (projectId) projectColors[projectId] = projectData?.color || '#ef4444';
+    const projectTextColors: Record<string, string> = {};
+    const projectCriticalPathColors: Record<string, string> = {};
+
+    if (projectId) {
+        projectColors[projectId] = projectData?.color || '#ef4444';
+        if (projectData?.textColor) projectTextColors[projectId] = projectData.textColor;
+        if (projectData?.criticalPathColor) projectCriticalPathColors[projectId] = projectData.criticalPathColor;
+    }
     subprojectsData.subprojects.forEach(sub => {
         if (sub.color) projectColors[sub.projectId] = sub.color;
+        if (sub.textColor) projectTextColors[sub.projectId] = sub.textColor;
+        if (sub.criticalPathColor) projectCriticalPathColors[sub.projectId] = sub.criticalPathColor;
     });
 
     internalDispatch({
@@ -2807,6 +2822,8 @@ export function useProject(user: User, projectId: string | null) {
                 }))
             })),
             projectColors,
+            projectTextColors,
+            projectCriticalPathColors,
         }
     });
 

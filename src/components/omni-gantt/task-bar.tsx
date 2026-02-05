@@ -9,7 +9,7 @@ import { DENSITY_SETTINGS } from '@/lib/settings';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors, projectTextColors, projectCriticalPathColors }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
@@ -25,6 +25,8 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     defaultCalendar: Calendar | null;
     dateFormat: string;
     projectColors?: Record<string, string>;
+    projectTextColors?: Record<string, string>;
+    projectCriticalPathColors?: Record<string, string>;
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
     const dragStartInfo = useRef<{
@@ -165,7 +167,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     const getCriticalStyle = () => {
         if (!task.isCritical || !highlightCriticalPath || !task.criticalFor || task.criticalFor.length === 0) return {};
 
-        const resolveColor = (id: string) => (projectColors && projectColors[id]) ? projectColors[id] : getProjectColor(id);
+        const resolveColor = (id: string) => (projectCriticalPathColors && projectCriticalPathColors[id]) ? projectCriticalPathColors[id] : ((projectColors && projectColors[id]) ? projectColors[id] : getProjectColor(id));
 
         if (task.criticalFor.length === 1) {
             const color = resolveColor(task.criticalFor[0]);
@@ -182,6 +184,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     };
 
     const customStyle = getCriticalStyle();
+    const customTextStyle = (showTaskLabels && !isSummary && task.projectId && projectTextColors && projectTextColors[task.projectId]) ? { color: projectTextColors[task.projectId] } : {};
 
     return (
         <div
@@ -216,9 +219,9 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
             )}
              <div className={cn(
                 "relative px-2 text-sm truncate w-full flex justify-between items-center",
-                isSummary ? "text-card-foreground font-medium" : "text-primary-foreground",
+                isSummary ? "text-card-foreground font-medium" : (!customTextStyle.color ? "text-primary-foreground" : ""),
                 !showTaskLabels && "text-transparent"
-            )}>
+            )} style={customTextStyle}>
                 <span>{task.name}</span>
                 {!isSummary && task.schedulingConflict && <Flame className="h-4 w-4 text-destructive-foreground flex-shrink-0" />}
             </div>
@@ -234,11 +237,11 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                 <div className={cn(
                     "absolute -left-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
                     task.isCritical && highlightCriticalPath ? "border-t-[7px] border-t-gantt-bar-critical" : "border-t-[7px] border-t-gantt-bar-default"
-                )} style={customStyle.borderColor ? { borderTopColor: customStyle.borderColor } : (task.criticalFor && task.criticalFor.length > 0 ? { borderTopColor: ((projectColors && projectColors[task.criticalFor[0]]) || getProjectColor(task.criticalFor[0])) } : {})}></div>
+                )} style={customStyle.borderColor ? { borderTopColor: customStyle.borderColor } : (task.criticalFor && task.criticalFor.length > 0 ? { borderTopColor: ((projectCriticalPathColors && projectCriticalPathColors[task.criticalFor[0]]) || (projectColors && projectColors[task.criticalFor[0]]) || getProjectColor(task.criticalFor[0])) } : {})}></div>
                 <div className={cn(
                     "absolute -right-[1px] -bottom-[5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent",
                     task.isCritical && highlightCriticalPath ? "border-t-[7px] border-t-gantt-bar-critical" : "border-t-[7px] border-t-gantt-bar-default"
-                )} style={customStyle.borderColor ? { borderTopColor: customStyle.borderColor } : (task.criticalFor && task.criticalFor.length > 0 ? { borderTopColor: ((projectColors && projectColors[task.criticalFor[0]]) || getProjectColor(task.criticalFor[0])) } : {})}></div>
+                )} style={customStyle.borderColor ? { borderTopColor: customStyle.borderColor } : (task.criticalFor && task.criticalFor.length > 0 ? { borderTopColor: ((projectCriticalPathColors && projectCriticalPathColors[task.criticalFor[0]]) || (projectColors && projectColors[task.criticalFor[0]]) || getProjectColor(task.criticalFor[0])) } : {})}></div>
             </>
         )}
         </div>
