@@ -2415,6 +2415,13 @@ export function useProject(user: User, projectId: string | null) {
                      timestamp: serverTimestamp(),
                      userId: user.uid,
                      userName: user.displayName || user.email || 'Unknown User'
+                 }).catch(err => {
+                     console.error("Failed to save history log:", err);
+                     toast({
+                         variant: 'destructive',
+                         title: "History Log Error",
+                         description: "Failed to record this action in the project history."
+                     });
                  });
             }
         }).catch(e => {
@@ -2634,6 +2641,13 @@ export function useProject(user: User, projectId: string | null) {
                      timestamp: serverTimestamp(),
                      userId: user.uid,
                      userName: user.displayName || user.email || 'Unknown User'
+                 }).catch(err => {
+                     console.error("Failed to save history log:", err);
+                     toast({
+                         variant: 'destructive',
+                         title: "History Log Error",
+                         description: "Failed to record this action in the project history."
+                     });
                  });
             }
         }).catch(e => {
@@ -2657,7 +2671,7 @@ export function useProject(user: User, projectId: string | null) {
     sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => (projectId && member) ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
     userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
     baselines: useCollection<Baseline>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-    history: useCollection<PersistentHistoryEntry>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'history'), orderBy('timestamp', 'desc'), limit(60)) : null, [firestore, projectId, member]), { suppressGlobalError: true }),
+    history: useCollection<PersistentHistoryEntry>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'history'), orderBy('timestamp', 'desc'), limit(90)) : null, [firestore, projectId, member]), { suppressGlobalError: true }),
     snapshots: useCollection<Snapshot>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'snapshots'), orderBy('createdAt', 'desc')) : null, [firestore, projectId, member]), { suppressGlobalError: true }),
   };
   
