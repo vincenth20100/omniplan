@@ -42,6 +42,7 @@ export interface NoteAttachment {
 export interface Note {
   id: string;
   author: string;
+  userId?: string;
   content: string;
   timestamp: Date;
   attachments?: NoteAttachment[];

@@ -552,7 +552,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
     }
 
     if (state.currentRepresentation === 'kanban') {
-      return <KanbanView projectState={state} dispatch={dispatch} />;
+      return <KanbanView projectState={state} dispatch={dispatch} user={user} />;
     }
 
     if (state.currentRepresentation === 'resource-usage') {
@@ -582,6 +582,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                 uiDensity={state.uiDensity}
                 defaultCalendar={defaultCalendar}
                 dateFormat={dateFormat}
+                user={user}
               />
             </ResizablePanel>
           </>
@@ -626,6 +627,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                             defaultCalendar={defaultCalendar}
                             dateFormat={dateFormat}
                             layoutMode="vertical"
+                            user={user}
                         />
                       </>
                     )}

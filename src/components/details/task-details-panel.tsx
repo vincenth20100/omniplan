@@ -2,6 +2,7 @@
 import type { Task, Link, UiDensity, Calendar, ProjectState } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import type { User } from 'firebase/auth';
 import { PredecessorList } from './predecessor-list';
 import { SuccessorList } from './successor-list';
 import { X } from 'lucide-react';
@@ -14,7 +15,7 @@ import { ResourceSection } from './resource-section';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Separator } from '@/components/ui/separator';
 
-export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDensity, defaultCalendar, dateFormat, layoutMode = 'responsive' }: { task: Task, projectState: ProjectState, dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null, dateFormat: string, layoutMode?: 'responsive' | 'vertical' }) {
+export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDensity, defaultCalendar, dateFormat, layoutMode = 'responsive', user }: { task: Task, projectState: ProjectState, dispatch: any, onClose: () => void, uiDensity: UiDensity, defaultCalendar: Calendar | null, dateFormat: string, layoutMode?: 'responsive' | 'vertical', user: User }) {
     const isMobile = useIsMobile();
     const { links, tasks, resources, assignments } = projectState;
     const predecessors = links.filter(l => l.target === task.id);
@@ -136,7 +137,7 @@ export function TaskDetailsPanel({ task, projectState, dispatch, onClose, uiDens
                             (uiDensity === 'medium' && !isMobile) && 'p-3',
                             (uiDensity === 'compact' || isMobile) && 'p-2'
                         )}>
-                            <NotesSection task={task} dispatch={dispatch} />
+                            <NotesSection task={task} dispatch={dispatch} user={user} />
                         </div>
                     </TabsContent>
                 </div>

@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 
 const KANBAN_COLUMNS = ['To Do', 'In Progress', 'Done'];
 
-export function KanbanView({ projectState, dispatch }: { projectState: ProjectState, dispatch: any }) {
+export function KanbanView({ projectState, dispatch, user }: { projectState: ProjectState, dispatch: any, user: User }) {
     const { tasks, links, selectedTaskIds, ganttSettings, uiDensity, calendars, defaultCalendarId } = projectState;
     const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
@@ -63,6 +63,7 @@ export function KanbanView({ projectState, dispatch }: { projectState: ProjectSt
                         uiDensity={uiDensity}
                         defaultCalendar={defaultCalendar}
                         dateFormat={dateFormat}
+                        user={user}
                       />
                     </ResizablePanel>
                 </>
