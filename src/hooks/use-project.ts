@@ -1143,20 +1143,29 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         }
 
         const taskIdsInSelection = getTaskIdsInSelection(state);
-        const shouldCollapseSelected = taskIdsInSelection.size > 0;
+        const restrictToSelection = taskIdsInSelection.size >= 2;
+
+        const candidateTasks = restrictToSelection
+            ? state.tasks.filter(t => taskIdsInSelection.has(t.id))
+            : state.tasks;
+
+        const expandedSummaries = candidateTasks.filter(t => t.isSummary && !t.isCollapsed);
+
+        if (expandedSummaries.length === 0) {
+            return state;
+        }
+
+        const maxLevel = Math.max(...expandedSummaries.map(t => t.level || 0));
 
         const newTasks = state.tasks.map(task => {
-            if (task.isSummary) {
-                if (shouldCollapseSelected) {
-                    if (taskIdsInSelection.has(task.id)) {
-                        return { ...task, isCollapsed: true };
-                    }
-                } else {
-                    return { ...task, isCollapsed: true };
-                }
+            if (task.isSummary && !task.isCollapsed && (task.level || 0) === maxLevel) {
+                 if (!restrictToSelection || taskIdsInSelection.has(task.id)) {
+                     return { ...task, isCollapsed: true };
+                 }
             }
             return task;
         });
+
         return { ...state, tasks: newTasks };
     }
     case 'EXPAND_ALL': {
@@ -1165,20 +1174,29 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         }
 
         const taskIdsInSelection = getTaskIdsInSelection(state);
-        const shouldExpandSelected = taskIdsInSelection.size > 0;
+        const restrictToSelection = taskIdsInSelection.size >= 2;
+
+        const candidateTasks = restrictToSelection
+            ? state.tasks.filter(t => taskIdsInSelection.has(t.id))
+            : state.tasks;
+
+        const collapsedSummaries = candidateTasks.filter(t => t.isSummary && t.isCollapsed);
+
+        if (collapsedSummaries.length === 0) {
+            return state;
+        }
+
+        const minLevel = Math.min(...collapsedSummaries.map(t => t.level || 0));
 
         const newTasks = state.tasks.map(task => {
-            if (task.isSummary) {
-                if (shouldExpandSelected) {
-                    if (taskIdsInSelection.has(task.id)) {
-                        return { ...task, isCollapsed: false };
-                    }
-                } else {
-                    return { ...task, isCollapsed: false };
-                }
+            if (task.isSummary && task.isCollapsed && (task.level || 0) === minLevel) {
+                 if (!restrictToSelection || taskIdsInSelection.has(task.id)) {
+                     return { ...task, isCollapsed: false };
+                 }
             }
             return task;
         });
+
         return { ...state, tasks: newTasks };
     }
     case 'SET_COLUMNS': {
