@@ -322,3 +322,16 @@ export interface PersistentHistoryEntry extends HistoryEntry {
     userId?: string;
     userName?: string;
 }
+
+export interface ResourceUsageRow {
+    id: string;
+    type: 'resource' | 'task';
+    data: Resource | Task;
+    resourceId: string;
+    name: string;
+    totalWork: number;
+    dailyWork: Record<string, number>; // ISO date -> hours
+    level: number;
+    isExpanded?: boolean;
+    assignments?: Assignment[];
+}

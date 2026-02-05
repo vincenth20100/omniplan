@@ -11,7 +11,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, FolderTree, ArrowLeft, TableProperties } from 'lucide-react';
+import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, FolderTree, ArrowLeft, TableProperties, Rows } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect, useMemo } from 'react';
@@ -161,6 +161,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const [projectSettingsSection, setProjectSettingsSection] = useState<'members' | 'baselines'>('members');
   const [isSetBaselineOpen, setIsSetBaselineOpen] = useState(false);
   const [isInsertSubprojectOpen, setIsInsertSubprojectOpen] = useState(false);
+  const [isResourcePanelOpen, setIsResourcePanelOpen] = useState(false);
   const [currentSidebarView, setCurrentSidebarView] = useState<SidebarView>('main');
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -524,6 +525,19 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             </ToggleGroupItem>
         </ToggleGroup>
 
+        <Separator orientation="vertical" className="h-6 mx-1" />
+        <Toggle
+          variant="outline"
+          size="icon"
+          pressed={isResourcePanelOpen}
+          onPressedChange={setIsResourcePanelOpen}
+          title="Toggle Split Resource View"
+          className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+          disabled={state.currentRepresentation !== 'gantt' || isMobile}
+        >
+          <Rows />
+        </Toggle>
+
         {!isButtonOnSide && (
             <>
                 <Separator orientation="vertical" className="h-6 mx-1" />
@@ -560,9 +574,45 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
     }
 
     const ganttChartComponent = <GanttChart projectState={state} dispatch={dispatch} uiDensity={state.uiDensity} projectName={project?.name} />;
+    const resourceViewComponent = <ResourceUsageView projectState={state} dispatch={dispatch} />;
 
     if (isMobile) {
         return ganttChartComponent;
+    }
+
+    if (state.currentRepresentation === 'gantt' && isResourcePanelOpen) {
+        return (
+            <ResizablePanelGroup direction="vertical">
+                <ResizablePanel defaultSize={60} minSize={20}>
+                     <ResizablePanelGroup direction="vertical">
+                        <ResizablePanel>
+                          {ganttChartComponent}
+                        </ResizablePanel>
+                        {selectedTask && (
+                          <>
+                            <ResizableHandle withHandle />
+                            <ResizablePanel defaultSize={35} minSize={20}>
+                              <TaskDetailsPanel
+                                task={selectedTask}
+                                projectState={state}
+                                dispatch={dispatch}
+                                onClose={() => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: null } })}
+                                uiDensity={state.uiDensity}
+                                defaultCalendar={defaultCalendar}
+                                dateFormat={dateFormat}
+                                user={user}
+                              />
+                            </ResizablePanel>
+                          </>
+                        )}
+                      </ResizablePanelGroup>
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={40} minSize={20}>
+                    {resourceViewComponent}
+                </ResizablePanel>
+            </ResizablePanelGroup>
+        );
     }
 
     return (
