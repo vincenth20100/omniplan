@@ -2128,6 +2128,9 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             'UPDATE_CURRENT_VIEW',
             'SET_VIEW',
             'SET_UI_DENSITY',
+            'SET_REPRESENTATION',
+            'MOVE_SELECTION',
+            'TOGGLE_MULTI_SELECT_MODE',
         ];
 
         if (action.type === '_APPLY_STATE_CHANGE') {
@@ -2135,6 +2138,11 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             if (originalAction.type === 'UNDO' || originalAction.type === 'REDO' || originalAction.type === 'JUMP_TO_HISTORY') {
                 return { ...state, present: newState };
             }
+
+            if (nonHistoricActions.includes(originalAction.type)) {
+                 return { ...state, present: newState };
+            }
+
             return {
                 past: [...past, { state: present, action: originalAction }],
                 present: newState,
@@ -2284,6 +2292,24 @@ export function useProject(user: User, projectId: string | null) {
   const dispatch = useCallback((action: Action) => {
     // These actions should bypass the batching logic and directly manipulate the history state.
     if (action.type === 'UNDO' || action.type === 'REDO' || action.type === 'JUMP_TO_HISTORY') {
+        internalDispatch(action);
+        return;
+    }
+
+    const localActions: Action['type'][] = [
+        'SET_ROW_SELECTION',
+        'SET_CELL_SELECTION',
+        'SET_REPRESENTATION',
+        'SORT_TASKS',
+        'MOVE_SELECTION',
+        'TOGGLE_MULTI_SELECT_MODE',
+        'START_EDITING_CELL',
+        'STOP_EDITING_CELL',
+        'TOGGLE_GROUP',
+        'CLEAR_NOTIFICATIONS'
+    ];
+
+    if (localActions.includes(action.type)) {
         internalDispatch(action);
         return;
     }
