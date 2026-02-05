@@ -2086,6 +2086,13 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             'START_EDITING_CELL', 
             'STOP_EDITING_CELL',
             'CLEAR_NOTIFICATIONS',
+            'TOGGLE_GROUP',
+            'SORT_TASKS',
+            'COLLAPSE_ALL',
+            'EXPAND_ALL',
+            'UPDATE_CURRENT_VIEW',
+            'SET_VIEW',
+            'SET_UI_DENSITY',
         ];
 
         if (action.type === '_APPLY_STATE_CHANGE') {

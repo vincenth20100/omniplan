@@ -42,7 +42,7 @@ function PersistentLogList({ history }: { history: PersistentHistoryEntry[] }) {
   }
 
   return (
-    <ScrollArea className="h-full mt-4">
+    <div className="mt-4">
         <div className="flex flex-col gap-4 pr-4 pb-4">
             {history.map((entry) => (
                 <div key={entry.id} className="flex flex-col border-b pb-2 last:border-0">
@@ -61,7 +61,7 @@ function PersistentLogList({ history }: { history: PersistentHistoryEntry[] }) {
                 </div>
             ))}
         </div>
-    </ScrollArea>
+    </div>
   );
 }
 
@@ -110,17 +110,22 @@ export function HistoryPanel({
             View history, undo changes, or manage snapshots.
           </SheetDescription>
         </SheetHeader>
-        <Tabs defaultValue="session" className="w-full mt-4">
-            <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="session">Session</TabsTrigger>
-                <TabsTrigger value="log">Log</TabsTrigger>
+        <Tabs defaultValue="activity" className="w-full mt-4">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="activity">Activity</TabsTrigger>
                 <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
             </TabsList>
-            <TabsContent value="session" className="h-[calc(100vh-12rem)]">
-                 <HistoryList history={history} currentIndex={currentIndex} dispatch={dispatch} />
-            </TabsContent>
-            <TabsContent value="log" className="h-[calc(100vh-12rem)]">
-                 <PersistentLogList history={persistentHistory} />
+            <TabsContent value="activity" className="h-[calc(100vh-12rem)]">
+                 <ScrollArea className="h-full">
+                     <HistoryList history={history} currentIndex={currentIndex} dispatch={dispatch} />
+                     {history.length > 0 && persistentHistory.length > 0 && <Separator className="my-4" />}
+                     {persistentHistory.length > 0 && (
+                        <div className="px-1">
+                            <h4 className="font-semibold text-sm mb-2 text-muted-foreground">Recorded History</h4>
+                            <PersistentLogList history={persistentHistory} />
+                        </div>
+                     )}
+                 </ScrollArea>
             </TabsContent>
             <TabsContent value="snapshots" className="h-[calc(100vh-12rem)] flex flex-col">
                  <div className="flex gap-2 p-1">
