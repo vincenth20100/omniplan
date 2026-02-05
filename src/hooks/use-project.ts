@@ -53,6 +53,7 @@ const defaultUserPreferences = {
     currentViewId: 'default' as string | null,
     ganttSettings: initialGanttSettings,
     activeStylePresetId: 'default-dark' as string | null,
+    collapsedTaskIds: [] as string[],
 };
 
 
@@ -169,10 +170,14 @@ type Action =
  * Creates a "clean" task object suitable for Firestore,
  * removing calculated fields and converting `undefined` to `null`.
  */
-const toFirestoreTask = (task: Task) => {
+const toFirestoreTask = (task: Task, options?: { keepViewOptions?: boolean }) => {
   const { isCritical, totalFloat, lateStart, lateFinish, projectId, projectName, criticalFor, ...rest } = task;
 
   const cleanTask: Record<string, any> = { ...rest };
+
+  if (!options?.keepViewOptions) {
+      delete cleanTask.isCollapsed;
+  }
 
   // Ensure no undefined values are sent
   for (const key in cleanTask) {
@@ -2291,7 +2296,6 @@ export function useProject(user: User, projectId: string | null) {
             'ADD_RESOURCE', 'REMOVE_RESOURCE', 'REORDER_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
             'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE', 'ADD_BASELINE', 'DELETE_BASELINE',
             'ADD_ASSIGNMENT', 'UPDATE_ASSIGNMENT', 'REMOVE_ASSIGNMENT',
-            'TOGGLE_TASK_COLLAPSE', 'COLLAPSE_ALL', 'EXPAND_ALL',
           ];
     
           const sharedSettingsActions: Action['type'][] = [
@@ -2317,12 +2321,12 @@ export function useProject(user: User, projectId: string | null) {
 
     const optimisticActions: Action['type'][] = [
       'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
-      'TOGGLE_TASK_COLLAPSE', 'ADD_TASK',
+      'ADD_TASK',
     ];
     
     const userSettingsActions: Action['type'][] = [
         'UPDATE_GANTT_SETTINGS', 'SET_UI_DENSITY', 'SET_VIEW',
-        'SET_ACTIVE_STYLE_PRESET'
+        'SET_ACTIVE_STYLE_PRESET', 'TOGGLE_TASK_COLLAPSE', 'COLLAPSE_ALL', 'EXPAND_ALL',
     ];
 
     if (userSettingsActions.includes(finalAction.type)) {
@@ -2346,6 +2350,12 @@ export function useProject(user: User, projectId: string | null) {
             prefsToUpdate.ganttSettings = newState.ganttSettings;
         }
 
+        if (['TOGGLE_TASK_COLLAPSE', 'COLLAPSE_ALL', 'EXPAND_ALL'].includes(finalAction.type)) {
+            prefsToUpdate.collapsedTaskIds = newState.tasks
+                .filter(t => t.isCollapsed)
+                .map(t => t.id);
+        }
+
         setDocumentNonBlocking(userPrefsDocRef, prefsToUpdate, { merge: true });
 
     } else if (optimisticActions.includes(finalAction.type)) {
@@ -2365,7 +2375,7 @@ export function useProject(user: User, projectId: string | null) {
             }
         }
 
-        if (finalAction.type === 'UPDATE_TASK' || finalAction.type === 'ADD_NOTE_TO_TASK' || finalAction.type === 'TOGGLE_TASK_COLLAPSE') {
+        if (finalAction.type === 'UPDATE_TASK' || finalAction.type === 'ADD_NOTE_TO_TASK') {
             let taskId: string;
             if (finalAction.type === 'UPDATE_TASK') {
                 taskId = finalAction.payload.id;
@@ -2373,19 +2383,12 @@ export function useProject(user: User, projectId: string | null) {
                 taskId = (finalAction.payload as any).taskId; // Type cast safe based on optimisticActions
             }
 
-            if (finalAction.type === 'TOGGLE_TASK_COLLAPSE' && taskId.startsWith('subproject-')) {
-                const settingsDocRef = doc(firestore, 'projects', projectId, 'settings', 'app_settings');
-                const isCollapsed = newState.tasks.find(t => t.id === taskId)?.isCollapsed;
-                const updateOp = isCollapsed ? arrayRemove(taskId) : arrayUnion(taskId);
-                batch.set(settingsDocRef, { expandedSubprojectIds: updateOp }, { merge: true });
-            } else {
-                const updatedTask = newState.tasks.find(t => t.id === taskId);
-                const targetProjectId = updatedTask?.projectId || projectId;
+            const updatedTask = newState.tasks.find(t => t.id === taskId);
+            const targetProjectId = updatedTask?.projectId || projectId;
 
-                if (updatedTask) {
-                    const { ...updateData } = toFirestoreTask(updatedTask);
-                    batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), updateData);
-                }
+            if (updatedTask) {
+                const { ...updateData } = toFirestoreTask(updatedTask);
+                batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), updateData);
             }
         }
         
@@ -2692,13 +2695,15 @@ export function useProject(user: User, projectId: string | null) {
         start: safeToDate(t.start) || new Date(),
         finish: safeToDate(t.finish) || new Date(),
         constraintDate: safeToDate(t.constraintDate),
-        deadline: safeToDate(t.deadline)
+        deadline: safeToDate(t.deadline),
+        isCollapsed: (collections.userPreferences.data?.collapsedTaskIds || []).includes(t.id),
     })).sort((a, b) => (a.order || 0) - (b.order || 0));
 
     // Process subprojects
     const subprojectTasks: Task[] = [];
     const subprojectLinks: Link[] = [];
-    const expandedSubprojectIds = collections.sharedSettings.data?.expandedSubprojectIds || [];
+    // Note: We ignore expandedSubprojectIds from app_settings and use userPreferences.collapsedTaskIds
+    const collapsedTaskIds = collections.userPreferences.data?.collapsedTaskIds || [];
 
     subprojectsData.subprojects.forEach(sub => {
         const syntheticRootId = `subproject-${sub.projectId}`;
@@ -2713,7 +2718,7 @@ export function useProject(user: User, projectId: string | null) {
             percentComplete: 0,
             status: 'Active',
             isSummary: true,
-            isCollapsed: !expandedSubprojectIds.includes(syntheticRootId),
+            isCollapsed: collapsedTaskIds.includes(syntheticRootId),
             level: 0,
             projectId: projectId, // Belongs to parent container
             projectName: projectData?.name || 'Current Project',
@@ -2729,6 +2734,7 @@ export function useProject(user: User, projectId: string | null) {
                 projectName: sub.projectName,
                 projectInitials: sub.initials,
                 parentId: isRootInSub ? syntheticRootId : t.parentId,
+                isCollapsed: collapsedTaskIds.includes(t.id),
             };
         });
         subprojectTasks.push(...tasks);
@@ -2741,7 +2747,9 @@ export function useProject(user: User, projectId: string | null) {
     // if they have no parent and are not part of this project,
     // but `getVisibleTasks` defaults to showing root tasks.
     // For now, they will appear at the bottom or top of the grid.
-    const externalTasksFiltered = externalData.tasks.filter(t => !subprojectTasks.some(st => st.id === t.id) && !mainTasks.some(mt => mt.id === t.id));
+    const externalTasksFiltered = externalData.tasks
+        .filter(t => !subprojectTasks.some(st => st.id === t.id) && !mainTasks.some(mt => mt.id === t.id))
+        .map(t => ({ ...t, isCollapsed: (collections.userPreferences.data?.collapsedTaskIds || []).includes(t.id) }));
     const externalLinksFiltered = externalData.links.filter(l => !subprojectLinks.some(sl => sl.id === l.id) && !(collections.links.data || []).some(ml => ml.id === l.id));
 
     const allTasks = [...mainTasks, ...subprojectTasks, ...externalTasksFiltered];
@@ -2984,7 +2992,7 @@ export function useProject(user: User, projectId: string | null) {
       const currentState = historyStateRef.current.present;
 
       const stateToSave = {
-          tasks: currentState.tasks.map(t => toFirestoreTask(t)),
+          tasks: currentState.tasks.map(t => toFirestoreTask(t, { keepViewOptions: true })),
           links: currentState.links,
           resources: currentState.resources.map(r => toFirestoreResource(r)),
           assignments: currentState.assignments,
