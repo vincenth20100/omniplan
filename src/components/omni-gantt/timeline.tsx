@@ -377,6 +377,7 @@ export function Timeline({
                               projectColors={projectColors}
                               projectTextColors={projectTextColors}
                               projectCriticalPathColors={projectCriticalPathColors}
+                              tooltipFields={ganttSettings.tooltipFields}
                             />
                           )}
                           {baselineTask && !task.isSummary && (

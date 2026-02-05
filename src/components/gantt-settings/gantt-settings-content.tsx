@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import type { GanttSettings, StylePreset, Baseline } from "@/lib/types";
 import { Input } from "../ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "../ui/button";
@@ -42,6 +43,30 @@ export function GanttSettingsContent({
       type: 'UPDATE_GANTT_SETTINGS',
       payload: { ...settings, [key]: value },
     });
+  };
+
+  const tooltipOptions = [
+    { id: 'name', label: 'Name' },
+    { id: 'start', label: 'Start Date' },
+    { id: 'finish', label: 'Finish Date' },
+    { id: 'duration', label: 'Duration' },
+    { id: 'percentComplete', label: 'Percent Complete' },
+    { id: 'status', label: 'Status' },
+    { id: 'wbs', label: 'WBS' },
+    { id: 'notes', label: 'Notes Indicator' },
+  ];
+
+  const toggleTooltipField = (fieldId: string, checked: boolean) => {
+    const currentFields = settings.tooltipFields || [];
+    if (checked) {
+        if (!currentFields.includes(fieldId)) {
+            const allIds = tooltipOptions.map(o => o.id);
+            const newFields = [...currentFields, fieldId].sort((a, b) => allIds.indexOf(a) - allIds.indexOf(b));
+            handleSettingChange('tooltipFields', newFields);
+        }
+    } else {
+        handleSettingChange('tooltipFields', currentFields.filter(id => id !== fieldId));
+    }
   };
 
   return (
@@ -201,6 +226,28 @@ export function GanttSettingsContent({
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Tooltip Configuration Section */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Tooltip Configuration</h4>
+              <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                      {tooltipOptions.map((option) => (
+                          <div key={option.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                  id={`tooltip-${option.id}`}
+                                  checked={(settings.tooltipFields || []).includes(option.id)}
+                                  onCheckedChange={(checked) => toggleTooltipField(option.id, checked as boolean)}
+                                  disabled={!isEditor}
+                              />
+                              <Label htmlFor={`tooltip-${option.id}`}>{option.label}</Label>
+                          </div>
+                      ))}
+                  </div>
               </div>
             </div>
 

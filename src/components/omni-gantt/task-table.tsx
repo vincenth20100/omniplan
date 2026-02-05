@@ -25,6 +25,7 @@ import { parseDuration, formatDuration } from '@/lib/duration';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { calendarService } from '@/lib/calendar';
 import { DENSITY_SETTINGS } from '@/lib/settings';
+import { TaskTooltip } from './task-tooltip';
 
 const TaskCellRenderer = React.memo(({
     task,
@@ -1215,8 +1216,8 @@ export function TaskTable({
                             const shouldHighlightRow = isRowSelected && (selectionMode === 'row' || !isRowInActiveRange);
 
                             return (
+                                <TaskTooltip key={task.id} task={task} tooltipFields={ganttSettings.tooltipFields} dateFormat={dateFormat}>
                                 <TableRow
-                                    key={task.id}
                                     style={{ height: `${rowHeight}px` }}
                                     onDragOver={(e) => handleDragOver(e, task.id)}
                                     data-density={uiDensity}
@@ -1353,6 +1354,7 @@ export function TaskTable({
                                         )
                                     })}
                                 </TableRow>
+                                </TaskTooltip>
                             )
                         })}
                     </TableBody>

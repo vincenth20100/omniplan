@@ -168,6 +168,7 @@ export interface GanttSettings {
   viewMode: 'day' | 'week' | 'month' | 'quarter' | 'semester' | 'year';
   zoom?: number;
   taskLabels?: TaskLabelSetting[];
+  tooltipFields?: string[];
   showDependencies: boolean;
   showProgress: boolean;
   highlightNonWorkingTime: boolean;

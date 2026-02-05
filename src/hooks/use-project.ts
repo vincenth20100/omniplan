@@ -26,6 +26,7 @@ const initialGanttSettings: GanttSettings = {
   highlightNonWorkingTime: true,
   showTodayLine: true,
   showTaskLabels: true,
+  tooltipFields: ['name', 'start', 'duration', 'finish'],
   highlightCriticalPath: true,
   renderSplitTasks: false,
   dateFormat: 'MMM d, yyyy',

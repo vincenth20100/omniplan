@@ -6,10 +6,11 @@ import { cn, getProjectColor } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
 import { Flame } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
+import { TaskTooltip } from './task-tooltip';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, taskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {} }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, taskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {}, tooltipFields = [] }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
@@ -28,6 +29,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     projectColors?: Record<string, string>;
     projectTextColors?: Record<string, string>;
     projectCriticalPathColors?: Record<string, string>;
+    tooltipFields?: string[];
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
     const dragStartInfo = useRef<{
@@ -129,6 +131,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         const top = row * rowHeight + (rowHeight - milestoneSize) / 2;
 
         return (
+            <TaskTooltip task={task} tooltipFields={tooltipFields} dateFormat={dateFormat}>
             <div
                 ref={barRef}
                 className={cn("absolute flex items-center justify-center cursor-pointer", isSelected ? "z-10" : "")}
@@ -139,7 +142,6 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                     height: `${milestoneSize}px`,
                 }}
                 onClick={onSelect}
-                title={`${task.name}\n${format(task.start, dateFormat)}`}
             >
                 <svg width={milestoneSize} height={milestoneSize} viewBox="0 0 24 24" className={cn(
                     "drop-shadow-md",
@@ -156,6 +158,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                     </span>
                 )}
             </div>
+            </TaskTooltip>
         );
     }
 
@@ -188,6 +191,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     const customTextStyle = (showTaskLabels && !isSummary && task.projectId && projectTextColors && projectTextColors[task.projectId]) ? { color: projectTextColors[task.projectId] } : {};
 
     return (
+        <TaskTooltip task={task} tooltipFields={tooltipFields} dateFormat={dateFormat}>
         <div
             ref={barRef}
             className={cn(
@@ -290,6 +294,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
             </>
         )}
         </div>
+        </TaskTooltip>
     );
 });
 
