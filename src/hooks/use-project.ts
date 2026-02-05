@@ -148,7 +148,9 @@ type Action =
   | { type: 'UPDATE_CURRENT_VIEW' }
   | { type: 'DELETE_VIEW', payload: { viewId: string } }
   | { type: 'TOGGLE_MULTI_SELECT_MODE' }
-  | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string } }
+  | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string; userId?: string; author?: string } }
+  | { type: 'UPDATE_NOTE'; payload: { taskId: string; noteId: string; content: string } }
+  | { type: 'DELETE_NOTE'; payload: { taskId: string; noteId: string } }
   | { type: 'ADD_TASKS_FROM_PASTE', payload: { data: string, activeCell: { taskId: string, columnId: string } | null, projectId?: string } }
   | { type: 'START_EDITING_CELL', payload: { taskId: string, columnId: string, initialValue?: string } }
   | { type: 'STOP_EDITING_CELL' }
@@ -999,16 +1001,43 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         return { ...state, calendars: newCalendars, tasks: reScheduledTasks, defaultCalendarId: newDefaultCalendarId };
     }
     case 'ADD_NOTE_TO_TASK': {
-        const { taskId, content } = action.payload;
+        const { taskId, content, userId, author } = action.payload;
         const newNote: Note = {
             id: `note-${Date.now()}`,
-            author: 'User', // Placeholder
+            author: author || 'User',
+            userId: userId,
             content,
             timestamp: new Date(),
         };
         const updatedTasks = state.tasks.map(t =>
             t.id === taskId ? { ...t, notes: [...(t.notes || []), newNote] } : t
         );
+        return { ...state, tasks: updatedTasks };
+    }
+    case 'UPDATE_NOTE': {
+        const { taskId, noteId, content } = action.payload;
+        const updatedTasks = state.tasks.map(t => {
+            if (t.id === taskId && t.notes) {
+                return {
+                    ...t,
+                    notes: t.notes.map(n => n.id === noteId ? { ...n, content } : n)
+                };
+            }
+            return t;
+        });
+        return { ...state, tasks: updatedTasks };
+    }
+    case 'DELETE_NOTE': {
+        const { taskId, noteId } = action.payload;
+        const updatedTasks = state.tasks.map(t => {
+            if (t.id === taskId && t.notes) {
+                return {
+                    ...t,
+                    notes: t.notes.filter(n => n.id !== noteId)
+                };
+            }
+            return t;
+        });
         return { ...state, tasks: updatedTasks };
     }
     case 'SET_ROW_SELECTION': {
@@ -2300,12 +2329,21 @@ export function useProject(user: User, projectId: string | null) {
                  projectId
              }
          };
+    } else if (action.type === 'ADD_NOTE_TO_TASK') {
+         finalAction = {
+            ...action,
+            payload: {
+                ...action.payload,
+                userId: user.uid,
+                author: user.displayName || user.email || 'User'
+            }
+        };
     }
     
     // This is the new centralized permission guard.
     const isEditAction = (act: Action): boolean => {
         const dataWriteActions: Action['type'][] = [
-            'UPDATE_TASK', 'ADD_NOTE_TO_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
+            'UPDATE_TASK', 'ADD_NOTE_TO_TASK', 'UPDATE_NOTE', 'DELETE_NOTE', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
             'UPDATE_LINK', 'ADD_TASK', 'REMOVE_TASK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK',
             'UPDATE_RELATIONSHIPS', 'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
             'ADD_RESOURCE', 'REMOVE_RESOURCE', 'REORDER_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
@@ -2324,7 +2362,17 @@ export function useProject(user: User, projectId: string | null) {
 
 
     if (isEditAction(finalAction)) {
-        if (!isEditorOrOwner) {
+        let allowed = isEditorOrOwner;
+
+        if (!allowed && (finalAction.type === 'UPDATE_NOTE' || finalAction.type === 'DELETE_NOTE')) {
+             const task = historyStateRef.current.present.tasks.find(t => t.id === finalAction.payload.taskId);
+             const note = task?.notes?.find(n => n.id === finalAction.payload.noteId);
+             if (note?.userId === user.uid) {
+                 allowed = true;
+             }
+        }
+
+        if (!allowed) {
              toast({
                 variant: 'destructive',
                 title: 'Permission Denied',
@@ -2335,7 +2383,7 @@ export function useProject(user: User, projectId: string | null) {
     }
 
     const optimisticActions: Action['type'][] = [
-      'ADD_NOTE_TO_TASK', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
+      'ADD_NOTE_TO_TASK', 'UPDATE_NOTE', 'DELETE_NOTE', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
       'ADD_TASK',
     ];
     
@@ -2408,11 +2456,23 @@ export function useProject(user: User, projectId: string | null) {
 
              if (updatedTask && updatedTask.notes && updatedTask.notes.length > 0) {
                  const newNote = updatedTask.notes[updatedTask.notes.length - 1];
-                 const authorName = user.displayName || user.email || 'User';
-                 const noteToSave = sanitizeForFirestore({ ...newNote, author: authorName });
+                 const noteToSave = sanitizeForFirestore(newNote);
 
                  batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), {
                      notes: arrayUnion(noteToSave)
+                 });
+             }
+        }
+
+        if (finalAction.type === 'UPDATE_NOTE' || finalAction.type === 'DELETE_NOTE') {
+             const taskId = finalAction.payload.taskId;
+             const updatedTask = newState.tasks.find(t => t.id === taskId);
+             const targetProjectId = updatedTask?.projectId || projectId;
+
+             if (updatedTask) {
+                 const notesToSave = (updatedTask.notes || []).map(n => sanitizeForFirestore(n));
+                 batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), {
+                     notes: notesToSave
                  });
              }
         }
