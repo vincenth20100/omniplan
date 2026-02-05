@@ -145,7 +145,7 @@ const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], 
 
 export function ProjectPage({ user, projectId }: { user: User, projectId: string }) {
   const router = useRouter();
-  const { state, dispatch, isLoaded, isEditorOrOwner, canUndo, canRedo, history } = useProject(user, projectId);
+  const { state, dispatch, isLoaded, isEditorOrOwner, canUndo, canRedo, history, persistentHistory, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, previewSnapshot, exitPreview, isPreviewMode } = useProject(user, projectId);
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   const [isGroupingDialogOpen, setIsGroupingDialogOpen] = useState(false);
@@ -594,6 +594,12 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   return (
     <>
     <ThemeManager theme={state.ganttSettings.theme} customStyles={state.ganttSettings.customStyles} />
+    {isPreviewMode && (
+        <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between text-sm font-medium">
+            <span>You are viewing a snapshot in read-only mode.</span>
+            <Button variant="secondary" size="sm" onClick={exitPreview}>Exit Preview</Button>
+        </div>
+    )}
     <MainLayout 
       sidebarContent={sidebarContent} 
       headerLeftActions={headerLeftActions}
@@ -698,6 +704,12 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             history={history.log}
             currentIndex={history.index}
             dispatch={dispatch}
+            persistentHistory={persistentHistory}
+            snapshots={snapshots}
+            onSaveSnapshot={saveSnapshot}
+            onRestoreSnapshot={restoreSnapshot}
+            onDeleteSnapshot={deleteSnapshot}
+            onPreviewSnapshot={previewSnapshot}
           />
           <KeyboardShortcutsDialog
             open={isShortcutsDialogOpen}
