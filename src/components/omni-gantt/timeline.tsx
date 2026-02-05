@@ -159,6 +159,8 @@ export function Timeline({
     ganttSettings,
     baselines,
     projectColors,
+    projectTextColors,
+    projectCriticalPathColors,
     disableScroll,
 }: { 
     allTasks: Task[],
