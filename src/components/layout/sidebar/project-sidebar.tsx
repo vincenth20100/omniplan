@@ -20,7 +20,7 @@ import type { User } from 'firebase/auth';
 
 export type SidebarView = 'main' | 'resources' | 'calendars' | 'filters' | 'grouping' | 'gantt-settings' | 'history' | 'shortcuts' | 'find-replace' | 'print' | 'columns' | 'manage-views' | 'subprojects';
 
-export function MobileSidebarContainer({
+export function ProjectSidebar({
     view,
     onNavigate,
     projectState,
@@ -33,6 +33,10 @@ export function MobileSidebarContainer({
     canUndo,
     canRedo,
     canRemove,
+    canIndent,
+    canOutdent,
+    onSetBaseline,
+    onManageBaselines,
     user,
     currentProjectId,
     existingSubprojectIds,
@@ -49,19 +53,27 @@ export function MobileSidebarContainer({
     canUndo: boolean;
     canRedo: boolean;
     canRemove: boolean;
+    canIndent?: boolean;
+    canOutdent?: boolean;
+    onSetBaseline?: () => void;
+    onManageBaselines?: () => void;
     user: User;
     currentProjectId: string;
     existingSubprojectIds?: string[];
 }) {
-    const { state, setOpenMobile, isMobile } = useSidebar();
+    const { state, setOpenMobile, setOpen, isMobile } = useSidebar();
 
     // Automatically expand the sidebar when entering a sub-view (panel)
     // ensuring the content is visible.
     useEffect(() => {
-        if (view !== 'main' && isMobile) {
-            setOpenMobile(true);
+        if (view !== 'main') {
+            if (isMobile) {
+                setOpenMobile(true);
+            } else {
+                setOpen(true);
+            }
         }
-    }, [view, isMobile, setOpenMobile]);
+    }, [view, isMobile, setOpenMobile, setOpen]);
 
     const handleBack = () => {
         onNavigate('main');
@@ -83,6 +95,8 @@ export function MobileSidebarContainer({
                     canUndo={canUndo}
                     canRedo={canRedo}
                     canRemove={canRemove}
+                    canIndent={canIndent}
+                    canOutdent={canOutdent}
                     isEditor={isEditor}
                 />
 
@@ -191,6 +205,8 @@ export function MobileSidebarContainer({
                     dispatch={dispatch}
                     onManageThemes={onManageThemes}
                     isEditor={isEditor}
+                    onSetBaseline={onSetBaseline}
+                    onManageBaselines={onManageBaselines}
                 />
             );
             break;

@@ -42,7 +42,7 @@ import { ALL_COLUMNS } from '@/lib/columns';
 import { SetBaselineDialog } from './set-baseline-dialog';
 import { SubprojectManagerDialog } from './subproject-manager-dialog';
 import { THEME_VARIABLES } from '@/lib/theme-config';
-import { MobileSidebarContainer, type SidebarView } from '@/components/layout/sidebar/mobile-sidebar-container';
+import { ProjectSidebar, type SidebarView } from '@/components/layout/sidebar/project-sidebar';
 import { Slider } from "@/components/ui/slider";
 import {
   Select,
@@ -312,182 +312,8 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   // A task can be outdented if it's selected and has a parent.
   const canOutdent = state.selectedTaskIds.some(id => !!state.tasks.find(t => t.id === id)?.parentId);
 
-  const isButtonOnSide = state.ganttSettings.buttonLocation === 'side';
-
-  const toolbarActions = (
-    <div className={`flex ${isButtonOnSide ? 'flex-wrap gap-2 p-2' : 'items-center gap-2'}`}>
-        {/* History */}
-        {!isMobile && (
-        <>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo || !isEditorOrOwner} title="Undo (Ctrl+Z)">
-            <Undo2 />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REDO' })} disabled={!canRedo || !isEditorOrOwner} title="Redo (Ctrl+Y)">
-            <Redo2 />
-        </Button>
-        {!isButtonOnSide && <Separator orientation="vertical" className="h-6 mx-1" />}
-        </>
-        )}
-
-        {/* Task Editing */}
-        {/* Removed !isMobile check for core editing tools to ensure visibility */}
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'ADD_TASK', payload: { id: crypto.randomUUID() } })} title="Add Task" disabled={!isEditorOrOwner}>
-            <Plus />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsInsertSubprojectOpen(true)} title="Insert Project" disabled={!isEditorOrOwner}>
-            <FolderTree className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'REMOVE_TASK' })} disabled={!canRemove || !isEditorOrOwner} title="Remove Selected Tasks">
-            <Trash2 />
-        </Button>
-
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'INDENT_TASK' })} disabled={!canIndent || !isEditorOrOwner} title="Indent Task">
-            <Indent />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'OUTDENT_TASK' })} disabled={!canOutdent || !isEditorOrOwner} title="Outdent Task">
-            <Outdent />
-        </Button>
-        {!isButtonOnSide && <Separator orientation="vertical" className="h-6 mx-1" />}
-        
-        {/* View Manipulation */}
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'COLLAPSE_ALL' })} title="Collapse Selection/All">
-            <ChevronsUp />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => dispatch({ type: 'EXPAND_ALL' })} title="Expand Selection/All">
-            <ChevronsDown />
-        </Button>
-
-        <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-card">
-             <Select
-                value={state.ganttSettings.viewMode}
-                onValueChange={(v: any) => dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, viewMode: v }})}
-                disabled={state.currentRepresentation !== 'gantt'}
-             >
-                <SelectTrigger className="w-[100px] h-8 border-none focus:ring-0">
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="day">Day</SelectItem>
-                    <SelectItem value="week">Week</SelectItem>
-                    <SelectItem value="month">Month</SelectItem>
-                    <SelectItem value="quarter">Quarter</SelectItem>
-                    <SelectItem value="semester">Semester</SelectItem>
-                    <SelectItem value="year">Year</SelectItem>
-                </SelectContent>
-             </Select>
-
-             <Separator orientation="vertical" className="h-6" />
-
-             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut} title="Zoom Out" disabled={state.currentRepresentation !== 'gantt' || currentZoom <= 0.1}>
-                <ZoomOut className="h-4 w-4" />
-             </Button>
-
-             <Slider
-                value={[currentZoom]}
-                min={0.1}
-                max={5}
-                step={0.1}
-                onValueChange={(vals) => dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, zoom: vals[0] }})}
-                className="w-[80px]"
-                disabled={state.currentRepresentation !== 'gantt'}
-             />
-
-             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn} title="Zoom In" disabled={state.currentRepresentation !== 'gantt' || currentZoom >= 5}>
-                 <ZoomIn className="h-4 w-4" />
-             </Button>
-        </div>
-
-        {isLoaded && !isMobile && (
-          <>
-            <ColumnSelector visibleColumns={state.visibleColumns} columns={state.columns} dispatch={dispatch} disabled={!isEditorOrOwner} />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setIsFilterDialogOpen(true)}
-              title="Filter Tasks"
-              disabled={!isEditorOrOwner}
-              data-state={state.filters.length > 0 ? 'on' : 'off'}
-              className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
-            >
-                <Filter className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setIsGroupingDialogOpen(true)}
-              title="Group Tasks"
-              disabled={!isEditorOrOwner}
-              data-state={state.grouping.length > 0 ? 'on' : 'off'}
-              className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
-            >
-                <FolderTree className="h-4 w-4" />
-            </Button>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        title="Manage Baselines"
-                        data-state={state.ganttSettings.comparisonBaselineId ? 'on' : 'off'}
-                        className="data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
-                    >
-                        <Layers />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                    <DropdownMenuLabel>Compare to Baseline</DropdownMenuLabel>
-                    <DropdownMenuRadioGroup
-                        value={state.ganttSettings.comparisonBaselineId || 'none'}
-                        onValueChange={(value) => handleSetComparisonBaseline(value === 'none' ? null : value)}
-                    >
-                        <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
-                        {state.baselines.map(b => (
-                            <DropdownMenuRadioItem key={b.id} value={b.id}>{b.name}</DropdownMenuRadioItem>
-                        ))}
-                    </DropdownMenuRadioGroup>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => setIsSetBaselineOpen(true)} disabled={!isEditorOrOwner}>
-                        Set Current as Baseline...
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => handleOpenSettings('baselines')} disabled={!project}>
-                        Manage Baselines...
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        )}
-
-        {!isMobile && (
-        <>
-        {!isButtonOnSide && <Separator orientation="vertical" className="h-6 mx-1" />}
-        
-        {/* More Tools */}
-         <Button variant="outline" size="icon" onClick={() => setIsFindReplaceOpen(true)} title="Find and Replace (Ctrl+H)" disabled={!isEditorOrOwner}>
-            <Search />
-        </Button>
-        {!isButtonOnSide && <Separator orientation="vertical" className="h-6 mx-1" />}
-        <Button variant="outline" size="icon" onClick={() => setIsResourceDialogOpen(true)} title="Manage Resources" disabled={!isEditorOrOwner}>
-            <Users />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsCalendarDialogOpen(true)} title="Manage Calendars" disabled={!isEditorOrOwner}>
-            <CalendarDays />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsGanttSettingsOpen(true)} title="Gantt Display Options">
-            <Settings />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsHistoryOpen(true)} title="Show History">
-            <History />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsShortcutsDialogOpen(true)} title="Keyboard Shortcuts">
-            <Keyboard />
-        </Button>
-        </>
-        )}
-    </div>
-  );
-
-  const sidebarContent = isMobile ? (
-    <MobileSidebarContainer
+  const sidebarContent = (
+    <ProjectSidebar
         view={currentSidebarView}
         onNavigate={handleSidebarNavigate}
         projectState={state}
@@ -500,22 +326,14 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
         canUndo={canUndo}
         canRedo={canRedo}
         canRemove={canRemove}
+        canIndent={canIndent}
+        canOutdent={canOutdent}
+        onSetBaseline={() => setIsSetBaselineOpen(true)}
+        onManageBaselines={() => handleOpenSettings('baselines')}
         user={user}
         currentProjectId={projectId}
         existingSubprojectIds={project?.subprojectIds}
     />
-  ) : (
-    <>
-        {defaultSidebarContent}
-        {isButtonOnSide && (
-            <>
-                <Separator className="my-2" />
-                <div className="flex-1 overflow-y-auto">
-                    {toolbarActions}
-                </div>
-            </>
-        )}
-    </>
   );
 
   const headerLeftActions = (
@@ -576,10 +394,48 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
           <Rows />
         </Toggle>
 
-        {!isButtonOnSide && (
+        {!isMobile && (
             <>
                 <Separator orientation="vertical" className="h-6 mx-1" />
-                {toolbarActions}
+                <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-card">
+                     <Select
+                        value={state.ganttSettings.viewMode}
+                        onValueChange={(v: any) => dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, viewMode: v }})}
+                        disabled={state.currentRepresentation !== 'gantt'}
+                     >
+                        <SelectTrigger className="w-[100px] h-8 border-none focus:ring-0">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="day">Day</SelectItem>
+                            <SelectItem value="week">Week</SelectItem>
+                            <SelectItem value="month">Month</SelectItem>
+                            <SelectItem value="quarter">Quarter</SelectItem>
+                            <SelectItem value="semester">Semester</SelectItem>
+                            <SelectItem value="year">Year</SelectItem>
+                        </SelectContent>
+                     </Select>
+
+                     <Separator orientation="vertical" className="h-6" />
+
+                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut} title="Zoom Out" disabled={state.currentRepresentation !== 'gantt' || currentZoom <= 0.1}>
+                        <ZoomOut className="h-4 w-4" />
+                     </Button>
+
+                     <Slider
+                        value={[currentZoom]}
+                        min={0.1}
+                        max={5}
+                        step={0.1}
+                        onValueChange={(vals) => dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, zoom: vals[0] }})}
+                        className="w-[80px]"
+                        disabled={state.currentRepresentation !== 'gantt'}
+                     />
+
+                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn} title="Zoom In" disabled={state.currentRepresentation !== 'gantt' || currentZoom >= 5}>
+                         <ZoomIn className="h-4 w-4" />
+                     </Button>
+                </div>
             </>
         )}
     </div>
