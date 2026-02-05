@@ -301,6 +301,7 @@ function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) 
                          finish: safeToDate(data.finish) || new Date(),
                          constraintDate: safeToDate(data.constraintDate),
                          deadline: safeToDate(data.deadline),
+                         notes: data.notes ? data.notes.map((n: any) => ({ ...n, timestamp: safeToDate(n.timestamp) || new Date() })) : undefined,
                      } as Task;
                 });
 
@@ -475,6 +476,7 @@ function useExternalData(projectId: string | null, firestore: any, localLinks: L
                          finish: safeToDate(data.finish) || new Date(),
                          constraintDate: safeToDate(data.constraintDate),
                          deadline: safeToDate(data.deadline),
+                         notes: data.notes ? data.notes.map((n: any) => ({ ...n, timestamp: safeToDate(n.timestamp) || new Date() })) : undefined,
                          // Mark as external/ghost if needed
                          isGhost: true,
                          wbs: data.wbs,
@@ -2696,6 +2698,7 @@ export function useProject(user: User, projectId: string | null) {
         finish: safeToDate(t.finish) || new Date(),
         constraintDate: safeToDate(t.constraintDate),
         deadline: safeToDate(t.deadline),
+        notes: t.notes ? t.notes.map((n: any) => ({ ...n, timestamp: safeToDate(n.timestamp) || new Date() })) : undefined,
         isCollapsed: (collections.userPreferences.data?.collapsedTaskIds || []).includes(t.id),
     })).sort((a, b) => (a.order || 0) - (b.order || 0));
 
