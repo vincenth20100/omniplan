@@ -129,7 +129,7 @@ export function TooltipConfigPanel({ config, options, onChange, disabled, labelB
                             <Popover
                                 open={openPopoverId === item.id}
                                 onOpenChange={(open) => setOpenPopoverId(open ? item.id : null)}
-                                modal={true}
+                               // modal={true}
                             >
                                 <PopoverTrigger asChild>
                                     <Button variant="ghost" size="icon" title="Configure Related Task Fields" disabled={disabled}>
@@ -146,11 +146,19 @@ export function TooltipConfigPanel({ config, options, onChange, disabled, labelB
                                                     id={`related-${item.id}-${opt.id}`}
                                                     checked={(item.relatedTaskFields || (opt.id === 'name' ? ['name'] : [])).includes(opt.id)}
                                                     onCheckedChange={(checked) => {
-                                                        const current = item.relatedTaskFields || ['name'];
-                                                        const next = checked
-                                                            ? [...current, opt.id]
-                                                            : current.filter(f => f !== opt.id);
+                                                        // 1. Calculate the current state, resolving defaults immediately
+                                                        const currentDefaults = opt.id === 'name' ? ['name'] : [];
+                                                        const current = item.relatedTaskFields || currentDefaults;
+                                                        // 2. Calculate next state
+                                                        let next;
+                                                        if (checked) {
+                                                            next = [...current, opt.id];
+                                                        } else {
+                                                            next = current.filter(f => f !== opt.id);
+                                                        }
+                                                        // 3. Update
                                                         handleUpdateLine(item.id, { relatedTaskFields: next });
+
                                                     }}
                                                 />
                                                 <Label htmlFor={`related-${item.id}-${opt.id}`}>{opt.label}</Label>
