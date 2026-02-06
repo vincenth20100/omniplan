@@ -388,6 +388,8 @@ export function Timeline({
                               columns={columns}
                               resources={resources}
                               assignments={assignments}
+                              links={links}
+                              tasks={allTasks}
                             />
                           )}
                           {baselineTask && !task.isSummary && (
