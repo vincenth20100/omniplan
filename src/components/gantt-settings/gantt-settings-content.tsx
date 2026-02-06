@@ -306,6 +306,7 @@ export function GanttSettingsContent({
                       options={allOptions}
                       onChange={(newConfig) => updateTooltipSettings('tableTooltipConfig', newConfig)}
                       disabled={!isEditor}
+                      labelBeforeField={true}
                   />
               </div>
             </div>
