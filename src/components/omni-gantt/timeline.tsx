@@ -384,6 +384,7 @@ export function Timeline({
                               projectTextColors={projectTextColors}
                               projectCriticalPathColors={projectCriticalPathColors}
                               tooltipFields={ganttSettings.tooltipFields}
+                              tooltipConfig={ganttSettings.tooltipConfig}
                               columns={columns}
                               resources={resources}
                               assignments={assignments}

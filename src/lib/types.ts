@@ -166,12 +166,21 @@ export interface TaskLabelSetting {
     location: 'inside' | 'left' | 'right' | 'top' | 'bottom';
 }
 
+export interface TooltipFieldSetting {
+    id: string;
+    field: string;
+    label: string;
+    isEnabled?: boolean;
+}
+
 export interface GanttSettings {
   viewMode: 'day' | 'week' | 'month' | 'quarter' | 'semester' | 'year';
   zoom?: number;
   taskLabels?: TaskLabelSetting[];
-  tooltipFields?: string[];
-  tableTooltipFields?: string[];
+  tooltipFields?: string[]; // Deprecated: use tooltipConfig
+  tableTooltipFields?: string[]; // Deprecated: use tableTooltipConfig
+  tooltipConfig?: TooltipFieldSetting[];
+  tableTooltipConfig?: TooltipFieldSetting[];
   showDependencies: boolean;
   showProgress: boolean;
   highlightNonWorkingTime: boolean;

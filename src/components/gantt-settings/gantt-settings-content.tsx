@@ -15,6 +15,8 @@ import { Input } from "../ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "../ui/button";
+import { TooltipConfigPanel } from "./tooltip-config-panel";
+import type { TooltipFieldSetting } from "@/lib/types";
 
 export function GanttSettingsContent({
   settings,
@@ -70,25 +72,33 @@ export function GanttSettingsContent({
       });
   }
 
-  const toggleTooltipField = (fieldId: string, checked: boolean, settingKey: 'tooltipFields' | 'tableTooltipFields') => {
-    const currentFields = settings[settingKey] || [];
-    if (checked) {
-        if (!currentFields.includes(fieldId)) {
-            // Sort according to allOptions order to keep UI consistent if possible, or just append
-             const allIds = allOptions.map(o => o.id);
-            const newFields = [...currentFields, fieldId].sort((a, b) => {
-                 const idxA = allIds.indexOf(a);
-                 const idxB = allIds.indexOf(b);
-                 if (idxA === -1) return 1;
-                 if (idxB === -1) return -1;
-                 return idxA - idxB;
-            });
-            handleSettingChange(settingKey, newFields);
-        }
-    } else {
-        handleSettingChange(settingKey, currentFields.filter(id => id !== fieldId));
-    }
+  const getTooltipConfig = (config: TooltipFieldSetting[] | undefined, fields: string[] | undefined): TooltipFieldSetting[] => {
+      if (config) return config;
+      if (!fields) return [];
+      return fields.map(fieldId => {
+          const option = allOptions.find(o => o.id === fieldId);
+          return {
+              id: fieldId,
+              field: fieldId,
+              label: option?.label || fieldId,
+          };
+      });
   };
+
+  const updateTooltipSettings = (key: 'tooltipConfig' | 'tableTooltipConfig', newConfig: TooltipFieldSetting[]) => {
+      const legacyKey = key === 'tooltipConfig' ? 'tooltipFields' : 'tableTooltipFields';
+      dispatch({
+          type: 'UPDATE_GANTT_SETTINGS',
+          payload: {
+              ...settings,
+              [key]: newConfig,
+              [legacyKey]: newConfig.map(c => c.field)
+          }
+      });
+  };
+
+  const currentTooltipConfig = getTooltipConfig(settings.tooltipConfig, settings.tooltipFields);
+  const currentTableTooltipConfig = getTooltipConfig(settings.tableTooltipConfig, settings.tableTooltipFields);
 
   return (
         <ScrollArea className="flex-grow h-full">
@@ -256,19 +266,12 @@ export function GanttSettingsContent({
             <div>
               <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Gantt Tooltip Configuration</h4>
               <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                      {allOptions.map((option) => (
-                          <div key={`gantt-${option.id}`} className="flex items-center space-x-2">
-                              <Checkbox
-                                  id={`gantt-tooltip-${option.id}`}
-                                  checked={(settings.tooltipFields || []).includes(option.id)}
-                                  onCheckedChange={(checked) => toggleTooltipField(option.id, checked as boolean, 'tooltipFields')}
-                                  disabled={!isEditor}
-                              />
-                              <Label htmlFor={`gantt-tooltip-${option.id}`}>{option.label}</Label>
-                          </div>
-                      ))}
-                  </div>
+                  <TooltipConfigPanel
+                      config={currentTooltipConfig}
+                      options={allOptions}
+                      onChange={(newConfig) => updateTooltipSettings('tooltipConfig', newConfig)}
+                      disabled={!isEditor}
+                  />
               </div>
             </div>
 
@@ -277,19 +280,12 @@ export function GanttSettingsContent({
              <div>
               <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Table Tooltip Configuration</h4>
               <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                      {allOptions.map((option) => (
-                          <div key={`table-${option.id}`} className="flex items-center space-x-2">
-                              <Checkbox
-                                  id={`table-tooltip-${option.id}`}
-                                  checked={(settings.tableTooltipFields || []).includes(option.id)}
-                                  onCheckedChange={(checked) => toggleTooltipField(option.id, checked as boolean, 'tableTooltipFields')}
-                                  disabled={!isEditor}
-                              />
-                              <Label htmlFor={`table-tooltip-${option.id}`}>{option.label}</Label>
-                          </div>
-                      ))}
-                  </div>
+                  <TooltipConfigPanel
+                      config={currentTableTooltipConfig}
+                      options={allOptions}
+                      onChange={(newConfig) => updateTooltipSettings('tableTooltipConfig', newConfig)}
+                      disabled={!isEditor}
+                  />
               </div>
             </div>
 
