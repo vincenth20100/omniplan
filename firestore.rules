@@ -8,7 +8,11 @@ service cloud.firestore {
     }
 
     function isGlobalAdmin() {
-      return isSignedIn() && (request.auth.token.admin == true || (request.auth.token.email != null && request.auth.token.email.lower() == 'vincent.heloin@gmail.com'));
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'vincent.heloin@gmail.com') ||
+        (exists(/databases/$(database)/documents/system/permissions) && get(/databases/$(database)/documents/system/permissions).data.admins.hasAny([request.auth.token.email]))
+      );
     }
 
     // --- Functions for reading existing documents ---
@@ -47,6 +51,7 @@ service cloud.firestore {
     // --- User Profile ---
     match /users/{userId} {
       allow read, create, update: if request.auth.uid == userId || isGlobalAdmin();
+      allow list: if isGlobalAdmin();
       allow delete: if isGlobalAdmin();
     }
     
@@ -163,10 +168,11 @@ service cloud.firestore {
     }
      // --- Invitations ---
     match /invitations/{invitationId} {
-      allow create: if isProjectEditor(request.resource.data.projectId) || isGlobalAdmin();
-      allow list: if isSignedIn();
-      allow delete: if isSignedIn();
-      allow read: if false;
+      allow create: if isGlobalAdmin() || (request.resource.data.projectId != null && isProjectEditor(request.resource.data.projectId));
+      allow delete: if isGlobalAdmin() || (resource.data.email == request.auth.token.email) || (resource.data.projectId != null && isProjectEditor(resource.data.projectId));
+      allow read: if isGlobalAdmin()
+                  || (resource.data.projectId != null && isProjectEditor(resource.data.projectId))
+                  || (request.auth.token.email != null && resource.data.email == request.auth.token.email);
       allow update: if false;
     }
   }
