@@ -1,7 +1,7 @@
 'use client';
 import React, { useRef, useEffect } from 'react';
 import { differenceInCalendarDays, addDays, format } from 'date-fns';
-import type { Task, UiDensity, Calendar, TaskLabelSetting } from '@/lib/types';
+import type { Task, UiDensity, Calendar, TaskLabelSetting, ColumnSpec, Resource, Assignment } from '@/lib/types';
 import { cn, getProjectColor } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
 import { Flame } from 'lucide-react';
@@ -10,7 +10,7 @@ import { TaskTooltip } from './task-tooltip';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, taskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {}, tooltipFields = [] }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, taskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {}, tooltipFields = [], columns, resources, assignments }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
@@ -30,6 +30,9 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     projectTextColors?: Record<string, string>;
     projectCriticalPathColors?: Record<string, string>;
     tooltipFields?: string[];
+    columns?: ColumnSpec[];
+    resources?: Resource[];
+    assignments?: Assignment[];
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
     const dragStartInfo = useRef<{
@@ -131,7 +134,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         const top = row * rowHeight + (rowHeight - milestoneSize) / 2;
 
         return (
-            <TaskTooltip task={task} tooltipFields={tooltipFields} dateFormat={dateFormat}>
+            <TaskTooltip task={task} tooltipFields={tooltipFields} dateFormat={dateFormat} columns={columns} resources={resources} assignments={assignments}>
             <div
                 ref={barRef}
                 className={cn("absolute flex items-center justify-center cursor-pointer", isSelected ? "z-10" : "")}
@@ -191,7 +194,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     const customTextStyle = (showTaskLabels && !isSummary && task.projectId && projectTextColors && projectTextColors[task.projectId]) ? { color: projectTextColors[task.projectId] } : {};
 
     return (
-        <TaskTooltip task={task} tooltipFields={tooltipFields} dateFormat={dateFormat}>
+        <TaskTooltip task={task} tooltipFields={tooltipFields} dateFormat={dateFormat} columns={columns} resources={resources} assignments={assignments}>
         <div
             ref={barRef}
             className={cn(

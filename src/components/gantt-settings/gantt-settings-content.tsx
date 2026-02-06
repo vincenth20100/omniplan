@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { GanttSettings, StylePreset, Baseline } from "@/lib/types";
+import type { GanttSettings, StylePreset, Baseline, ColumnSpec } from "@/lib/types";
 import { Input } from "../ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,6 +27,7 @@ export function GanttSettingsContent({
   isEditor,
   onSetBaseline,
   onManageBaselines,
+  columns,
 }: {
   settings: GanttSettings;
   stylePresets: StylePreset[];
@@ -37,6 +38,7 @@ export function GanttSettingsContent({
   isEditor: boolean;
   onSetBaseline?: () => void;
   onManageBaselines?: () => void;
+  columns: ColumnSpec[];
 }) {
   const handleSettingChange = (key: keyof GanttSettings, value: any) => {
     dispatch({
@@ -45,7 +47,7 @@ export function GanttSettingsContent({
     });
   };
 
-  const tooltipOptions = [
+  const standardTooltipOptions = [
     { id: 'name', label: 'Name' },
     { id: 'start', label: 'Start Date' },
     { id: 'finish', label: 'Finish Date' },
@@ -54,18 +56,38 @@ export function GanttSettingsContent({
     { id: 'status', label: 'Status' },
     { id: 'wbs', label: 'WBS' },
     { id: 'notes', label: 'Notes Indicator' },
+    { id: 'resourceNames', label: 'Resource Names' },
+    { id: 'cost', label: 'Cost' },
   ];
 
-  const toggleTooltipField = (fieldId: string, checked: boolean) => {
-    const currentFields = settings.tooltipFields || [];
+  // Combine standard options with columns. Prioritize standard options if ID matches.
+  const allOptions = [...standardTooltipOptions];
+
+  if (columns) {
+      columns.forEach(col => {
+          if (!allOptions.some(opt => opt.id === col.id)) {
+              allOptions.push({ id: col.id, label: col.name });
+          }
+      });
+  }
+
+  const toggleTooltipField = (fieldId: string, checked: boolean, settingKey: 'tooltipFields' | 'tableTooltipFields') => {
+    const currentFields = settings[settingKey] || [];
     if (checked) {
         if (!currentFields.includes(fieldId)) {
-            const allIds = tooltipOptions.map(o => o.id);
-            const newFields = [...currentFields, fieldId].sort((a, b) => allIds.indexOf(a) - allIds.indexOf(b));
-            handleSettingChange('tooltipFields', newFields);
+            // Sort according to allOptions order to keep UI consistent if possible, or just append
+             const allIds = allOptions.map(o => o.id);
+            const newFields = [...currentFields, fieldId].sort((a, b) => {
+                 const idxA = allIds.indexOf(a);
+                 const idxB = allIds.indexOf(b);
+                 if (idxA === -1) return 1;
+                 if (idxB === -1) return -1;
+                 return idxA - idxB;
+            });
+            handleSettingChange(settingKey, newFields);
         }
     } else {
-        handleSettingChange('tooltipFields', currentFields.filter(id => id !== fieldId));
+        handleSettingChange(settingKey, currentFields.filter(id => id !== fieldId));
     }
   };
 
@@ -233,18 +255,39 @@ export function GanttSettingsContent({
 
             {/* Tooltip Configuration Section */}
             <div>
-              <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Tooltip Configuration</h4>
+              <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Gantt Tooltip Configuration</h4>
               <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                      {tooltipOptions.map((option) => (
-                          <div key={option.id} className="flex items-center space-x-2">
+                      {allOptions.map((option) => (
+                          <div key={`gantt-${option.id}`} className="flex items-center space-x-2">
                               <Checkbox
-                                  id={`tooltip-${option.id}`}
+                                  id={`gantt-tooltip-${option.id}`}
                                   checked={(settings.tooltipFields || []).includes(option.id)}
-                                  onCheckedChange={(checked) => toggleTooltipField(option.id, checked as boolean)}
+                                  onCheckedChange={(checked) => toggleTooltipField(option.id, checked as boolean, 'tooltipFields')}
                                   disabled={!isEditor}
                               />
-                              <Label htmlFor={`tooltip-${option.id}`}>{option.label}</Label>
+                              <Label htmlFor={`gantt-tooltip-${option.id}`}>{option.label}</Label>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+            </div>
+
+            <Separator />
+
+             <div>
+              <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Table Tooltip Configuration</h4>
+              <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                      {allOptions.map((option) => (
+                          <div key={`table-${option.id}`} className="flex items-center space-x-2">
+                              <Checkbox
+                                  id={`table-tooltip-${option.id}`}
+                                  checked={(settings.tableTooltipFields || []).includes(option.id)}
+                                  onCheckedChange={(checked) => toggleTooltipField(option.id, checked as boolean, 'tableTooltipFields')}
+                                  disabled={!isEditor}
+                              />
+                              <Label htmlFor={`table-tooltip-${option.id}`}>{option.label}</Label>
                           </div>
                       ))}
                   </div>
