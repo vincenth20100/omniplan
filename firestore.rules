@@ -8,7 +8,7 @@ service cloud.firestore {
     }
 
     function isGlobalAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && (request.auth.token.admin == true || request.auth.token.email == 'vincent.heloin@gmail.com');
     }
 
     // --- Functions for reading existing documents ---

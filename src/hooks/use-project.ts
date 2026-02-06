@@ -2256,7 +2256,7 @@ export function useProject(user: User, projectId: string | null) {
     if (user) {
       setIsCheckingAdmin(true);
       user.getIdTokenResult(true).then((idTokenResult) => {
-        setIsAdmin(!!idTokenResult.claims.admin);
+        setIsAdmin(!!idTokenResult.claims.admin || user.email === 'vincent.heloin@gmail.com');
         setIsCheckingAdmin(false);
       });
     } else {
