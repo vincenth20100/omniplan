@@ -202,7 +202,7 @@ export const TimelineHeader = React.memo(({ startDate, endDate, scale, viewMode 
     const days = eachDayOfInterval({ start: startDate, end: endDate });
 
     return (
-        <div className="sticky top-0 z-20 bg-card">
+        <div className="sticky top-0 z-50 bg-background">
             {/* Top Row */}
             <div className="relative flex border-b h-12">
                 {TopRowUnits.map((unit) => (
