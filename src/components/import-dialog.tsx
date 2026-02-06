@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useState, useRef } from "react";
 import { Upload, Loader2, FileText, AlertTriangle, FileSpreadsheet, FileType } from "lucide-react";
 import { parseProjectXML, parsePrimaveraXER, parseProjectExcel, ImportedProjectData } from "@/lib/import-utils";
+import { analyzeProjectFile } from "@/lib/omniplan-utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ImportPreview } from "./import-preview";
 
@@ -60,54 +61,39 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
             } else if (name.endsWith('.xlsx') || name.endsWith('.csv')) {
                 const buffer = await selectedFile.arrayBuffer();
                 data = await parseProjectExcel(buffer);
-            } else if (name.endsWith('.mpp') || name.endsWith('.mpx') || name.endsWith('.pp') || name.endsWith('.gan')) {
-                 // Check if it's actually XML (text check on first bytes) - mainly for .mpp validity check
-                 let isXmlMpp = false;
-                 if (name.endsWith('.mpp')) {
-                     const header = await selectedFile.slice(0, 500).text();
-                     if (header.trim().startsWith('<')) {
-                         const text = await selectedFile.text();
-                         data = parseProjectXML(text);
-                         isXmlMpp = true;
-                     }
-                 }
+            } else if (name.endsWith('.mpp')) {
+                 // Use OmniPlan API
+                 data = await analyzeProjectFile(selectedFile);
+            } else if (name.endsWith('.mpx') || name.endsWith('.pp') || name.endsWith('.gan')) {
+                 // Server-Side Conversion for binary formats or non-native XMLs
+                 try {
+                     const formData = new FormData();
+                     formData.append('file', selectedFile);
 
-                 if (!isXmlMpp) {
-                     // Server-Side Conversion for binary formats or non-native XMLs
-                     try {
-                         const formData = new FormData();
-                         formData.append('file', selectedFile);
+                     const response = await fetch('/api/convert-project', {
+                         method: 'POST',
+                         body: formData
+                     });
 
-                         // Check if we want to force mock for testing (optional, remove for prod if strict)
-                         // For now, we call the endpoint.
-                         const response = await fetch('/api/convert-project', {
-                             method: 'POST',
-                             body: formData
-                         });
+                     if (response.ok) {
+                         const xmlText = await response.text();
+                         setXmlSource(xmlText);
+                         data = parseProjectXML(xmlText);
+                     } else {
+                         const errData = await response.json().catch(() => ({}));
+                         console.warn("Project Conversion unavailable:", errData);
 
-                         if (response.ok) {
-                             const xmlText = await response.text();
-                             setXmlSource(xmlText);
-                             data = parseProjectXML(xmlText);
-                         } else {
-                             // If the server returns 501 (Not Implemented) or fails, we fall back to the guide.
-                             // We can log the error or show it in the guide context if needed.
-                             const errData = await response.json().catch(() => ({}));
-                             console.warn("Project Conversion unavailable:", errData);
-
-                             setServerError(errData.details || errData.error || "Server conversion failed");
-                             setShowMppGuide(true);
-                             setIsParsing(false);
-                             return;
-                         }
-                     } catch (fetchErr) {
-                         console.error("Network error during project conversion:", fetchErr);
-                         // Network error -> Show guide as fallback
-                         setServerError("Network error during conversion");
+                         setServerError(errData.details || errData.error || "Server conversion failed");
                          setShowMppGuide(true);
                          setIsParsing(false);
                          return;
                      }
+                 } catch (fetchErr) {
+                     console.error("Network error during project conversion:", fetchErr);
+                     setServerError("Network error during conversion");
+                     setShowMppGuide(true);
+                     setIsParsing(false);
+                     return;
                  }
             } else {
                 throw new Error("Unsupported file format. Please use .xml, .xer, .xlsx, .csv, .mpp, .mpx, .pp, or .gan.");
