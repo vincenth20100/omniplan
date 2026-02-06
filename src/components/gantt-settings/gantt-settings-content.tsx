@@ -14,7 +14,6 @@ import type { GanttSettings, StylePreset, Baseline } from "@/lib/types";
 import { Input } from "../ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "../ui/button";
 
 export function GanttSettingsContent({
@@ -304,19 +303,9 @@ export function GanttSettingsContent({
             <Separator />
 
             {/* Advanced Customization */}
-            <Accordion type="single" collapsible>
-              <AccordionItem value="item-1">
-                <AccordionTrigger>Customize Theme</AccordionTrigger>
-                <AccordionContent>
-                  <div className="space-y-4 pt-4">
-                     <p className="text-sm text-muted-foreground">
-                        Use the detailed theme manager to customize colors, fonts, and layout for the entire project.
-                     </p>
-                    <Button variant="outline" className="w-full" onClick={onManageThemes} disabled={!isEditor}>Open Theme Manager</Button>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+            <div>
+              <Button variant="outline" className="w-full" onClick={onManageThemes} disabled={!isEditor}>Open Theme Manager</Button>
+            </div>
           </div>
         </ScrollArea>
   );
