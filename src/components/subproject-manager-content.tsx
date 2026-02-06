@@ -67,11 +67,20 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
             try {
                 // 1. Fetch Available Projects (to add)
                 let fetchedProjects: Project[] = [];
+                let fetchUserProjects = !isAdmin;
+
                 if (isAdmin) {
-                    const projectsQuery = query(collection(firestore, 'projects'));
-                    const querySnapshot = await getDocs(projectsQuery);
-                    fetchedProjects = querySnapshot.docs.map(snap => ({ ...snap.data(), id: snap.id } as Project));
-                } else {
+                    try {
+                        const projectsQuery = query(collection(firestore, 'projects'));
+                        const querySnapshot = await getDocs(projectsQuery);
+                        fetchedProjects = querySnapshot.docs.map(snap => ({ ...snap.data(), id: snap.id } as Project));
+                    } catch (error) {
+                        console.warn("Admin fetch failed, falling back to user fetch", error);
+                        fetchUserProjects = true;
+                    }
+                }
+
+                if (fetchUserProjects) {
                     const userDocRef = doc(firestore, 'users', user.uid);
                     const userDoc = await getDoc(userDocRef);
 
