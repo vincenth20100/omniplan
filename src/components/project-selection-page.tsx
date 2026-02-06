@@ -35,6 +35,9 @@ import { Plus, Loader2, LogOut, Users } from 'lucide-react';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 import { ProjectList, type ProjectWithMetadata } from './project-list';
 import { UserAdminDialog } from '@/components/admin/user-admin-dialog';
+import { ImportDialog } from './import-dialog';
+import { ImportedProjectData } from '@/lib/import-utils';
+import { Upload } from 'lucide-react';
 
 export function ProjectSelectionPage({ user }: { user: User }) {
     const firestore = useFirestore();
@@ -44,6 +47,8 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     const [projects, setProjects] = useState<ProjectWithMetadata[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [isImportOpen, setIsImportOpen] = useState(false);
     const [isCloning, setIsCloning] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [projectToDelete, setProjectToDelete] = useState<ProjectWithMetadata | null>(null);
@@ -261,6 +266,110 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             setIsCreating(false);
         }
     };
+
+    const handleImportProject = async (data: ImportedProjectData) => {
+        if (!firestore) return;
+        setIsImporting(true);
+        try {
+            const newProjectId = `proj-${Date.now()}`;
+            const batch = writeBatch(firestore);
+
+            const projectDocRef = doc(firestore, 'projects', newProjectId);
+            batch.set(projectDocRef, {
+                id: newProjectId,
+                name: data.name,
+                ownerId: user.uid,
+                createdAt: new Date(),
+                memberIds: [user.uid],
+                initials: data.name.substring(0, 2).toUpperCase(),
+                status: 'Active',
+                taskCount: data.tasks.length,
+                lastModified: new Date(),
+                // Try to infer start/finish from tasks
+                startDate: data.tasks.length > 0 ? new Date(Math.min(...data.tasks.map(t => t.start.getTime()))) : new Date(),
+                finishDate: data.tasks.length > 0 ? new Date(Math.max(...data.tasks.map(t => t.finish.getTime()))) : new Date(),
+            });
+
+            const memberDocRef = doc(firestore, 'projects', newProjectId, 'members', user.uid);
+            batch.set(memberDocRef, {
+                userId: user.uid,
+                role: 'owner',
+                displayName: user.displayName || 'User',
+                photoURL: user.photoURL || '',
+            });
+
+            const userDocRef = doc(firestore, 'users', user.uid);
+            batch.set(userDocRef, { id: user.uid, projectIds: arrayUnion(newProjectId) }, { merge: true });
+
+            await batch.commit(); // Commit project structure first
+
+            // Batch writes for subcollections
+            const allWriteOps: { path: string, data: any }[] = [];
+
+            data.tasks.forEach((task, index) => {
+                allWriteOps.push({
+                     path: `projects/${newProjectId}/tasks/${task.id}`,
+                     data: { ...task, order: index } // Add order if needed
+                });
+            });
+             data.links.forEach(link => {
+                allWriteOps.push({
+                     path: `projects/${newProjectId}/links/${link.id}`,
+                     data: link
+                });
+            });
+            data.resources.forEach(resource => {
+                allWriteOps.push({
+                     path: `projects/${newProjectId}/resources/${resource.id}`,
+                     data: resource
+                });
+            });
+            data.assignments.forEach(assignment => {
+                allWriteOps.push({
+                     path: `projects/${newProjectId}/assignments/${assignment.id}`,
+                     data: assignment
+                });
+            });
+             // Add default calendar if not present
+             if (data.calendars.length === 0) {
+                 initialCalendars.forEach(cal => {
+                     allWriteOps.push({
+                         path: `projects/${newProjectId}/calendars/${cal.id}`,
+                         data: cal
+                     });
+                 });
+             } else {
+                 data.calendars.forEach(cal => {
+                    allWriteOps.push({
+                        path: `projects/${newProjectId}/calendars/${cal.id}`,
+                        data: cal
+                    });
+                 });
+             }
+
+
+            const BATCH_SIZE = 490;
+            for (let i = 0; i < allWriteOps.length; i += BATCH_SIZE) {
+                const chunk = allWriteOps.slice(i, i + BATCH_SIZE);
+                const dataBatch = writeBatch(firestore);
+                chunk.forEach(op => {
+                    const docRef = doc(firestore, op.path);
+                    dataBatch.set(docRef, op.data);
+                });
+                await dataBatch.commit();
+            }
+
+            router.push(`/${newProjectId}`);
+        } catch (error) {
+            console.error("Error importing project:", error);
+            toast({
+                variant: 'destructive',
+                title: "Error Importing Project",
+                description: "There was an issue importing your project. Please try again.",
+            });
+            setIsImporting(false);
+        }
+    };
     
     const handleCloneProject = async (sourceProjectId: string) => {
         if (!firestore) return;
@@ -455,7 +564,15 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                             User Admin
                         </Button>
                     )}
-                    <Button onClick={handleCreateProject} disabled={isCreating}>
+                    <Button variant="outline" onClick={() => setIsImportOpen(true)} disabled={isImporting || isCreating}>
+                         {isImporting ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Upload className="mr-2 h-4 w-4" />
+                        )}
+                        Import Project
+                    </Button>
+                    <Button onClick={handleCreateProject} disabled={isCreating || isImporting}>
                         {isCreating ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
@@ -529,6 +646,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             )}
 
             <UserAdminDialog open={isUserAdminOpen} onOpenChange={setIsUserAdminOpen} />
+            <ImportDialog open={isImportOpen} onOpenChange={setIsImportOpen} onImport={handleImportProject} />
         </div>
     );
 }
