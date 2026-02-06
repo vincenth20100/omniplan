@@ -12,15 +12,28 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Download } from "lucide-react";
 
 interface ImportPreviewProps {
   data: ImportedProjectData;
+  xmlSource?: string | null;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-export function ImportPreview({ data, onCancel, onConfirm }: ImportPreviewProps) {
+export function ImportPreview({ data, xmlSource, onCancel, onConfirm }: ImportPreviewProps) {
+  const handleDownloadXml = () => {
+    if (!xmlSource) return;
+    const blob = new Blob([xmlSource], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${data.name.replace(/[^a-zA-Z0-9]/g, '_')}.xml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
   // Determine available columns based on the first few tasks
   const sampleTasks = data.tasks.slice(0, 20); // Check first 20 for data presence
 
@@ -112,6 +125,12 @@ export function ImportPreview({ data, onCancel, onConfirm }: ImportPreviewProps)
       </div>
 
       <div className="flex justify-end gap-3 pt-2">
+         {xmlSource && (
+             <Button variant="outline" onClick={handleDownloadXml}>
+                 <Download className="mr-2 h-4 w-4" />
+                 Download XML
+             </Button>
+         )}
          <Button variant="outline" onClick={onCancel}>Cancel</Button>
          <Button onClick={onConfirm} className="bg-green-600 hover:bg-green-700 text-white">
             <CheckCircle2 className="mr-2 h-4 w-4" />

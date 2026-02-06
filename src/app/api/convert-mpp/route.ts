@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { writeFile, unlink } from 'fs/promises';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
+    let tempPath: string | null = null;
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
@@ -39,20 +47,67 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // Real implementation would go here.
-        // For example, calling an external service or a local Java process.
+        const buffer = Buffer.from(await file.arrayBuffer());
+        // Sanitize filename to prevent directory traversal or weird chars issues in shell
+        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        tempPath = join(tmpdir(), `upload-${Date.now()}-${sanitizedName}`);
+        await writeFile(tempPath, buffer);
 
-        // Since we don't have a converter, return 501.
-        return NextResponse.json(
-            {
-                error: 'Server-side MPP conversion is not configured.',
-                details: 'To enable MPP import, you must configure a conversion service (e.g. MPXJ) in this API route.'
-            },
-            { status: 501 }
-        );
+        // Assume scripts/convert_mpp.py is in the project root.
+        const scriptPath = join(process.cwd(), 'scripts', 'convert_mpp.py');
 
-    } catch (error) {
+        // Command execution
+        // We assume python3 is available in the path.
+        const command = `python3 "${scriptPath}" "${tempPath}"`;
+
+        try {
+            // Increase maxBuffer to 10MB just in case XML is large
+            const { stdout, stderr } = await execAsync(command, { maxBuffer: 1024 * 1024 * 10 });
+
+            // Basic validation
+            if (!stdout || !stdout.trim().startsWith('<')) {
+                console.error("Conversion failed:", stderr);
+                throw new Error(stderr || "Conversion produced no output");
+            }
+
+            return new NextResponse(stdout, {
+                headers: {
+                    'Content-Type': 'application/xml',
+                    'Content-Disposition': `attachment; filename="${file.name.replace(/\.mpp$/i, '.xml')}"`
+                }
+            });
+
+        } catch (execError: any) {
+             console.error('Execution error:', execError);
+             const stderr = execError.stderr || execError.message;
+
+             // Detect missing python modules or python itself
+             if (stderr.includes('Missing required modules') || stderr.includes('ModuleNotFoundError') || stderr.includes('not found')) {
+                 return NextResponse.json(
+                    {
+                        error: 'Server configuration error',
+                        details: 'Python environment or dependencies (jpype1, mpxj) are missing/misconfigured.'
+                    },
+                    { status: 501 }
+                );
+             }
+
+             return NextResponse.json(
+                 { error: 'Conversion failed', details: stderr },
+                 { status: 500 }
+             );
+        }
+
+    } catch (error: any) {
         console.error('Error in convert-mpp:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
+    } finally {
+        if (tempPath) {
+            try {
+                await unlink(tempPath);
+            } catch (e) {
+                // Ignore cleanup errors
+            }
+        }
     }
 }
