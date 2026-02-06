@@ -266,8 +266,14 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             const subcollections = ['tasks', 'links', 'resources', 'assignments', 'calendars', 'views', 'settings'];
             const allWriteOps: { collectionPath: string, docId: string, data: any }[] = [];
 
-            for (const sub of subcollections) {
+            const subcollectionPromises = subcollections.map(async (sub) => {
                 const sourceCol = await getDocs(collection(firestore, 'projects', sourceProjectId, sub));
+                return { sub, sourceCol };
+            });
+
+            const results = await Promise.all(subcollectionPromises);
+
+            results.forEach(({ sub, sourceCol }) => {
                 sourceCol.forEach(docSnap => {
                     allWriteOps.push({
                         collectionPath: `projects/${newProjectId}/${sub}`,
@@ -275,7 +281,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                         data: docSnap.data(),
                     });
                 });
-            }
+            });
 
             const chunkSize = 490; // Firestore batch limit is 500, being safe
             for (let i = 0; i < allWriteOps.length; i += chunkSize) {
