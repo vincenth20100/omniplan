@@ -43,6 +43,8 @@ import { SetBaselineDialog } from './set-baseline-dialog';
 import { SubprojectManagerDialog } from './subproject-manager-dialog';
 import { THEME_VARIABLES } from '@/lib/theme-config';
 import { ProjectSidebar, type SidebarView } from '@/components/layout/sidebar/project-sidebar';
+import { ColumnManagerDialog } from '@/components/view-options/column-manager-dialog';
+import { ViewManagerDialog } from '@/components/view-options/view-manager-dialog';
 import { Slider } from "@/components/ui/slider";
 import {
   Select,
@@ -170,6 +172,8 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const [isSetBaselineOpen, setIsSetBaselineOpen] = useState(false);
   const [isInsertSubprojectOpen, setIsInsertSubprojectOpen] = useState(false);
   const [isResourcePanelOpen, setIsResourcePanelOpen] = useState(false);
+  const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false);
+  const [isViewManagerOpen, setIsViewManagerOpen] = useState(false);
   const [currentSidebarView, setCurrentSidebarView] = useState<SidebarView>('main');
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -259,6 +263,18 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   };
 
   const handleSidebarNavigate = (view: SidebarView) => {
+    if (!isMobile) {
+        if (view === 'resources') { setIsResourceDialogOpen(true); return; }
+        if (view === 'calendars') { setIsCalendarDialogOpen(true); return; }
+        if (view === 'subprojects') { setIsInsertSubprojectOpen(true); return; }
+        if (view === 'filters') { setIsFilterDialogOpen(true); return; }
+        if (view === 'grouping') { setIsGroupingDialogOpen(true); return; }
+        if (view === 'gantt-settings') { setIsGanttSettingsOpen(true); return; }
+        if (view === 'history') { setIsHistoryOpen(true); return; }
+        if (view === 'columns') { setIsColumnManagerOpen(true); return; }
+        if (view === 'manage-views') { setIsViewManagerOpen(true); return; }
+    }
+
     if (view === 'print') {
         setIsPrintPreviewOpen(true);
         setCurrentSidebarView('main');
@@ -624,6 +640,22 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             views={state.views}
             currentViewId={state.currentViewId}
             isDirty={state.isDirty}
+          />
+          <ColumnManagerDialog
+            open={isColumnManagerOpen}
+            onOpenChange={setIsColumnManagerOpen}
+            visibleColumns={state.visibleColumns}
+            columns={state.columns}
+            dispatch={dispatch}
+          />
+          <ViewManagerDialog
+            open={isViewManagerOpen}
+            onOpenChange={setIsViewManagerOpen}
+            views={state.views}
+            currentViewId={state.currentViewId}
+            isDirty={state.isDirty}
+            dispatch={dispatch}
+            isEditor={isEditorOrOwner}
           />
           <GanttSettingsPanel
             open={isGanttSettingsOpen}
