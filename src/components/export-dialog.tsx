@@ -195,11 +195,16 @@ export function ExportDialog({
                                 <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
                             </Label>
                         </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="xml" id="format-xml" />
-                            <Label htmlFor="format-xml" className="flex items-center cursor-pointer font-normal">
-                                <FileCode className="mr-2 h-4 w-4" /> MS Project (XML)
-                            </Label>
+                        <div className="flex items-start space-x-2">
+                            <RadioGroupItem value="xml" id="format-xml" className="mt-1" />
+                            <div className="grid gap-1">
+                                <Label htmlFor="format-xml" className="flex items-center cursor-pointer font-normal">
+                                    <FileCode className="mr-2 h-4 w-4" /> MS Project (.xml)
+                                </Label>
+                                <p className="text-[10px] text-muted-foreground pl-6">
+                                    Recommended for MS Project compatibility
+                                </p>
+                            </div>
                         </div>
                         <div className="flex items-center space-x-2">
                             <RadioGroupItem value="xer" id="format-xer" />
