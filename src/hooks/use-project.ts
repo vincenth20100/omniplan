@@ -2550,7 +2550,7 @@ export function useProject(user: User, projectId: string | null) {
             if (isEditAction(finalAction)) {
                  addDoc(collection(firestore, 'projects', projectId, 'history'), {
                      actionType: finalAction.type,
-                     payloadDescription: getPayloadDescription(finalAction, historyStateRef.current.present.tasks),
+                     payloadDescription: getPayloadDescription(finalAction, historyStateRef.current.present.tasks) ?? null,
                      timestamp: serverTimestamp(),
                      userId: user.uid,
                      userName: user.displayName || user.email || 'Unknown User'
@@ -2790,7 +2790,7 @@ export function useProject(user: User, projectId: string | null) {
             if (isEditAction(finalAction)) {
                  addDoc(collection(firestore, 'projects', projectId, 'history'), {
                      actionType: finalAction.type,
-                     payloadDescription: getPayloadDescription(finalAction, historyStateRef.current.present.tasks),
+                     payloadDescription: getPayloadDescription(finalAction, historyStateRef.current.present.tasks) ?? null,
                      timestamp: serverTimestamp(),
                      userId: user.uid,
                      userName: user.displayName || user.email || 'Unknown User'
