@@ -54,11 +54,11 @@ export function UserInitializer({ children }: { children: React.ReactNode }) {
                         batch.update(projectDocRef, {
                             memberIds: arrayUnion(user.uid)
                         });
-
-                        // Delete the invitation
-                        batch.delete(invitationDoc.ref);
-                        batchHasOps = true;
                     }
+
+                    // Delete the invitation (consume it)
+                    batch.delete(invitationDoc.ref);
+                    batchHasOps = true;
                 });
 
                 // Update or Create User Doc

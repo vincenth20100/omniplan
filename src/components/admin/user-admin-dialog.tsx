@@ -23,10 +23,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore } from "@/firebase";
-import { collection, query, getDocs, doc, updateDoc, deleteDoc, where, collectionGroup, orderBy, limit } from "firebase/firestore";
+import { collection, query, getDocs, doc, updateDoc, deleteDoc, where, collectionGroup, orderBy, limit, addDoc } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Loader2, Search, Trash2, Ban, CheckCircle } from "lucide-react";
+import { Loader2, Search, Trash2, Ban, CheckCircle, Mail, Send, X } from "lucide-react";
 import { PersistentLogList } from "@/components/history/persistent-log-list";
+import { useUser } from "@/firebase";
 import type { PersistentHistoryEntry } from "@/lib/types";
 
 interface UserDoc {
@@ -39,6 +40,14 @@ interface UserDoc {
     status?: 'active' | 'paused' | 'invited';
 }
 
+interface Invitation {
+    id: string;
+    email: string;
+    sentAt: any;
+    invitedBy: string;
+    projectId?: string;
+}
+
 interface UserAdminDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -46,6 +55,7 @@ interface UserAdminDialogProps {
 
 export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
     const firestore = useFirestore();
+    const { user: currentUser } = useUser();
     const { toast } = useToast();
     const isMobile = useIsMobile();
 
@@ -54,11 +64,17 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
     const [selectedUser, setSelectedUser] = useState<UserDoc | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Invitations
+    const [invitations, setInvitations] = useState<Invitation[]>([]);
+    const [loadingInvitations, setLoadingInvitations] = useState(false);
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [sendingInvite, setSendingInvite] = useState(false);
+
     // Activity Logs
     const [activityLogs, setActivityLogs] = useState<PersistentHistoryEntry[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
 
-    // Fetch users when dialog opens
+    // Fetch users and invitations when dialog opens
     useEffect(() => {
         if (open && firestore) {
             const fetchUsers = async () => {
@@ -73,13 +89,30 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
                     toast({
                         variant: "destructive",
                         title: "Error",
-                        description: "Could not fetch users list."
+                        description: "Could not fetch users list. " + (error as Error).message
                     });
                 } finally {
                     setLoading(false);
                 }
             };
+
+            const fetchInvitations = async () => {
+                setLoadingInvitations(true);
+                try {
+                    const q = query(collection(firestore, 'invitations'));
+                    const snapshot = await getDocs(q);
+                    const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invitation));
+                    setInvitations(fetched);
+                } catch (error) {
+                    console.error("Error fetching invitations:", error);
+                    // Silent fail if permission denied (non-admin view?) but we are in admin dialog
+                } finally {
+                    setLoadingInvitations(false);
+                }
+            };
+
             fetchUsers();
+            fetchInvitations();
         }
     }, [open, firestore, toast]);
 
@@ -146,7 +179,44 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
         }
     };
 
-    const content = (
+    const handleInviteUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!inviteEmail || !firestore || !currentUser) return;
+
+        setSendingInvite(true);
+        try {
+            const newInvite = {
+                email: inviteEmail.trim().toLowerCase(),
+                sentAt: new Date(),
+                invitedBy: currentUser.uid,
+                // Global invitation, no projectId
+            };
+            const docRef = await addDoc(collection(firestore, 'invitations'), newInvite);
+            setInvitations(prev => [{ id: docRef.id, ...newInvite }, ...prev]);
+            setInviteEmail('');
+            toast({ title: 'Invitation sent', description: `Invite sent to ${newInvite.email}` });
+        } catch (error) {
+            console.error("Error sending invite:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not send invitation.' });
+        } finally {
+            setSendingInvite(false);
+        }
+    };
+
+    const handleDeleteInvitation = async (id: string) => {
+        if (!firestore) return;
+        if (!confirm("Revoke this invitation?")) return;
+        try {
+            await deleteDoc(doc(firestore, 'invitations', id));
+            setInvitations(prev => prev.filter(i => i.id !== id));
+            toast({ title: 'Invitation revoked' });
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not revoke invitation.' });
+        }
+    };
+
+    const userManagementContent = (
         <div className="flex h-full gap-4 mt-4">
             {/* User List */}
             <div className={`w-1/3 flex flex-col min-w-[250px] border-r pr-4 ${isMobile ? (selectedUser ? 'hidden' : 'w-full') : ''}`}>
@@ -265,6 +335,82 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
                 )}
             </div>
         </div>
+    );
+
+    const content = (
+        <Tabs defaultValue="users" className="flex-1 flex flex-col overflow-hidden mt-4">
+            <div className="flex justify-between items-center">
+                <TabsList>
+                    <TabsTrigger value="users">User List</TabsTrigger>
+                    <TabsTrigger value="invitations">Invitations</TabsTrigger>
+                </TabsList>
+            </div>
+
+            <TabsContent value="users" className="flex-1 overflow-hidden">
+                {userManagementContent}
+            </TabsContent>
+
+            <TabsContent value="invitations" className="flex-1 flex flex-col overflow-hidden">
+                <div className="mb-6 p-4 border rounded-lg bg-secondary/20">
+                    <h3 className="text-sm font-medium mb-2">Invite New User</h3>
+                    <form onSubmit={handleInviteUser} className="flex gap-2">
+                        <div className="relative flex-1">
+                            <Mail className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="email"
+                                placeholder="Enter email address"
+                                className="pl-8"
+                                value={inviteEmail}
+                                onChange={(e) => setInviteEmail(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <Button type="submit" disabled={sendingInvite}>
+                            {sendingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                            Send Invitation
+                        </Button>
+                    </form>
+                    <p className="text-xs text-muted-foreground mt-2">
+                        Invited users will be automatically recognized when they sign in with this email.
+                    </p>
+                </div>
+
+                <div className="flex-1 border rounded-md overflow-hidden flex flex-col">
+                    <div className="p-3 border-b bg-muted/40 font-medium text-sm grid grid-cols-[1fr_auto_auto] gap-4">
+                        <span>Email</span>
+                        <span>Sent Date</span>
+                        <span>Action</span>
+                    </div>
+                    <ScrollArea className="flex-1">
+                        {loadingInvitations ? (
+                            <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+                        ) : invitations.length === 0 ? (
+                            <div className="text-center text-muted-foreground p-8">No pending invitations.</div>
+                        ) : (
+                            <div className="divide-y">
+                                {invitations.map(invite => (
+                                    <div key={invite.id} className="p-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center">
+                                        <span className="font-medium">{invite.email}</span>
+                                        <span className="text-sm text-muted-foreground">
+                                            {invite.sentAt?.toDate ? invite.sentAt.toDate().toLocaleDateString() : 'Just now'}
+                                        </span>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            onClick={() => handleDeleteInvitation(invite.id)}
+                                            title="Revoke Invitation"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </ScrollArea>
+                </div>
+            </TabsContent>
+        </Tabs>
     );
 
     if (isMobile) {
