@@ -7,6 +7,13 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { HistoryEntry, Snapshot, PersistentHistoryEntry } from "@/lib/types";
 import { HistoryList } from "./history-list";
@@ -17,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Eye, RotateCcw } from "lucide-react";
 import { useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const safeFormat = (val: any, fmt: string) => {
     if (!val) return '';
@@ -92,6 +100,7 @@ export function HistoryPanel({
   onDeleteSnapshot,
   onPreviewSnapshot,
 }: HistoryPanelProps) {
+  const isMobile = useIsMobile();
   const [newSnapshotName, setNewSnapshotName] = useState('');
 
   const handleCreateSnapshot = () => {
@@ -101,21 +110,14 @@ export function HistoryPanel({
       }
   }
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-[400px] sm:w-[540px]">
-        <SheetHeader>
-          <SheetTitle>Project History</SheetTitle>
-          <SheetDescription>
-            View history, undo changes, or manage snapshots.
-          </SheetDescription>
-        </SheetHeader>
-        <Tabs defaultValue="activity" className="w-full mt-4">
-            <TabsList className="grid w-full grid-cols-2">
+  const tabsContent = (
+      <Tabs defaultValue="activity" className="w-full mt-4 flex-1 flex flex-col overflow-hidden">
+            <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
                 <TabsTrigger value="activity">Activity</TabsTrigger>
                 <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
             </TabsList>
-            <TabsContent value="activity" className="h-[calc(100vh-12rem)]">
+            <TabsContent value="activity" className="flex-1 overflow-hidden mt-2 relative min-h-0">
+                <div className="absolute inset-0">
                  <ScrollArea className="h-full">
                      <HistoryList history={history} currentIndex={currentIndex} dispatch={dispatch} />
                      {history.length > 0 && persistentHistory.length > 0 && <Separator className="my-4" />}
@@ -126,9 +128,10 @@ export function HistoryPanel({
                         </div>
                      )}
                  </ScrollArea>
+                 </div>
             </TabsContent>
-            <TabsContent value="snapshots" className="h-[calc(100vh-12rem)] flex flex-col">
-                 <div className="flex gap-2 p-1">
+            <TabsContent value="snapshots" className="flex-1 flex flex-col overflow-hidden mt-2 min-h-0">
+                 <div className="flex gap-2 p-1 flex-shrink-0">
                      <Input
                         placeholder="Snapshot Name"
                         value={newSnapshotName}
@@ -174,7 +177,35 @@ export function HistoryPanel({
                  </ScrollArea>
             </TabsContent>
         </Tabs>
-      </SheetContent>
-    </Sheet>
+  );
+
+  if (isMobile) {
+      return (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent side="left" className="w-[400px] sm:w-[540px] flex flex-col h-full">
+            <SheetHeader>
+              <SheetTitle>Project History</SheetTitle>
+              <SheetDescription>
+                View history, undo changes, or manage snapshots.
+              </SheetDescription>
+            </SheetHeader>
+            {tabsContent}
+          </SheetContent>
+        </Sheet>
+      );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-2xl h-[80vh] flex flex-col overflow-hidden">
+             <DialogHeader>
+              <DialogTitle>Project History</DialogTitle>
+              <DialogDescription>
+                View history, undo changes, or manage snapshots.
+              </DialogDescription>
+            </DialogHeader>
+            {tabsContent}
+        </DialogContent>
+    </Dialog>
   );
 }
