@@ -62,7 +62,12 @@ export async function POST(request: NextRequest) {
 
         try {
             // Increase maxBuffer to 10MB just in case XML is large
-            const { stdout, stderr } = await execAsync(command, { maxBuffer: 1024 * 1024 * 10 });
+            // Set PYTHONPATH to include locally installed python_modules
+            const pythonModulesPath = join(process.cwd(), 'python_modules');
+            const { stdout, stderr } = await execAsync(command, {
+                maxBuffer: 1024 * 1024 * 10,
+                env: { ...process.env, PYTHONPATH: pythonModulesPath }
+            });
 
             // Basic validation
             if (!stdout || !stdout.trim().startsWith('<')) {
