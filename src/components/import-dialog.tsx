@@ -11,8 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useRef } from "react";
-import { Upload, Loader2, FileText, AlertTriangle } from "lucide-react";
-import { parseProjectXML, parsePrimaveraXER, ImportedProjectData } from "@/lib/import-utils";
+import { Upload, Loader2, FileText, AlertTriangle, FileSpreadsheet, FileType } from "lucide-react";
+import { parseProjectXML, parsePrimaveraXER, parseProjectExcel, ImportedProjectData } from "@/lib/import-utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ImportPreview } from "./import-preview";
 
@@ -28,6 +28,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
     const [importData, setImportData] = useState<ImportedProjectData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [showPreview, setShowPreview] = useState(false);
+    const [showMppGuide, setShowMppGuide] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -40,25 +41,34 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         setError(null);
         setImportData(null);
         setShowPreview(false);
+        setShowMppGuide(false);
 
         try {
-            const text = await selectedFile.text();
-            let data: ImportedProjectData | null = null;
             const name = selectedFile.name.toLowerCase();
+            let data: ImportedProjectData | null = null;
 
             if (name.endsWith('.xml')) {
+                const text = await selectedFile.text();
                 data = parseProjectXML(text);
             } else if (name.endsWith('.xer')) {
+                const text = await selectedFile.text();
                 data = parsePrimaveraXER(text);
+            } else if (name.endsWith('.xlsx') || name.endsWith('.csv')) {
+                const buffer = await selectedFile.arrayBuffer();
+                data = await parseProjectExcel(buffer);
             } else if (name.endsWith('.mpp')) {
+                 const text = await selectedFile.text();
                  if (text.trim().startsWith('<')) {
-                     // Try parsing as XML
+                     // Try parsing as XML (sometimes saved as .mpp but is XML)
                      data = parseProjectXML(text);
                  } else {
-                     throw new Error("Direct binary .mpp import is not supported. Please save your project as XML in Microsoft Project to import.");
+                     // Binary MPP - Show Guide
+                     setShowMppGuide(true);
+                     setIsParsing(false);
+                     return;
                  }
             } else {
-                throw new Error("Unsupported file format. Please use .xml, .mpp (XML format), or .xer.");
+                throw new Error("Unsupported file format. Please use .xml, .xer, .xlsx, .csv, or .mpp.");
             }
 
             if (data) {
@@ -82,6 +92,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         setImportData(null);
         setError(null);
         setShowPreview(false);
+        setShowMppGuide(false);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -100,14 +111,41 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
             <DialogContent className={showPreview ? "sm:max-w-[850px]" : "sm:max-w-[500px]"}>
                 <DialogHeader>
                     <DialogTitle>Import Project</DialogTitle>
-                    {!showPreview && (
+                    {!showPreview && !showMppGuide && (
                         <DialogDescription>
-                            Upload a Microsoft Project (.xml, .mpp) or Primavera P6 (.xer) file to create a new project.
+                            Upload a project file to create a new project.
+                            <br />
+                            Supported formats: MS Project XML (.xml), Excel (.xlsx, .csv), Primavera P6 (.xer).
                         </DialogDescription>
                     )}
                 </DialogHeader>
 
-                {showPreview && importData ? (
+                {showMppGuide ? (
+                    <div className="space-y-4 py-2">
+                        <Alert className="bg-blue-50 border-blue-200">
+                             <FileType className="h-4 w-4 text-blue-600" />
+                             <AlertTitle className="text-blue-800">Binary .mpp file detected</AlertTitle>
+                             <AlertDescription className="text-blue-700">
+                                 Direct import of binary .mpp files is not supported in the browser due to the proprietary format.
+                             </AlertDescription>
+                        </Alert>
+
+                        <div className="space-y-3 text-sm">
+                            <p>To import your project, please use Microsoft Project to save it in a supported format:</p>
+                            <ol className="list-decimal list-inside space-y-2 ml-2">
+                                <li>Open your project in Microsoft Project</li>
+                                <li>Go to <strong>File &gt; Save As</strong></li>
+                                <li>Choose <strong>XML Format (*.xml)</strong> OR <strong>Excel Workbook (*.xlsx)</strong></li>
+                                <li>Save the file and upload it here</li>
+                            </ol>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button variant="outline" onClick={handleReset}>Back</Button>
+                            <Button onClick={() => fileInputRef.current?.click()}>Upload Converted File</Button>
+                        </div>
+                    </div>
+                ) : showPreview && importData ? (
                     <ImportPreview
                         data={importData}
                         onCancel={handleReset}
@@ -121,12 +159,12 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                                      onClick={() => fileInputRef.current?.click()}>
                                     <Upload className="h-10 w-10 text-muted-foreground mb-4" />
                                     <p className="text-sm font-medium text-muted-foreground">Click to upload or drag and drop</p>
-                                    <p className="text-xs text-muted-foreground mt-1">.xml, .mpp (XML), or .xer files</p>
+                                    <p className="text-xs text-muted-foreground mt-1">.xml, .xlsx, .csv, .xer, or .mpp</p>
                                     <Input
                                         ref={fileInputRef}
                                         id="file-upload"
                                         type="file"
-                                        accept=".xml,.xer,.mpp"
+                                        accept=".xml,.xer,.mpp,.xlsx,.csv"
                                         className="hidden"
                                         onChange={handleFileChange}
                                     />
@@ -134,7 +172,11 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                             ) : (
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3 p-3 border rounded-md bg-muted/20">
-                                        <FileText className="h-6 w-6 text-primary" />
+                                        {file.name.endsWith('.xlsx') || file.name.endsWith('.csv') ? (
+                                            <FileSpreadsheet className="h-6 w-6 text-green-600" />
+                                        ) : (
+                                            <FileText className="h-6 w-6 text-primary" />
+                                        )}
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-medium truncate">{file.name}</p>
                                             <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
