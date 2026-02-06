@@ -31,9 +31,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Loader2, LogOut } from 'lucide-react';
+import { Plus, Loader2, LogOut, Users } from 'lucide-react';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 import { ProjectList, type ProjectWithMetadata } from './project-list';
+import { UserAdminDialog } from '@/components/admin/user-admin-dialog';
 
 export function ProjectSelectionPage({ user }: { user: User }) {
     const firestore = useFirestore();
@@ -48,6 +49,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     const [projectToDelete, setProjectToDelete] = useState<ProjectWithMetadata | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
+    const [isUserAdminOpen, setIsUserAdminOpen] = useState(false);
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState<ProjectWithMetadata | null>(null);
@@ -55,6 +57,39 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     const handleSignOut = () => {
         signOut(auth);
     }
+
+    // Sync user profile to users collection
+    useEffect(() => {
+        if (user && firestore) {
+            const syncUser = async () => {
+                const userRef = doc(firestore, 'users', user.uid);
+                // Try update first
+                try {
+                     await updateDoc(userRef, {
+                        displayName: user.displayName,
+                        email: user.email,
+                        photoURL: user.photoURL,
+                        lastLogin: new Date(),
+                    });
+                } catch (e: any) {
+                    // If document doesn't exist, create it with set (using batch for consistency with other parts or just setDoc)
+                    if (e.code === 'not-found') {
+                         const batch = writeBatch(firestore);
+                         batch.set(userRef, {
+                            id: user.uid,
+                            projectIds: [],
+                            displayName: user.displayName,
+                            email: user.email,
+                            photoURL: user.photoURL,
+                            lastLogin: new Date(),
+                         });
+                         await batch.commit();
+                    }
+                }
+            };
+            syncUser();
+        }
+    }, [user, firestore]);
 
     const handleOpenSettings = (project: ProjectWithMetadata) => {
         setSelectedProject(project);
@@ -406,6 +441,12 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             <header className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold">{isAdmin ? 'All Projects' : 'Your Projects'}</h1>
                 <div className="flex items-center gap-4">
+                    {isAdmin && (
+                        <Button variant="outline" onClick={() => setIsUserAdminOpen(true)}>
+                            <Users className="mr-2 h-4 w-4" />
+                            User Admin
+                        </Button>
+                    )}
                     <Button onClick={handleCreateProject} disabled={isCreating}>
                         {isCreating ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -478,6 +519,8 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                     }}
                 />
             )}
+
+            <UserAdminDialog open={isUserAdminOpen} onOpenChange={setIsUserAdminOpen} />
         </div>
     );
 }

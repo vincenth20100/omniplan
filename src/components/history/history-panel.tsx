@@ -18,60 +18,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { HistoryEntry, Snapshot, PersistentHistoryEntry } from "@/lib/types";
 import { HistoryList } from "./history-list";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Eye, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-
-const safeFormat = (val: any, fmt: string) => {
-    if (!val) return '';
-    let date = val;
-    if (val?.toDate) date = val.toDate();
-    else if (!(val instanceof Date)) date = new Date(val);
-
-    try {
-        return format(date, fmt);
-    } catch (e) {
-        return '';
-    }
-}
-
-function PersistentLogList({ history }: { history: PersistentHistoryEntry[] }) {
-  if (history.length === 0) {
-      return <div className="text-center text-sm text-muted-foreground p-8">No history recorded.</div>;
-  }
-
-  const getActionDescription = (entry: PersistentHistoryEntry): string => {
-    const type = entry.actionType.replace(/_/g, ' ').toLowerCase();
-    return `${type} ${entry.payloadDescription || ''}`.trim();
-  }
-
-  return (
-    <div className="mt-4">
-        <div className="flex flex-col gap-4 pr-4 pb-4">
-            {history.map((entry) => (
-                <div key={entry.id} className="flex flex-col border-b pb-2 last:border-0">
-                    <div className="flex justify-between items-start">
-                        <span className="text-sm font-medium capitalize">{getActionDescription(entry)}</span>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                            {safeFormat(entry.timestamp, 'p')}
-                        </span>
-                    </div>
-                    <div className="flex justify-between items-center mt-1">
-                         <span className="text-xs text-muted-foreground">{entry.userName || 'Unknown'}</span>
-                         <span className="text-xs text-muted-foreground">
-                            {safeFormat(entry.timestamp, 'MMM d')}
-                         </span>
-                    </div>
-                </div>
-            ))}
-        </div>
-    </div>
-  );
-}
+import { PersistentLogList, safeFormat } from "./persistent-log-list";
 
 interface HistoryPanelProps {
   open: boolean;
