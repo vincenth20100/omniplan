@@ -129,13 +129,14 @@ export function TooltipConfigPanel({ config, options, onChange, disabled, labelB
                             <Popover
                                 open={openPopoverId === item.id}
                                 onOpenChange={(open) => setOpenPopoverId(open ? item.id : null)}
+                                modal={true}
                             >
                                 <PopoverTrigger asChild>
                                     <Button variant="ghost" size="icon" title="Configure Related Task Fields" disabled={disabled}>
                                         <Settings className="h-4 w-4" />
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-60">
+                                <PopoverContent className="w-60 z-[100]">
                                     <div className="space-y-2">
                                         <h4 className="font-medium leading-none mb-2">Displayed Fields</h4>
                                         <p className="text-xs text-muted-foreground mb-2">Select fields to display for each related task.</p>
