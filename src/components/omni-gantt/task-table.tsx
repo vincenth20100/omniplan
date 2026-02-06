@@ -581,6 +581,7 @@ export function TaskTable({
     }, [tasks, links, columns, visibleColumns, focusCell, editingCell, selectedTaskIds, grouping, selectionMode, anchorCell]);
 
     const idToWbsMap = React.useMemo(() => new Map(tasks.map(t => [t.id, t.wbs || ''])), [tasks]);
+    const taskMap = React.useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
     
     const getCellValueForEditing = useCallback((taskId: string, columnId: string): string => {
         const { tasks, links } = stateRef.current;
@@ -973,7 +974,6 @@ export function TaskTable({
             return;
         }
 
-        const taskMap = new Map(tasks.map(t => [t.id, t]));
         for (const sourceId of draggedIds) {
             let p: Task | undefined | null = taskMap.get(taskId);
             while (p) {
