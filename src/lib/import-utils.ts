@@ -437,3 +437,212 @@ export function parsePrimaveraXER(xerContent: string): ImportedProjectData {
         calendars: []
     };
 }
+
+// --- Excel / CSV Parser ---
+
+export async function parseProjectExcel(buffer: ArrayBuffer): Promise<ImportedProjectData> {
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+
+    // Convert to JSON with raw values to detect headers
+    const rawData = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1 });
+    if (rawData.length === 0) throw new Error("Excel file is empty");
+
+    // Identify Headers
+    const headers = (rawData[0] as string[]).map(h => (h || "").toString().toLowerCase().trim());
+    const dataRows = XLSX.utils.sheet_to_json<any>(worksheet);
+
+    // Column Mapping Helper
+    const findCol = (possibleNames: string[]): string | undefined => {
+        // Need to find key in the object which might not match lowercased headers exactly
+        // But `sheet_to_json` uses original headers as keys.
+        // So we match keys.
+        const keys = Object.keys(dataRows[0] || {});
+        return keys.find(k => possibleNames.includes(k.toLowerCase().trim()));
+    };
+
+    const idKey = findCol(['id', 'unique id']);
+    const nameKey = findCol(['name', 'task name', 'task']);
+    const durationKey = findCol(['duration']);
+    const startKey = findCol(['start', 'start_date', 'start date']);
+    const finishKey = findCol(['finish', 'finish_date', 'end date', 'end']);
+    const predKey = findCol(['predecessors', 'predecessor']);
+    const resKey = findCol(['resource names', 'resources', 'resource']);
+    const levelKey = findCol(['outline level', 'level', 'outlinelevel']);
+
+    if (!nameKey) throw new Error("Could not find 'Name' or 'Task Name' column in Excel file.");
+
+    const tasks: Task[] = [];
+    const links: Link[] = [];
+    const resources: Resource[] = [];
+    const assignments: Assignment[] = [];
+    const resourceMap = new Map<string, string>(); // Name -> ID
+    const taskIdMap = new Map<string | number, string>(); // Excel ID -> Internal ID
+
+    // Create Tasks
+    dataRows.forEach((row: any) => {
+        const id = generateId('task');
+        // Excel ID
+        const excelId = idKey ? row[idKey] : undefined;
+        if (excelId !== undefined) taskIdMap.set(excelId, id);
+        // If no ID, we might have trouble with links, but we proceed.
+
+        // Parse dates
+        let start = new Date();
+        let finish = new Date();
+
+        if (startKey && row[startKey]) {
+            start = row[startKey] instanceof Date ? row[startKey] : new Date(row[startKey]);
+        }
+        if (finishKey && row[finishKey]) {
+            finish = row[finishKey] instanceof Date ? row[finishKey] : new Date(row[finishKey]);
+        }
+
+        // Parse duration
+        let duration = 0;
+        if (durationKey && row[durationKey]) {
+            const d = row[durationKey];
+            if (typeof d === 'number') {
+                duration = d; // Assuming days?
+            } else if (typeof d === 'string') {
+                 // "5 days", "1 wk", "8 hrs"
+                 const val = parseFloat(d);
+                 if (!isNaN(val)) {
+                     if (d.includes('wk') || d.includes('week')) duration = val * 5;
+                     else if (d.includes('hr') || d.includes('hour')) duration = val / 8;
+                     else duration = val; // Default days
+                 }
+            }
+        } else {
+             // Fallback: Diff dates
+             if (start && finish && start.getTime() < finish.getTime()) {
+                 const diff = (finish.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+                 // Simple diff, excludes weekends? No, just raw diff.
+                 // We can approximate working days.
+                 duration = diff;
+             }
+        }
+
+        const task: Task = {
+            id,
+            name: row[nameKey] || 'Unnamed Task',
+            start,
+            finish,
+            duration: Math.max(0, duration),
+            percentComplete: 0, // Could search for % col
+            status: 'Active',
+            isSummary: false, // Will determine later? Or use Outline Level?
+            level: levelKey && row[levelKey] ? parseInt(row[levelKey]) - 1 : 0,
+            parentId: null
+        };
+
+        tasks.push(task);
+    });
+
+    // Fix Hierarchy if Level exists
+    if (levelKey) {
+        const stack: Task[] = [];
+        tasks.forEach(task => {
+            const level = task.level || 0;
+             if (level === 0) {
+                stack.length = 0;
+                stack.push(task);
+            } else {
+                while (stack.length > 0 && (stack[stack.length - 1].level || 0) >= level) {
+                    stack.pop();
+                }
+                if (stack.length > 0) {
+                    task.parentId = stack[stack.length - 1].id;
+                    // Mark parent as summary
+                    stack[stack.length - 1].isSummary = true;
+                }
+                stack.push(task);
+            }
+        });
+    }
+
+    // Pass 2: Links & Resources
+    dataRows.forEach((row: any, index) => {
+        const task = tasks[index];
+
+        // Links
+        if (predKey && row[predKey]) {
+            const preds = row[predKey].toString().split(/[,;]/); // Comma or semicolon
+            preds.forEach((p: string) => {
+                const trimmed = p.trim();
+                if (!trimmed) return;
+
+                // Parse: "ID" or "IDSS" or "IDFS+2d"
+                // Match ID (digits) and Type
+                const match = trimmed.match(/^(\d+)(FS|SS|FF|SF)?/i);
+                if (match) {
+                    const predIdStr = match[1];
+                    const typeStr = match[2] ? match[2].toUpperCase() : 'FS';
+
+                    // Look up internal ID
+                    // Excel IDs might be strings or numbers.
+                    // taskIdMap keys are whatever was in the cell.
+                    // We assume it matches predIdStr type (parsed as int?)
+
+                    let predId = taskIdMap.get(parseInt(predIdStr));
+                    if (!predId) predId = taskIdMap.get(predIdStr);
+
+                    if (predId) {
+                         links.push({
+                             id: generateId('link'),
+                             source: predId,
+                             target: task.id,
+                             type: typeStr as LinkType,
+                             lag: 0 // Lag parsing not implemented for now
+                         });
+                    }
+                }
+            });
+        }
+
+        // Resources
+        if (resKey && row[resKey]) {
+            const resNames = row[resKey].toString().split(/[,;]/);
+            resNames.forEach((r: string) => {
+                // "Name[50%]" or "Name"
+                const parts = r.match(/([^[]+)(?:\[(\d+)%?\])?/);
+                if (parts) {
+                    const name = parts[1].trim();
+                    const units = parts[2] ? parseInt(parts[2]) : 100;
+
+                    if (name) {
+                        let resId = resourceMap.get(name);
+                        if (!resId) {
+                            resId = generateId('res');
+                            resourceMap.set(name, resId);
+                            resources.push({
+                                id: resId,
+                                name: name,
+                                type: 'Work',
+                                availability: 1
+                            });
+                        }
+
+                        assignments.push({
+                            id: generateId('asn'),
+                            taskId: task.id,
+                            resourceId: resId,
+                            units
+                        });
+                    }
+                }
+            });
+        }
+    });
+
+    return {
+        name: "Imported Project",
+        tasks,
+        links,
+        resources,
+        assignments,
+        calendars: []
+    };
+}
