@@ -17,15 +17,15 @@ def convert(input_file):
             # mpxj module import adds the classpath automatically
             jpype.startJVM()
 
-        from org.mpxj.mpp import MPPReader
+        from org.mpxj.reader import UniversalProjectReader
         from org.mpxj.mspdi import MSPDIWriter
         from java.io import File, ByteArrayOutputStream
 
-        reader = MPPReader()
+        reader = UniversalProjectReader()
         try:
             project = reader.read(input_file)
         except Exception as e:
-            sys.stderr.write(f"Failed to read MPP file: {e}\n")
+            sys.stderr.write(f"Failed to read project file: {e}\n")
             sys.exit(1)
 
         writer = MSPDIWriter()
@@ -48,7 +48,7 @@ def convert(input_file):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        sys.stderr.write("Usage: python3 convert_mpp.py <input_mpp_file>\n")
+        sys.stderr.write("Usage: python3 convert_project.py <input_file>\n")
         sys.exit(1)
 
     input_path = sys.argv[1]

@@ -60,21 +60,27 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
             } else if (name.endsWith('.xlsx') || name.endsWith('.csv')) {
                 const buffer = await selectedFile.arrayBuffer();
                 data = await parseProjectExcel(buffer);
-            } else if (name.endsWith('.mpp')) {
-                 // Check if it's actually XML (text check on first bytes)
-                 const header = await selectedFile.slice(0, 500).text();
-                 if (header.trim().startsWith('<')) {
-                     const text = await selectedFile.text();
-                     data = parseProjectXML(text);
-                 } else {
-                     // Binary MPP - Attempt Server-Side Conversion
+            } else if (name.endsWith('.mpp') || name.endsWith('.mpx') || name.endsWith('.pp') || name.endsWith('.gan')) {
+                 // Check if it's actually XML (text check on first bytes) - mainly for .mpp validity check
+                 let isXmlMpp = false;
+                 if (name.endsWith('.mpp')) {
+                     const header = await selectedFile.slice(0, 500).text();
+                     if (header.trim().startsWith('<')) {
+                         const text = await selectedFile.text();
+                         data = parseProjectXML(text);
+                         isXmlMpp = true;
+                     }
+                 }
+
+                 if (!isXmlMpp) {
+                     // Server-Side Conversion for binary formats or non-native XMLs
                      try {
                          const formData = new FormData();
                          formData.append('file', selectedFile);
 
                          // Check if we want to force mock for testing (optional, remove for prod if strict)
                          // For now, we call the endpoint.
-                         const response = await fetch('/api/convert-mpp', {
+                         const response = await fetch('/api/convert-project', {
                              method: 'POST',
                              body: formData
                          });
@@ -87,7 +93,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                              // If the server returns 501 (Not Implemented) or fails, we fall back to the guide.
                              // We can log the error or show it in the guide context if needed.
                              const errData = await response.json().catch(() => ({}));
-                             console.warn("MPP Conversion unavailable:", errData);
+                             console.warn("Project Conversion unavailable:", errData);
 
                              setServerError(errData.details || errData.error || "Server conversion failed");
                              setShowMppGuide(true);
@@ -95,7 +101,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                              return;
                          }
                      } catch (fetchErr) {
-                         console.error("Network error during MPP conversion:", fetchErr);
+                         console.error("Network error during project conversion:", fetchErr);
                          // Network error -> Show guide as fallback
                          setServerError("Network error during conversion");
                          setShowMppGuide(true);
@@ -104,7 +110,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                      }
                  }
             } else {
-                throw new Error("Unsupported file format. Please use .xml, .xer, .xlsx, .csv, or .mpp.");
+                throw new Error("Unsupported file format. Please use .xml, .xer, .xlsx, .csv, .mpp, .mpx, .pp, or .gan.");
             }
 
             if (data) {
@@ -153,7 +159,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                         <DialogDescription>
                             Upload a project file to create a new project.
                             <br />
-                            Supported formats: MS Project XML (.xml), Excel (.xlsx, .csv), Primavera P6 (.xer).
+                            Supported formats: MS Project (.xml, .mpp, .mpx), Excel (.xlsx, .csv), Primavera P6 (.xer), Planner (.gan), Asta (.pp).
                         </DialogDescription>
                     )}
                 </DialogHeader>
@@ -169,9 +175,9 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                         )}
                         <Alert className="bg-blue-50 border-blue-200">
                              <FileType className="h-4 w-4 text-blue-600" />
-                             <AlertTitle className="text-blue-800">Binary .mpp file detected</AlertTitle>
+                             <AlertTitle className="text-blue-800">Conversion Failed</AlertTitle>
                              <AlertDescription className="text-blue-700">
-                                 Direct import of binary .mpp files is not supported in the browser due to the proprietary format.
+                                 Direct import of this proprietary format failed. Please try exporting to XML.
                              </AlertDescription>
                         </Alert>
 
@@ -205,12 +211,12 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                                      onClick={() => fileInputRef.current?.click()}>
                                     <Upload className="h-10 w-10 text-muted-foreground mb-4" />
                                     <p className="text-sm font-medium text-muted-foreground">Click to upload or drag and drop</p>
-                                    <p className="text-xs text-muted-foreground mt-1">.xml, .xlsx, .csv, .xer, or .mpp</p>
+                                    <p className="text-xs text-muted-foreground mt-1">.xml, .xlsx, .csv, .xer, .mpp, .mpx, .pp, .gan</p>
                                     <Input
                                         ref={fileInputRef}
                                         id="file-upload"
                                         type="file"
-                                        accept=".xml,.xer,.mpp,.xlsx,.csv"
+                                        accept=".xml,.xer,.mpp,.xlsx,.csv,.mpx,.pp,.gan"
                                         className="hidden"
                                         onChange={handleFileChange}
                                     />

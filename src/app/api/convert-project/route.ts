@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
         tempPath = join(tmpdir(), `upload-${Date.now()}-${sanitizedName}`);
         await writeFile(tempPath, buffer);
 
-        // Assume scripts/convert_mpp.py is in the project root.
-        const scriptPath = join(process.cwd(), 'scripts', 'convert_mpp.py');
+        // Assume scripts/convert_project.py is in the project root.
+        const scriptPath = join(process.cwd(), 'scripts', 'convert_project.py');
 
         // Command execution
         // We assume python3 is available in the path.
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
             return new NextResponse(stdout, {
                 headers: {
                     'Content-Type': 'application/xml',
-                    'Content-Disposition': `attachment; filename="${file.name.replace(/\.mpp$/i, '.xml')}"`
+                    'Content-Disposition': `attachment; filename="${file.name.replace(/\.[^/.]+$/, "")}.xml"`
                 }
             });
 
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         }
 
     } catch (error: any) {
-        console.error('Error in convert-mpp:', error);
+        console.error('Error in convert-project:', error);
         return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
     } finally {
         if (tempPath) {
