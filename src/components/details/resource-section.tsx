@@ -22,6 +22,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
 export function ResourceSection({
     task,
@@ -132,6 +133,11 @@ export function ResourceSection({
   const defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
   const effectiveCal = calendars.find(c => c.id === task.effectiveCalendarId) || defaultCalendar;
   const effectiveName = effectiveCal ? effectiveCal.name : 'Unknown';
+
+  const getResourceCalendarName = (resourceCalendarId?: string | null) => {
+    const cal = calendars.find(c => c.id === resourceCalendarId) || defaultCalendar;
+    return cal ? cal.name : null;
+  };
   const isOverridden = task.effectiveCalendarId !== (task.calendarId || defaultCalendar?.id);
   const hasConflict = !!task.calendarConflict;
 
@@ -143,11 +149,20 @@ export function ResourceSection({
                     ? (task.work || 0) * ((assignment.units || 0) / (totalUnits || 1))
                     : (task.duration || 0) * (assignment.units || 0) * 8; // Assuming 8hr work day
 
+               const resourceCalendarName = getResourceCalendarName(assignment.resource?.calendarId);
+
                return (
                    <div key={assignment.id} className="border rounded-md p-3 bg-card shadow-sm">
                        <div className="flex justify-between items-start mb-2">
                            <div className="flex flex-col min-w-0">
-                               <span className="font-semibold text-sm truncate">{assignment.resource?.name}</span>
+                               <span className="font-semibold text-sm truncate">
+                                   {resourceCalendarName && (
+                                       <Badge variant="outline" className="mr-2 text-[10px] h-5 px-1 font-normal text-muted-foreground">
+                                           {resourceCalendarName}
+                                       </Badge>
+                                   )}
+                                   {assignment.resource?.name}
+                               </span>
                                <span className="text-xs text-muted-foreground">{assignment.resource?.initials}</span>
                            </div>
                            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 -mr-2 -mt-2" onClick={() => handleRemoveAssignment(assignment.id)}>
@@ -221,10 +236,19 @@ export function ResourceSection({
                             ? (task.work || 0) * ((assignment.units || 0) / (totalUnits || 1))
                             : (task.duration || 0) * (assignment.units || 0) * 8; // Assuming 8hr work day
 
+                        const resourceCalendarName = getResourceCalendarName(assignment.resource?.calendarId);
+
                         return (
                             <TableRow key={assignment.id} className="h-8">
                                 <TableCell className="font-medium py-1 h-8">{assignment.resource?.initials}</TableCell>
-                                <TableCell className="py-1 h-8">{assignment.resource?.name}</TableCell>
+                                <TableCell className="py-1 h-8">
+                                    {resourceCalendarName && (
+                                       <Badge variant="outline" className="mr-2 text-[10px] h-5 px-1 font-normal text-muted-foreground">
+                                           {resourceCalendarName}
+                                       </Badge>
+                                   )}
+                                    {assignment.resource?.name}
+                                </TableCell>
                                 <TableCell className="text-right py-1 h-8">
                                     <EditableCell
                                         value={`${(assignment.units || 0) * 100}%`}
