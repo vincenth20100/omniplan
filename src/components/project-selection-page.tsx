@@ -8,6 +8,7 @@ import { collection, doc, getDoc, getDocs, writeBatch, deleteDoc, updateDoc, arr
 import type { Project } from '@/lib/types';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { ALL_COLUMNS } from '@/lib/columns';
+import { removeUndefined } from '@/lib/utils';
 import { signOut } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
@@ -309,25 +310,25 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             data.tasks.forEach((task, index) => {
                 allWriteOps.push({
                      path: `projects/${newProjectId}/tasks/${task.id}`,
-                     data: { ...task, order: index } // Add order if needed
+                     data: removeUndefined({ ...task, order: index }) // Add order if needed
                 });
             });
              data.links.forEach(link => {
                 allWriteOps.push({
                      path: `projects/${newProjectId}/links/${link.id}`,
-                     data: link
+                     data: removeUndefined(link)
                 });
             });
             data.resources.forEach(resource => {
                 allWriteOps.push({
                      path: `projects/${newProjectId}/resources/${resource.id}`,
-                     data: resource
+                     data: removeUndefined(resource)
                 });
             });
             data.assignments.forEach(assignment => {
                 allWriteOps.push({
                      path: `projects/${newProjectId}/assignments/${assignment.id}`,
-                     data: assignment
+                     data: removeUndefined(assignment)
                 });
             });
              // Add default calendar if not present
@@ -335,14 +336,14 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                  initialCalendars.forEach(cal => {
                      allWriteOps.push({
                          path: `projects/${newProjectId}/calendars/${cal.id}`,
-                         data: cal
+                         data: removeUndefined(cal)
                      });
                  });
              } else {
                  data.calendars.forEach(cal => {
                     allWriteOps.push({
                         path: `projects/${newProjectId}/calendars/${cal.id}`,
-                        data: cal
+                        data: removeUndefined(cal)
                     });
                  });
              }

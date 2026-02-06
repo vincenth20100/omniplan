@@ -376,7 +376,7 @@ export function parsePrimaveraXER(xerContent: string): ImportedProjectData {
             if (parentWbs) {
                 task.parentId = parentWbs.id;
             }
-            task.wbs = undefined; // Clear raw ID
+            delete task.wbs; // Clear raw ID
         }
     });
 

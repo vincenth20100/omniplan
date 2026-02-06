@@ -28,3 +28,13 @@ export function getProjectColor(projectId: string | undefined): string {
     const index = Math.abs(hash) % PROJECT_COLORS.length;
     return PROJECT_COLORS[index];
 }
+
+export function removeUndefined(obj: any): any {
+    const newObj: any = { ...obj };
+    Object.keys(newObj).forEach((key) => {
+        if (newObj[key] === undefined) {
+            delete newObj[key];
+        }
+    });
+    return newObj;
+}
