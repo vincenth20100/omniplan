@@ -328,17 +328,34 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             await deleteDoc(doc(firestore, 'projects', projectToDelete.id));
 
             const subcollections = ['tasks', 'links', 'resources', 'assignments', 'calendars', 'views', 'settings', 'members'];
-            for (const sub of subcollections) {
-                const subColQuery = query(collection(firestore, 'projects', projectToDelete.id, sub));
-                const subColSnapshot = await getDocs(subColQuery);
-                if (!subColSnapshot.empty) {
-                    const deleteBatch = writeBatch(firestore);
-                    subColSnapshot.forEach(doc => {
-                        deleteBatch.delete(doc.ref);
-                    });
-                    await deleteBatch.commit();
-                }
+
+            // Fetch all subcollections in parallel
+            const subColSnapshots = await Promise.all(
+                subcollections.map(sub =>
+                    getDocs(query(collection(firestore, 'projects', projectToDelete.id, sub)))
+                )
+            );
+
+            // Aggregate all documents to delete
+            const allDocsToDelete: any[] = [];
+            subColSnapshots.forEach(snapshot => {
+                snapshot.forEach(doc => {
+                    allDocsToDelete.push(doc.ref);
+                });
+            });
+
+            // Batch delete (chunking by 500)
+            const BATCH_SIZE = 500;
+            const batchPromises = [];
+
+            for (let i = 0; i < allDocsToDelete.length; i += BATCH_SIZE) {
+                const batch = writeBatch(firestore);
+                const chunk = allDocsToDelete.slice(i, i + BATCH_SIZE);
+                chunk.forEach(ref => batch.delete(ref));
+                batchPromises.push(batch.commit());
             }
+
+            await Promise.all(batchPromises);
 
             // Remove project ID from all members' user docs
             if (projectToDelete.memberIds && projectToDelete.memberIds.length > 0) {
