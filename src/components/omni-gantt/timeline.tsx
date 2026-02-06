@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import type { Task, Link, UiDensity, Calendar, GanttSettings, Baseline, RenderableRow, TaskRow } from '@/lib/types';
+import type { Task, Link, UiDensity, Calendar, GanttSettings, Baseline, RenderableRow, TaskRow, ColumnSpec, Resource, Assignment } from '@/lib/types';
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { TimelineHeader } from './timeline-header';
@@ -162,6 +162,9 @@ export function Timeline({
     projectTextColors,
     projectCriticalPathColors,
     disableScroll,
+    columns,
+    resources,
+    assignments,
 }: { 
     allTasks: Task[],
     renderableRows: RenderableRow[], 
@@ -178,6 +181,9 @@ export function Timeline({
     projectTextColors?: Record<string, string>,
     projectCriticalPathColors?: Record<string, string>,
     disableScroll?: boolean,
+    columns?: ColumnSpec[],
+    resources?: Resource[],
+    assignments?: Assignment[],
 }) {
   const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
@@ -378,6 +384,9 @@ export function Timeline({
                               projectTextColors={projectTextColors}
                               projectCriticalPathColors={projectCriticalPathColors}
                               tooltipFields={ganttSettings.tooltipFields}
+                              columns={columns}
+                              resources={resources}
+                              assignments={assignments}
                             />
                           )}
                           {baselineTask && !task.isSummary && (

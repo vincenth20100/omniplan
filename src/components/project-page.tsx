@@ -667,6 +667,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
             onManageThemes={() => setIsThemeManagerOpen(true)}
             isEditor={isEditorOrOwner}
             baselines={state.baselines}
+            columns={state.columns}
           />
           <DetailedThemeEditor
             open={isThemeManagerOpen}

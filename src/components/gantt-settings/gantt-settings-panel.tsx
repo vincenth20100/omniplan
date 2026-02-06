@@ -15,7 +15,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { GanttSettings, StylePreset, Baseline } from "@/lib/types";
+import type { GanttSettings, StylePreset, Baseline, ColumnSpec } from "@/lib/types";
 import { GanttSettingsContent } from "./gantt-settings-content";
 
 export function GanttSettingsPanel({
@@ -28,6 +28,7 @@ export function GanttSettingsPanel({
   dispatch,
   onManageThemes,
   isEditor,
+  columns,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -38,6 +39,7 @@ export function GanttSettingsPanel({
   dispatch: any;
   onManageThemes: () => void;
   isEditor: boolean;
+  columns: ColumnSpec[];
 }) {
   const isMobile = useIsMobile();
 
@@ -61,6 +63,7 @@ export function GanttSettingsPanel({
                 dispatch={dispatch}
                 onManageThemes={onManageThemes}
                 isEditor={isEditor}
+                columns={columns}
             />
           </div>
         </SheetContent>
@@ -87,6 +90,7 @@ export function GanttSettingsPanel({
                 dispatch={dispatch}
                 onManageThemes={onManageThemes}
                 isEditor={isEditor}
+                columns={columns}
             />
         </div>
       </DialogContent>

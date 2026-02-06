@@ -171,6 +171,7 @@ export interface GanttSettings {
   zoom?: number;
   taskLabels?: TaskLabelSetting[];
   tooltipFields?: string[];
+  tableTooltipFields?: string[];
   showDependencies: boolean;
   showProgress: boolean;
   highlightNonWorkingTime: boolean;

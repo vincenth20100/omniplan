@@ -93,6 +93,7 @@ export function GanttChart({
             projectColors: projectState.projectColors,
             projectTextColors: projectState.projectTextColors,
             projectCriticalPathColors: projectState.projectCriticalPathColors,
+            columns, resources, assignments,
     };
 
     if (disableScroll) {
