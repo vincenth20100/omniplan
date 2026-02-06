@@ -2571,8 +2571,13 @@ export function useProject(user: User, projectId: string | null) {
         const batch = writeBatch(firestore);
 
         // ... existing batch logic for tasks, links ...
+
+        // Optimizations: Create Maps for O(1) lookups to avoid O(N^2) complexity
+        const currentLinksMap = new Map(currentState.links.map(l => [l.id, l]));
+        const newLinksMap = new Map(newState.links.map(l => [l.id, l]));
+
         newState.links.forEach(newLink => {
-            const oldLink = currentState.links.find(l => l.id === newLink.id);
+            const oldLink = currentLinksMap.get(newLink.id);
             const { isDriving, ...linkData } = newLink;
 
             const effectiveTargetProjectId = newLink.targetProjectId || projectId;
@@ -2604,14 +2609,17 @@ export function useProject(user: User, projectId: string | null) {
             }
         });
         currentState.links.forEach(oldLink => {
-            if (!newState.links.some(l => l.id === oldLink.id)) {
+            if (!newLinksMap.has(oldLink.id)) {
                 const linkProjectId = oldLink.sourceProjectId || projectId;
                 batch.delete(doc(firestore, 'projects', linkProjectId, 'links', oldLink.id));
             }
         });
 
+        const currentResourcesMap = new Map(currentState.resources.map(r => [r.id, r]));
+        const newResourcesMap = new Map(newState.resources.map(r => [r.id, r]));
+
         newState.resources.forEach(newResource => {
-            const oldResource = currentState.resources.find(r => r.id === newResource.id);
+            const oldResource = currentResourcesMap.get(newResource.id);
             if (!oldResource) {
                 batch.set(doc(firestore, 'projects', projectId, 'resources', newResource.id), toFirestoreResource(newResource));
             } else {
@@ -2621,13 +2629,16 @@ export function useProject(user: User, projectId: string | null) {
             }
         });
         currentState.resources.forEach(oldResource => {
-            if (!newState.resources.some(r => r.id === oldResource.id)) {
+            if (!newResourcesMap.has(oldResource.id)) {
                 batch.delete(doc(firestore, 'projects', projectId, 'resources', oldResource.id));
             }
         });
 
+        const currentAssignmentsMap = new Map(currentState.assignments.map(a => [a.id, a]));
+        const newAssignmentsMap = new Map(newState.assignments.map(a => [a.id, a]));
+
         newState.assignments.forEach(newAssignment => {
-            const oldAssignment = currentState.assignments.find(a => a.id === newAssignment.id);
+            const oldAssignment = currentAssignmentsMap.get(newAssignment.id);
             const { resource, ...assignmentData } = newAssignment as any;
             if (!oldAssignment) {
                 batch.set(doc(firestore, 'projects', projectId, 'assignments', newAssignment.id), assignmentData);
@@ -2639,7 +2650,7 @@ export function useProject(user: User, projectId: string | null) {
             }
         });
         currentState.assignments.forEach(oldAssignment => {
-            if (!newState.assignments.some(a => a.id === oldAssignment.id)) {
+            if (!newAssignmentsMap.has(oldAssignment.id)) {
                 batch.delete(doc(firestore, 'projects', projectId, 'assignments', oldAssignment.id));
             }
         });
@@ -2662,10 +2673,13 @@ export function useProject(user: User, projectId: string | null) {
             }
         }
 
+        const currentTasksMap = new Map(currentState.tasks.map(t => [t.id, t]));
+        const newTasksMap = new Map(newState.tasks.map(t => [t.id, t]));
+
         newState.tasks.forEach(newTask => {
             if (newTask.id.startsWith('subproject-')) return;
 
-            const oldTask = currentState.tasks.find(t => t.id === newTask.id);
+            const oldTask = currentTasksMap.get(newTask.id);
             const targetProjectId = newTask.projectId || projectId;
 
             if (!oldTask) {
@@ -2678,7 +2692,7 @@ export function useProject(user: User, projectId: string | null) {
             }
         });
         currentState.tasks.forEach(oldTask => {
-            if (!newState.tasks.some(t => t.id === oldTask.id)) {
+            if (!newTasksMap.has(oldTask.id)) {
                 const targetProjectId = oldTask.projectId || projectId;
                 batch.delete(doc(firestore, 'projects', targetProjectId, 'tasks', oldTask.id));
             }
