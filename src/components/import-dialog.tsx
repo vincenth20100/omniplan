@@ -57,15 +57,49 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                 const buffer = await selectedFile.arrayBuffer();
                 data = await parseProjectExcel(buffer);
             } else if (name.endsWith('.mpp')) {
-                 const text = await selectedFile.text();
-                 if (text.trim().startsWith('<')) {
-                     // Try parsing as XML (sometimes saved as .mpp but is XML)
+                 // Check if it's actually XML (text check on first bytes)
+                 const header = await selectedFile.slice(0, 500).text();
+                 if (header.trim().startsWith('<')) {
+                     const text = await selectedFile.text();
                      data = parseProjectXML(text);
                  } else {
-                     // Binary MPP - Show Guide
-                     setShowMppGuide(true);
-                     setIsParsing(false);
-                     return;
+                     // Binary MPP - Attempt Server-Side Conversion
+                     try {
+                         const formData = new FormData();
+                         formData.append('file', selectedFile);
+
+                         // Check if we want to force mock for testing (optional, remove for prod if strict)
+                         // For now, we call the endpoint.
+                         const response = await fetch('/api/convert-mpp', {
+                             method: 'POST',
+                             body: formData
+                         });
+
+                         if (response.ok) {
+                             const xmlText = await response.text();
+                             data = parseProjectXML(xmlText);
+                         } else {
+                             // If the server returns 501 (Not Implemented) or fails, we fall back to the guide.
+                             // We can log the error or show it in the guide context if needed.
+                             const errData = await response.json().catch(() => ({}));
+                             console.warn("MPP Conversion unavailable:", errData);
+
+                             setShowMppGuide(true);
+                             setIsParsing(false);
+                             // If it was a generic error (not 501), maybe show it?
+                             // But 501 is expected if not configured.
+                             if (response.status !== 501) {
+                                 setError(errData.error || "Server conversion failed");
+                             }
+                             return;
+                         }
+                     } catch (fetchErr) {
+                         console.error("Network error during MPP conversion:", fetchErr);
+                         // Network error -> Show guide as fallback
+                         setShowMppGuide(true);
+                         setIsParsing(false);
+                         return;
+                     }
                  }
             } else {
                 throw new Error("Unsupported file format. Please use .xml, .xer, .xlsx, .csv, or .mpp.");
