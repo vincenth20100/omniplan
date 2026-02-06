@@ -1,6 +1,6 @@
 'use client';
 import type { Task, ColumnSpec, UiDensity, Link, Resource, Assignment, ProjectState, Calendar, GanttSettings, Baseline, SelectionMode, Filter, RenderableRow, TaskRow } from '@/lib/types';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from "@/components/ui/input";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -1173,14 +1173,15 @@ export function TaskTable({
 
     const content = (
         <div className="pb-40">
-                <Table className="border-collapse table-fixed" style={{ width: `${totalWidth}px` }}>
-                    <colgroup>
-                        <col style={{ width: '40px' }} />
-                        {orderedAndVisibleColumns.map((col) => (
-                            <col key={col.id} style={{ width: `${col.width}px` }} />
-                        ))}
-                    </colgroup>
-                    <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
+                <div className="relative w-full">
+                    <table className="w-full caption-bottom text-sm border-collapse table-fixed" style={{ width: `${totalWidth}px` }}>
+                        <colgroup>
+                            <col style={{ width: '40px' }} />
+                            {orderedAndVisibleColumns.map((col) => (
+                                <col key={col.id} style={{ width: `${col.width}px` }} />
+                            ))}
+                        </colgroup>
+                        <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
                         <TableRow>
                             <TableHead className="p-0 align-middle text-center">
                                 {onToggleFixed && (
@@ -1450,9 +1451,10 @@ export function TaskTable({
                                 </TaskTooltip>
                             )
                         })}
-                    </TableBody>
-                </Table>
+                        </TableBody>
+                    </table>
                 </div>
+        </div>
     );
 
 
