@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import type { TooltipFieldSetting } from "@/lib/types";
 import { Plus, Trash2, Settings } from "lucide-react";
@@ -14,9 +15,12 @@ interface TooltipConfigPanelProps {
     options: { id: string; label: string }[];
     onChange: (config: TooltipFieldSetting[]) => void;
     disabled?: boolean;
+    labelBeforeField?: boolean;
 }
 
-export function TooltipConfigPanel({ config, options, onChange, disabled }: TooltipConfigPanelProps) {
+export function TooltipConfigPanel({ config, options, onChange, disabled, labelBeforeField }: TooltipConfigPanelProps) {
+    const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
+
     const handleAddLine = () => {
         const newSetting: TooltipFieldSetting = {
             id: Date.now().toString(36) + Math.random().toString(36).substring(2),
@@ -59,26 +63,8 @@ export function TooltipConfigPanel({ config, options, onChange, disabled }: Tool
 
     return (
         <div className="space-y-2">
-            {config.map((item) => (
-                <div key={item.id} className="flex items-center gap-2">
-                    <div className="flex items-center gap-2" title="Display on same line as previous field">
-                         <Checkbox
-                            checked={!!item.displayInline}
-                            onCheckedChange={(checked) => handleUpdateLine(item.id, { displayInline: !!checked })}
-                            disabled={disabled}
-                        />
-                    </div>
-                    {item.displayInline && (
-                         <Input
-                            value={item.inlineSeparator || ''}
-                            onChange={(e) => handleUpdateLine(item.id, { inlineSeparator: e.target.value })}
-                            className="w-16 h-9 px-2 text-center"
-                            placeholder="Sep"
-                            title="Separator character (e.g. - )"
-                            disabled={disabled}
-                        />
-                    )}
-
+            {config.map((item) => {
+                const fieldSelector = (
                     <Select
                         value={item.field}
                         onValueChange={(value) => handleFieldChange(item.id, value)}
@@ -95,6 +81,9 @@ export function TooltipConfigPanel({ config, options, onChange, disabled }: Tool
                             ))}
                         </SelectContent>
                     </Select>
+                );
+
+                const labelInput = (
                     <Input
                         value={item.label}
                         onChange={(e) => handleUpdateLine(item.id, { label: e.target.value })}
@@ -102,49 +91,86 @@ export function TooltipConfigPanel({ config, options, onChange, disabled }: Tool
                         placeholder="Label"
                         disabled={disabled}
                     />
+                );
 
-                    {(item.field === 'predecessors' || item.field === 'successors') && (
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" title="Configure Related Task Fields" disabled={disabled}>
-                                    <Settings className="h-4 w-4" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-60">
-                                <div className="space-y-2">
-                                    <h4 className="font-medium leading-none mb-2">Displayed Fields</h4>
-                                    <p className="text-xs text-muted-foreground mb-2">Select fields to display for each related task.</p>
-                                    {relatedFieldsOptions.map(opt => (
-                                        <div key={opt.id} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`related-${item.id}-${opt.id}`}
-                                                checked={(item.relatedTaskFields || (opt.id === 'name' ? ['name'] : [])).includes(opt.id)}
-                                                onCheckedChange={(checked) => {
-                                                    const current = item.relatedTaskFields || ['name'];
-                                                    const next = checked
-                                                        ? [...current, opt.id]
-                                                        : current.filter(f => f !== opt.id);
-                                                    handleUpdateLine(item.id, { relatedTaskFields: next });
-                                                }}
-                                            />
-                                            <Label htmlFor={`related-${item.id}-${opt.id}`}>{opt.label}</Label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                    )}
+                return (
+                    <div key={item.id} className="flex items-center gap-2">
+                        <div className="flex items-center gap-2" title="Display on same line as previous field">
+                             <Checkbox
+                                checked={!!item.displayInline}
+                                onCheckedChange={(checked) => handleUpdateLine(item.id, { displayInline: !!checked })}
+                                disabled={disabled}
+                            />
+                        </div>
+                        {item.displayInline && (
+                             <Input
+                                value={item.inlineSeparator || ''}
+                                onChange={(e) => handleUpdateLine(item.id, { inlineSeparator: e.target.value })}
+                                className="w-16 h-9 px-2 text-center"
+                                placeholder="Sep"
+                                title="Separator character (e.g. - )"
+                                disabled={disabled}
+                            />
+                        )}
 
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveLine(item.id)}
-                        disabled={disabled}
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                </div>
-            ))}
+                        {labelBeforeField ? (
+                            <>
+                                {labelInput}
+                                {fieldSelector}
+                            </>
+                        ) : (
+                            <>
+                                {fieldSelector}
+                                {labelInput}
+                            </>
+                        )}
+
+                        {(item.field === 'predecessors' || item.field === 'successors') && (
+                            <Popover
+                                open={openPopoverId === item.id}
+                                onOpenChange={(open) => setOpenPopoverId(open ? item.id : null)}
+                            >
+                                <PopoverTrigger asChild>
+                                    <Button variant="ghost" size="icon" title="Configure Related Task Fields" disabled={disabled}>
+                                        <Settings className="h-4 w-4" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-60">
+                                    <div className="space-y-2">
+                                        <h4 className="font-medium leading-none mb-2">Displayed Fields</h4>
+                                        <p className="text-xs text-muted-foreground mb-2">Select fields to display for each related task.</p>
+                                        {relatedFieldsOptions.map(opt => (
+                                            <div key={opt.id} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`related-${item.id}-${opt.id}`}
+                                                    checked={(item.relatedTaskFields || (opt.id === 'name' ? ['name'] : [])).includes(opt.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        const current = item.relatedTaskFields || ['name'];
+                                                        const next = checked
+                                                            ? [...current, opt.id]
+                                                            : current.filter(f => f !== opt.id);
+                                                        handleUpdateLine(item.id, { relatedTaskFields: next });
+                                                    }}
+                                                />
+                                                <Label htmlFor={`related-${item.id}-${opt.id}`}>{opt.label}</Label>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        )}
+
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveLine(item.id)}
+                            disabled={disabled}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
+                );
+            })}
             <Button
                 variant="outline"
                 size="sm"
