@@ -73,6 +73,8 @@ export interface Task {
   zoneId?: string | null;
   customAttributes?: Record<string, any> | null;
   calendarId?: string | null;
+  effectiveCalendarId?: string;
+  calendarConflict?: string;
   additionalNotes?: string;
   notes?: Note[];
 

@@ -6,7 +6,7 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag, GripVertical, ArrowUp, ArrowDown, Pin, PinOff, History } from 'lucide-react';
+import { Flame, ChevronRight, ChevronDown, Settings2, Pencil, Trash2, MessageSquare, ArrowRight, Calendar as CalendarIndicatorIcon, Flag, GripVertical, ArrowUp, ArrowDown, Pin, PinOff, History, TriangleAlert } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { EditableCell } from './editable-cell';
 import { EditableDateCell } from './editable-date-cell';
@@ -40,6 +40,7 @@ const TaskCellRenderer = React.memo(({
     grouping,
     tasks,
     defaultCalendar,
+    calendars,
     isEditing,
     editingInitialValue,
     onStopEditing,
@@ -60,6 +61,7 @@ const TaskCellRenderer = React.memo(({
     grouping: string[];
     tasks: Task[];
     defaultCalendar: Calendar | null;
+    calendars: Calendar[];
     isEditing: boolean;
     editingInitialValue?: string;
     onStopEditing: () => void;
@@ -402,6 +404,45 @@ const TaskCellRenderer = React.memo(({
             const variance = calendarService.getWorkingDaysDuration(baselineTask.finish, task.finish, defaultCalendar);
             const textClass = variance > 0 ? 'text-destructive' : variance < 0 ? 'text-chart-2' : '';
             return <div className={cn("text-right pr-4", textClass)}>{variance !== 0 ? `${variance > 0 ? '+' : ''}${variance}d` : '0d'}</div>;
+        }
+        case 'calendar': {
+            if (task.isSummary) return null;
+
+            const calendarOptions = [
+                { value: 'default', label: 'Project Default' },
+                ...calendars.map(c => ({ value: c.id, label: c.name }))
+            ];
+
+            // If editing, use standard select cell binding to task.calendarId
+            if (isEditing) {
+                return (
+                    <EditableSelectCell
+                        value={task.calendarId || 'default'}
+                        onSave={(newValue) => {
+                            const val = newValue === 'default' ? null : newValue;
+                            dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, calendarId: val } });
+                        }}
+                        options={calendarOptions}
+                        placeholder="Select Calendar"
+                    />
+                );
+            }
+
+            // Display logic
+            const effectiveCal = calendars.find(c => c.id === task.effectiveCalendarId) || defaultCalendar;
+            const effectiveName = effectiveCal ? effectiveCal.name : 'Unknown';
+            const isOverridden = task.effectiveCalendarId !== (task.calendarId || defaultCalendar?.id);
+            const hasConflict = !!task.calendarConflict;
+
+            return (
+                <div className="flex items-center gap-1 w-full" title={task.calendarConflict || (isOverridden ? "Driven by Resource Calendar" : undefined)}>
+                    <span className={cn("truncate", isOverridden && "text-muted-foreground italic")}>
+                        {effectiveName}
+                    </span>
+                    {hasConflict && <TriangleAlert className="h-4 w-4 text-destructive flex-shrink-0" />}
+                    {!hasConflict && isOverridden && <span className="text-[10px] text-muted-foreground border rounded px-1">R</span>}
+                </div>
+            );
         }
         case 'lastComment': {
             const lastNote = task.notes && task.notes.length > 0 ? task.notes[task.notes.length - 1] : null;
@@ -1392,6 +1433,7 @@ export function TaskTable({
                                                         grouping={grouping}
                                                         tasks={tasks}
                                                         defaultCalendar={defaultCalendar}
+                                                        calendars={calendars}
                                                         isEditing={isEditing}
                                                         editingInitialValue={editingCell?.initialValue}
                                                         onStopEditing={onStopEditing}

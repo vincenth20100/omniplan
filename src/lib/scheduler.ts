@@ -1,7 +1,7 @@
 'use client';
-import type { Task, Link, ColumnSpec, Calendar } from './types';
+import type { Task, Link, ColumnSpec, Calendar, Assignment, Resource } from './types';
 import { calendarService } from './calendar';
-import { startOfDay, max } from 'date-fns';
+import { startOfDay, max, addYears } from 'date-fns';
 
 function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec[] | undefined, calendar: Calendar): Task[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
@@ -85,12 +85,70 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec
 }
 
 
-export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnSpec[] | undefined, calendar: Calendar): Task[] {
+export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnSpec[] | undefined, calendar: Calendar, assignments: Assignment[] = [], resources: Resource[] = [], calendars: Calendar[] = []): Task[] {
     const taskMap = new Map<string, Task>(tasks.map(task => [task.id, { ...task }]));
     const predecessorsMap = new Map<string, Link[]>();
     const successorsMap = new Map<string, Link[]>();
     const inDegree = new Map<string, number>();
+    const taskCalendarMap = new Map<string, Calendar>();
     
+    // Determine effective calendar for each task
+    for (const task of tasks) {
+        let effectiveCalendar = calendar; // Default to project calendar
+        let conflictMsg: string | undefined = undefined;
+
+        // Check for assigned resources
+        const taskAssignments = assignments.filter(a => a.taskId === task.id);
+        if (taskAssignments.length > 0) {
+            const assignedResources = taskAssignments.map(a => resources.find(r => r.id === a.resourceId)).filter(Boolean) as Resource[];
+
+            // Get unique calendar IDs from resources
+            // If resource has no calendarId, it implies project default? Or undefined?
+            // "The ressources shall then also for each have a possibility to specify a specific calendar."
+            // Assuming fallback to project calendar if not specified.
+            const resourceCalendars = assignedResources.map(r => {
+                if (r.calendarId) {
+                    return calendars.find(c => c.id === r.calendarId) || calendar;
+                }
+                return calendar;
+            });
+
+            // Deduplicate based on ID
+            const uniqueCalendars = Array.from(new Map(resourceCalendars.map(c => [c.id, c])).values());
+
+            if (uniqueCalendars.length === 1) {
+                effectiveCalendar = uniqueCalendars[0];
+            } else if (uniqueCalendars.length > 1) {
+                conflictMsg = "Multiple resources with different calendars assigned. Using the most restrictive calendar.";
+
+                // Find the one with least working days in a sample year
+                const sampleStart = new Date();
+                const sampleEnd = addYears(sampleStart, 1);
+
+                let minWorkingDays = Infinity;
+                let mostRestrictiveCal = uniqueCalendars[0];
+
+                for (const cal of uniqueCalendars) {
+                    const workingDays = calendarService.getWorkingDaysDuration(sampleStart, sampleEnd, cal);
+                    if (workingDays < minWorkingDays) {
+                        minWorkingDays = workingDays;
+                        mostRestrictiveCal = cal;
+                    }
+                }
+                effectiveCalendar = mostRestrictiveCal;
+            }
+        } else {
+            // No resources, check task specific calendar
+            if (task.calendarId) {
+                effectiveCalendar = calendars.find(c => c.id === task.calendarId) || calendar;
+            }
+        }
+
+        task.effectiveCalendarId = effectiveCalendar.id;
+        task.calendarConflict = conflictMsg;
+        taskCalendarMap.set(task.id, effectiveCalendar);
+    }
+
     // Only perform topological sort on non-summary tasks
     const schedulableTasks = tasks.filter(t => !t.isSummary);
 
@@ -203,6 +261,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         // --- Calculate Early Start from Predecessors ---
         let predecessorDrivenStart = new Date(0);
         const predecessorLinks = predecessorsMap.get(taskId) || [];
+        const taskCalendar = taskCalendarMap.get(taskId) || calendar;
         
         if(predecessorLinks.length > 0) {
             for(const link of predecessorLinks) {
@@ -210,20 +269,20 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                 let potentialStart: Date;
                  switch (link.type) {
                     case 'FS':
-                        potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag + 1, calendar);
+                        potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag + 1, taskCalendar);
                         break;
                     case 'SS':
-                        potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
+                        potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag, taskCalendar);
                         break;
                     case 'FF':
-                        const tempFinishFF = calendarService.addWorkingDays(sourceTask.finish, link.lag, calendar);
+                        const tempFinishFF = calendarService.addWorkingDays(sourceTask.finish, link.lag, taskCalendar);
                         const durationValue = task.duration > 0 ? task.duration - 1 : 0;
-                        potentialStart = calendarService.addWorkingDays(tempFinishFF, -durationValue, calendar);
+                        potentialStart = calendarService.addWorkingDays(tempFinishFF, -durationValue, taskCalendar);
                         break;
                     case 'SF':
-                         const tempFinishSF = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
+                         const tempFinishSF = calendarService.addWorkingDays(sourceTask.start, link.lag, taskCalendar);
                          const sfDurationValue = task.duration > 0 ? task.duration - 1 : 0;
-                         potentialStart = calendarService.addWorkingDays(tempFinishSF, -sfDurationValue, calendar);
+                         potentialStart = calendarService.addWorkingDays(tempFinishSF, -sfDurationValue, taskCalendar);
                         break;
                     default:
                         potentialStart = new Date(0);
@@ -248,20 +307,20 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                     earlyStart = startOfDay(constraintDate);
                     break;
                 case 'Must Finish On':
-                    earlyStart = calendarService.addWorkingDays(startOfDay(constraintDate), -durationForCalc, calendar);
+                    earlyStart = calendarService.addWorkingDays(startOfDay(constraintDate), -durationForCalc, taskCalendar);
                     break;
                 case 'Start No Earlier Than':
                     earlyStart = max([earlyStart, startOfDay(constraintDate)]);
                     break;
                 case 'Finish No Earlier Than':
-                    const requiredStartForFNET = calendarService.addWorkingDays(startOfDay(constraintDate), -durationForCalc, calendar);
+                    const requiredStartForFNET = calendarService.addWorkingDays(startOfDay(constraintDate), -durationForCalc, taskCalendar);
                     earlyStart = max([earlyStart, requiredStartForFNET]);
                     break;
              }
         }
         
-        task.start = calendarService.isWorkingDay(earlyStart, calendar) ? earlyStart : calendarService.findNextWorkingDay(earlyStart, calendar);
-        task.finish = calendarService.calculateFinishDate(task.start, duration, durationUnit || 'd', calendar);
+        task.start = calendarService.isWorkingDay(earlyStart, taskCalendar) ? earlyStart : calendarService.findNextWorkingDay(earlyStart, taskCalendar);
+        task.finish = calendarService.calculateFinishDate(task.start, duration, durationUnit || 'd', taskCalendar);
 
         // --- Post-calculation validation for conflicts and deadlines ---
          if (constraintType && constraintDate) {
@@ -373,22 +432,57 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                      if (sLF.getTime() === MAX_DATE.getTime()) return MAX_DATE;
 
                      const sDurationCalc = successorTask.duration > 0 ? successorTask.duration - 1 : 0;
-                     let sLS = calendarService.addWorkingDays(sLF, -sDurationCalc, calendar);
+                     // Successor calculation should use successor's calendar
+                     const successorCalendar = taskCalendarMap.get(successorTask.id) || calendar;
+
+                     let sLS = calendarService.addWorkingDays(sLF, -sDurationCalc, successorCalendar);
                      if (successorTask.constraintType === 'Must Start On' && successorTask.constraintDate) {
                         sLS = new Date(Math.min(sLS.getTime(), startOfDay(successorTask.constraintDate).getTime()));
                      }
 
                      let constrainedLateFinish: Date;
+                     // The lag here is on the relationship.
+                     // Standard is to use the successor's calendar for FS/SS (predecessor to successor).
+                     // However, this is backward pass. We are calculating Predecessor LF from Successor LS/LF.
+                     // The relationship math is inverse of forward pass.
+                     // If FS: Succ.Start = Pred.Finish + Lag + 1 (in Succ Cal).
+                     // So Pred.Finish = Succ.Start - Lag - 1 (in Succ Cal).
+                     // So we use successorCalendar.
+
                      switch (link.type) {
                         case 'FS':
-                            constrainedLateFinish = calendarService.addWorkingDays(sLS, -(link.lag + 1), calendar);
+                            constrainedLateFinish = calendarService.addWorkingDays(sLS, -(link.lag + 1), successorCalendar);
                             break;
                         case 'FF':
-                            constrainedLateFinish = calendarService.addWorkingDays(sLF, -link.lag, calendar);
+                            constrainedLateFinish = calendarService.addWorkingDays(sLF, -link.lag, successorCalendar);
                             break;
                         case 'SS':
-                            const tempLS_ss = calendarService.addWorkingDays(sLS, -link.lag, calendar);
-                            constrainedLateFinish = calendarService.calculateFinishDate(tempLS_ss, task.duration, task.durationUnit || 'd', calendar);
+                            const tempLS_ss = calendarService.addWorkingDays(sLS, -link.lag, successorCalendar);
+                            // This tempLS_ss is effectively where the SS link points to on the predecessor.
+                            // But SS links Pred Start to Succ Start.
+                            // Succ.Start = Pred.Start + Lag.
+                            // Pred.Start = Succ.Start - Lag.
+                            // We need Pred.Finish.
+                            // Pred.Finish = Pred.Start + Pred.Duration.
+                            // So Pred.Finish = (Succ.Start - Lag) + Pred.Duration.
+                            // The lag is in Successor Calendar?
+                            // Yes, usually lag follows successor.
+
+                            // Re-calculating constrainedLateFinish is tricky here because it depends on Pred duration.
+                            // The code above calculates Finish Date.
+                            // constrainedLateFinish = CalculateFinish( (sLS - lag), task.duration ).
+                            // This uses `task` (predecessor) duration, so we should use `task` calendar for the duration part.
+                            // But the lag part uses successor calendar.
+
+                            // Let's keep it simple and consistent with previous logic but apply calendars correctly.
+                            // Current `task` here IS the predecessor. `calendar` was global.
+                            // We need `taskCalendar` (predecessor) and `successorCalendar`.
+
+                            // const tempLS_ss = calendarService.addWorkingDays(sLS, -link.lag, calendar); -> This is the lag part.
+                            // constrainedLateFinish = calendarService.calculateFinishDate(tempLS_ss, task.duration, task.durationUnit || 'd', calendar); -> This is duration part.
+
+                            const tempStart = calendarService.addWorkingDays(sLS, -link.lag, successorCalendar);
+                            constrainedLateFinish = calendarService.calculateFinishDate(tempStart, task.duration, task.durationUnit || 'd', taskCalendarMap.get(task.id) || calendar);
                             break;
                         default:
                             constrainedLateFinish = MAX_DATE;
@@ -420,12 +514,13 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
 
             // Calculate LS for this pass to check criticality
             const durationForCalc = task.duration > 0 ? task.duration - 1 : 0;
+            const taskCalendar = taskCalendarMap.get(taskId) || calendar;
             let lateStart: Date;
 
             if (lateFinish.getTime() === MAX_DATE.getTime()) {
                 lateStart = MAX_DATE;
             } else {
-                lateStart = calendarService.addWorkingDays(lateFinish, -durationForCalc, calendar);
+                lateStart = calendarService.addWorkingDays(lateFinish, -durationForCalc, taskCalendar);
                 if (task.constraintType === 'Must Start On' && task.constraintDate) {
                     lateStart = new Date(Math.min(lateStart.getTime(), startOfDay(task.constraintDate).getTime()));
                 }
@@ -437,7 +532,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
 
             // Check Criticality for THIS project
             if (task.start && lateStart.getTime() !== MAX_DATE.getTime()) {
-                let totalFloat = calendarService.getWorkingDaysDuration(task.start, lateStart, calendar);
+                let totalFloat = calendarService.getWorkingDaysDuration(task.start, lateStart, taskCalendar);
                 if (totalFloat > 0) totalFloat -= 1;
 
                 if (totalFloat <= 0) {
@@ -453,17 +548,19 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         const task = taskMap.get(taskId)!;
         if (task.isSummary) continue;
 
+        const taskCalendar = taskCalendarMap.get(taskId) || calendar;
+
         if (task.lateFinish?.getTime() === MAX_DATE.getTime()) {
              // Not constrained by anything (shouldn't happen if connected to end, but possible for isolated tasks)
              // Set to project max finish?
              const maxFinish = new Date(Math.max(...Object.values(projectFinishDates).map(d => d.getTime())));
              task.lateFinish = maxFinish;
              const durationForCalc = task.duration > 0 ? task.duration - 1 : 0;
-             task.lateStart = calendarService.addWorkingDays(task.lateFinish, -durationForCalc, calendar);
+             task.lateStart = calendarService.addWorkingDays(task.lateFinish, -durationForCalc, taskCalendar);
         }
 
         if (task.lateStart && task.start) {
-            task.totalFloat = calendarService.getWorkingDaysDuration(task.start, task.lateStart, calendar);
+            task.totalFloat = calendarService.getWorkingDaysDuration(task.start, task.lateStart, taskCalendar);
              if (task.totalFloat > 0) task.totalFloat -= 1;
         } else {
             task.totalFloat = 0;
@@ -481,28 +578,30 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         const sourceTask = taskMap.get(link.source);
         if (!targetTask || !sourceTask) continue;
         
+        const targetCalendar = taskCalendarMap.get(link.target) || calendar;
+
         let potentialStart: Date;
         switch (link.type) {
             case 'FS':
-                potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag + 1, calendar);
+                potentialStart = calendarService.addWorkingDays(sourceTask.finish, link.lag + 1, targetCalendar);
                 break;
             case 'SS':
-                potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
+                potentialStart = calendarService.addWorkingDays(sourceTask.start, link.lag, targetCalendar);
                 break;
             case 'FF':
-                 const tempFinishFF = calendarService.addWorkingDays(sourceTask.finish, link.lag, calendar);
+                 const tempFinishFF = calendarService.addWorkingDays(sourceTask.finish, link.lag, targetCalendar);
                  const durationValue = targetTask.duration > 0 ? targetTask.duration - 1 : 0;
-                 potentialStart = calendarService.addWorkingDays(tempFinishFF, -durationValue, calendar);
+                 potentialStart = calendarService.addWorkingDays(tempFinishFF, -durationValue, targetCalendar);
                 break;
             case 'SF':
-                 const tempFinishSF = calendarService.addWorkingDays(sourceTask.start, link.lag, calendar);
+                 const tempFinishSF = calendarService.addWorkingDays(sourceTask.start, link.lag, targetCalendar);
                  const sfDurationValue = targetTask.duration > 0 ? targetTask.duration - 1 : 0;
-                 potentialStart = calendarService.addWorkingDays(tempFinishSF, -sfDurationValue, calendar);
+                 potentialStart = calendarService.addWorkingDays(tempFinishSF, -sfDurationValue, targetCalendar);
                 break;
             default:
                 potentialStart = new Date(0);
         }
-        potentialStart = calendarService.isWorkingDay(potentialStart, calendar) ? potentialStart : calendarService.findNextWorkingDay(potentialStart, calendar);
+        potentialStart = calendarService.isWorkingDay(potentialStart, targetCalendar) ? potentialStart : calendarService.findNextWorkingDay(potentialStart, targetCalendar);
         
         // This is a simplified check. A more robust check would consider all predecessors.
         if (potentialStart.getTime() >= targetTask.start.getTime()) {
