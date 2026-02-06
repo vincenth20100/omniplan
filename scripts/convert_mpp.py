@@ -4,6 +4,7 @@ import os
 # Check for required modules
 try:
     import jpype
+    import jpype.imports
     import mpxj
 except ImportError:
     sys.stderr.write("Missing required modules: jpype1, mpxj. Please install them using: pip install jpype1 mpxj\n")
@@ -13,10 +14,11 @@ def convert(input_file):
     try:
         # Start JVM if not already running
         if not jpype.isJVMStarted():
-            jpype.startJVM(classpath=mpxj.get_classpath())
+            # mpxj module import adds the classpath automatically
+            jpype.startJVM()
 
-        from net.sf.mpxj.mpp import MPPReader
-        from net.sf.mpxj.mspdi import MSPDIWriter
+        from org.mpxj.mpp import MPPReader
+        from org.mpxj.mspdi import MSPDIWriter
         from java.io import File, ByteArrayOutputStream
 
         reader = MPPReader()

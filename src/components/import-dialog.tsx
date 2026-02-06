@@ -27,6 +27,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
     const [isParsing, setIsParsing] = useState(false);
     const [importData, setImportData] = useState<ImportedProjectData | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [serverError, setServerError] = useState<string | null>(null);
     const [xmlSource, setXmlSource] = useState<string | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [showMppGuide, setShowMppGuide] = useState(false);
@@ -40,6 +41,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         setFile(selectedFile);
         setIsParsing(true);
         setError(null);
+        setServerError(null);
         setImportData(null);
         setXmlSource(null);
         setShowPreview(false);
@@ -87,18 +89,15 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                              const errData = await response.json().catch(() => ({}));
                              console.warn("MPP Conversion unavailable:", errData);
 
+                             setServerError(errData.details || errData.error || "Server conversion failed");
                              setShowMppGuide(true);
                              setIsParsing(false);
-                             // If it was a generic error (not 501), maybe show it?
-                             // But 501 is expected if not configured.
-                             if (response.status !== 501) {
-                                 setError(errData.error || "Server conversion failed");
-                             }
                              return;
                          }
                      } catch (fetchErr) {
                          console.error("Network error during MPP conversion:", fetchErr);
                          // Network error -> Show guide as fallback
+                         setServerError("Network error during conversion");
                          setShowMppGuide(true);
                          setIsParsing(false);
                          return;
@@ -129,6 +128,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         setImportData(null);
         setXmlSource(null);
         setError(null);
+        setServerError(null);
         setShowPreview(false);
         setShowMppGuide(false);
         if (fileInputRef.current) {
@@ -160,6 +160,13 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
 
                 {showMppGuide ? (
                     <div className="space-y-4 py-2">
+                        {serverError && (
+                            <Alert variant="destructive">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertTitle>Conversion Failed</AlertTitle>
+                                <AlertDescription>{serverError}</AlertDescription>
+                            </Alert>
+                        )}
                         <Alert className="bg-blue-50 border-blue-200">
                              <FileType className="h-4 w-4 text-blue-600" />
                              <AlertTitle className="text-blue-800">Binary .mpp file detected</AlertTitle>
