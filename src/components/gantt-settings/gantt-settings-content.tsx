@@ -75,12 +75,31 @@ export function GanttSettingsContent({
   }
 
   const getTooltipConfig = (config: TooltipFieldSetting[] | undefined, fields: string[] | undefined): TooltipFieldSetting[] => {
-      if (config) return config;
+      if (config) {
+          // Check for duplicate IDs and fix them to ensure React keys are unique
+          const seen = new Set<string>();
+          let hasDuplicates = false;
+          for (const item of config) {
+              if (seen.has(item.id)) {
+                  hasDuplicates = true;
+                  break;
+              }
+              seen.add(item.id);
+          }
+
+          if (hasDuplicates) {
+               return config.map((item, index) => ({
+                   ...item,
+                   id: `${item.id}-${index}` // Append index to make unique
+               }));
+          }
+          return config;
+      }
       if (!fields) return [];
-      return fields.map(fieldId => {
+      return fields.map((fieldId, index) => {
           const option = allOptions.find(o => o.id === fieldId);
           return {
-              id: fieldId,
+              id: `${fieldId}-${index}`,
               field: fieldId,
               label: option?.label || fieldId,
           };
