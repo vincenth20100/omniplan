@@ -81,6 +81,11 @@ export function ResourceView({ projectState, dispatch }: { projectState: Project
         { value: 'Cost', label: 'Cost' },
     ];
 
+    const calendarOptions = useMemo(() => [
+        { value: 'default', label: 'Default' },
+        ...projectState.calendars.map(c => ({ value: c.id, label: c.name }))
+    ], [projectState.calendars]);
+
     const sortedResources = useMemo(() => {
         return [...resources].sort((a, b) => (a.order || 0) - (b.order || 0));
     }, [resources]);
@@ -128,6 +133,7 @@ export function ResourceView({ projectState, dispatch }: { projectState: Project
                                 <TableHead>Name</TableHead>
                                 <TableHead>Category</TableHead>
                                 <TableHead className="w-[120px]">Type</TableHead>
+                                <TableHead className="w-[150px]">Calendar</TableHead>
                                 <TableHead className="w-[120px]">Cost/Hour</TableHead>
                                 <TableHead className="w-[120px]">Availability</TableHead>
                                 <TableHead className="w-[60px]"></TableHead>
@@ -138,7 +144,7 @@ export function ResourceView({ projectState, dispatch }: { projectState: Project
                                 <React.Fragment key={groupName}>
                                     {groupBy !== 'none' && (
                                         <TableRow className="bg-muted/50 hover:bg-muted/50 font-semibold">
-                                            <TableCell colSpan={7}>{groupName} ({groupItems.length})</TableCell>
+                                            <TableCell colSpan={8}>{groupName} ({groupItems.length})</TableCell>
                                         </TableRow>
                                     )}
                                     {groupItems.map(resource => (
@@ -181,6 +187,17 @@ export function ResourceView({ projectState, dispatch }: { projectState: Project
                                                     value={resource.type}
                                                     onSave={(newValue) => dispatch({ type: 'UPDATE_RESOURCE', payload: { id: resource.id, type: newValue as Resource['type'] }})}
                                                     options={resourceTypeOptions}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <EditableSelectCell
+                                                    value={resource.calendarId || 'default'}
+                                                    onSave={(newValue) => {
+                                                        const val = newValue === 'default' ? null : newValue;
+                                                        dispatch({ type: 'UPDATE_RESOURCE', payload: { id: resource.id, calendarId: val } });
+                                                    }}
+                                                    options={calendarOptions}
+                                                    placeholder="Default"
                                                 />
                                             </TableCell>
                                             <TableCell>

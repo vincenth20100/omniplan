@@ -724,7 +724,7 @@ function isCycle(sourceId: string, targetId: string, links: Link[], tasks: Task[
 }
 
 export function projectReducer(state: ProjectState, action: Action): ProjectState {
-  const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null): Task[] => {
+  const runScheduler = (tasks: Task[], links: Link[], columns: ColumnSpec[], calendars: Calendar[], defaultCalendarId: string | null, assignments: Assignment[] = [], resources: Resource[] = []): Task[] => {
       let defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
       if (!defaultCalendar) {
           // Create a temporary fallback calendar if none exists to ensure scheduling still runs
@@ -736,7 +736,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
           };
       }
       const hierarchicalTasks = updateHierarchyAndSort(tasks);
-      return calculateSchedule(hierarchicalTasks, links, columns, defaultCalendar);
+      return calculateSchedule(hierarchicalTasks, links, columns, defaultCalendar, assignments, resources, calendars);
   };
 
   const checkDirty = (state: ProjectState): boolean => {
@@ -765,7 +765,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     case 'SET_PROJECT_DATA': {
       const { tasks, links, resources, assignments, calendars, baselines, projectColors, projectTextColors, projectCriticalPathColors } = action.payload;
       const defaultCalendarId = state.defaultCalendarId || calendars.find(c => c.name === "Standard")?.id || calendars[0]?.id || null;
-      const scheduledTasks = runScheduler(tasks, links, state.columns, calendars, defaultCalendarId);
+      const scheduledTasks = runScheduler(tasks, links, state.columns, calendars, defaultCalendarId, assignments, resources);
       return {
         ...state,
         tasks: scheduledTasks,
@@ -886,14 +886,14 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         
         // If an update doesn't affect the schedule, we can skip the expensive reschedule
         const finalTasks = requiresReschedule 
-            ? runScheduler(updatedTasks, state.links, state.columns, state.calendars, state.defaultCalendarId)
+            ? runScheduler(updatedTasks, state.links, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources)
             : updateHierarchyAndSort(updatedTasks);
 
         return { ...state, tasks: finalTasks, isDirty: checkDirty({ ...state, tasks: finalTasks }) };
     }
     case 'UPDATE_LINK': {
         const newLinks = state.links.map(l => l.id === action.payload.id ? { ...l, ...action.payload } : l);
-        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        const reScheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { ...state, links: newLinks, tasks: reScheduledTasks };
     }
     case 'UPDATE_RESOURCE': {
@@ -954,7 +954,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         const { resourceId } = action.payload;
         const newResources = state.resources.filter(r => r.id !== resourceId);
         const newAssignments = state.assignments.filter(a => a.resourceId !== resourceId);
-        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, state.calendars, state.defaultCalendarId, newAssignments, newResources);
         return { ...state, resources: newResources, assignments: newAssignments, tasks: reScheduledTasks };
     }
     case 'ADD_ASSIGNMENT': {
@@ -990,7 +990,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     }
     case 'UPDATE_CALENDAR': {
         const newCalendars = state.calendars.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c);
-        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, state.defaultCalendarId);
+        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, state.defaultCalendarId, state.assignments, state.resources);
         return { ...state, calendars: newCalendars, tasks: reScheduledTasks, isDirty: checkDirty({ ...state, calendars: newCalendars }) };
     }
      case 'REMOVE_CALENDAR': {
@@ -998,7 +998,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         if (state.calendars.length <= 1) return state;
         const newCalendars = state.calendars.filter(c => c.id !== calendarId);
         const newDefaultCalendarId = state.defaultCalendarId === calendarId ? newCalendars[0].id : state.defaultCalendarId;
-        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, newDefaultCalendarId);
+        const reScheduledTasks = runScheduler(state.tasks, state.links, state.columns, newCalendars, newDefaultCalendarId, state.assignments, state.resources);
         return { ...state, calendars: newCalendars, tasks: reScheduledTasks, defaultCalendarId: newDefaultCalendarId };
     }
     case 'ADD_NOTE_TO_TASK': {
@@ -1253,7 +1253,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             }
             return c;
         });
-        const reScheduledTasks = runScheduler(state.tasks, state.links, newColumns, state.calendars, state.defaultCalendarId);
+        const reScheduledTasks = runScheduler(state.tasks, state.links, newColumns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { ...state, tasks: reScheduledTasks, columns: newColumns };
     }
     case 'REMOVE_COLUMN': {
@@ -1421,7 +1421,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
                 
                 const allLinks = [...state.links, ...finalNewLinks];
                 
-                const scheduledTasks = runScheduler(allTasks, allLinks, state.columns, state.calendars, state.defaultCalendarId);
+                const scheduledTasks = runScheduler(allTasks, allLinks, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
                 const newSelectedIds = newTasks.map(t => t.id);
 
                 return { ...state, tasks: scheduledTasks, links: allLinks, selectedTaskIds: newSelectedIds };
@@ -1467,7 +1467,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             const allTasks = [...state.tasks];
             allTasks.splice(targetIndex, 0, ...newTasks);
             
-            const scheduledTasks = runScheduler(allTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+            const scheduledTasks = runScheduler(allTasks, state.links, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
             const newSelectedIds = newTasks.map(t => t.id);
             
             return { ...state, tasks: scheduledTasks, selectedTaskIds: newSelectedIds };
@@ -1617,7 +1617,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             stylePresets: stylePresets,
             groupingState: loaded.groupingState || initialState.groupingState,
         };
-        const scheduledTasks = runScheduler(loadedState.tasks, loadedState.links, loadedState.columns, loadedState.calendars, loadedState.defaultCalendarId);
+        const scheduledTasks = runScheduler(loadedState.tasks, loadedState.links, loadedState.columns, loadedState.calendars, loadedState.defaultCalendarId, loadedState.assignments, loadedState.resources);
         return {
             ...loadedState,
             tasks: scheduledTasks,
@@ -1678,7 +1678,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             newTasks.push(newTask);
         }
         
-        const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+        const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { 
             ...state, 
             tasks: scheduledTasks, 
@@ -1711,7 +1711,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         const newTasks = state.tasks.filter(t => !tasksToRemove.has(t.id));
         const newLinks = state.links.filter(l => !tasksToRemove.has(l.source) && !tasksToRemove.has(l.target));
         
-        const scheduledTasks = runScheduler(newTasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        const scheduledTasks = runScheduler(newTasks, newLinks, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { 
             ...state, 
             tasks: scheduledTasks, 
@@ -1772,7 +1772,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         }
 
         const allLinks = [...state.links, ...newLinks];
-        const scheduledTasks = runScheduler(state.tasks, allLinks, state.columns, state.calendars, state.defaultCalendarId);
+        const scheduledTasks = runScheduler(state.tasks, allLinks, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { ...state, links: allLinks, tasks: scheduledTasks };
     }
     case 'ADD_LINK': {
@@ -1822,13 +1822,13 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             targetProjectId: targetTask?.projectId,
         };
         const newLinks = [...state.links, newLink];
-        const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { ...state, links: newLinks, tasks: scheduledTasks };
     }
     case 'REMOVE_LINK': {
         const { linkId } = action.payload;
         const newLinks = state.links.filter(l => l.id !== linkId);
-        const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        const scheduledTasks = runScheduler(state.tasks, newLinks, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { ...state, links: newLinks, tasks: scheduledTasks };
     }
     
@@ -1937,7 +1937,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             ...newLinkObjects
         ];
         
-        const newTasks = runScheduler(tasks, finalLinks, columns, calendars, defaultCalendarId);
+        const newTasks = runScheduler(tasks, finalLinks, columns, calendars, defaultCalendarId, state.assignments, state.resources);
         return { ...state, links: finalLinks, tasks: newTasks };
     }
     case 'INDENT_TASK': {
@@ -2017,7 +2017,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         }
 
         const updatedTasks = Array.from(taskMap.values());
-        const scheduledTasks = runScheduler(updatedTasks, newLinks, state.columns, state.calendars, state.defaultCalendarId);
+        const scheduledTasks = runScheduler(updatedTasks, newLinks, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         
         return { ...state, tasks: scheduledTasks, links: newLinks, notifications };
     }
@@ -2040,7 +2040,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             }
         }
 
-        const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId);
+        const scheduledTasks = runScheduler(Array.from(taskMap.values()), state.links, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { ...state, tasks: scheduledTasks };
     }
     case 'REORDER_TASKS': {
@@ -2079,7 +2079,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         
         const finalTasks = [...tasks, ...sourceTasks].sort((a,b) => (a.order || 0) - (b.order || 0));
         
-        const scheduledTasks = runScheduler(finalTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+        const scheduledTasks = runScheduler(finalTasks, state.links, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { ...state, tasks: scheduledTasks };
     }
      case 'NEST_TASKS': {
@@ -2090,7 +2090,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             }
             return t;
         });
-        const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId);
+        const scheduledTasks = runScheduler(newTasks, state.links, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
         return { ...state, tasks: scheduledTasks };
     }
     case 'CLEAR_NOTIFICATIONS': {
