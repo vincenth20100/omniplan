@@ -1,11 +1,11 @@
 'use client';
 
-import type { Task, Resource, Assignment } from '@/lib/types';
+import type { Task, Resource, Assignment, Calendar } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { EditableCell } from '@/components/omni-gantt/editable-cell';
 import { Button } from '@/components/ui/button';
-import { Trash2, Plus, ChevronsUpDown } from 'lucide-react';
+import { Trash2, Plus, TriangleAlert } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useState } from 'react';
 import { ResourceComboboxContent } from './resource-combobox';
@@ -14,8 +14,30 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { Input } from '../ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Separator } from '@/components/ui/separator';
 
-export function ResourceSection({ task, assignments, resources, dispatch }: { task: Task; assignments: Assignment[], resources: Resource[], dispatch: any }) {
+export function ResourceSection({
+    task,
+    assignments,
+    resources,
+    calendars = [],
+    defaultCalendarId,
+    dispatch
+}: {
+    task: Task;
+    assignments: Assignment[];
+    resources: Resource[];
+    calendars?: Calendar[];
+    defaultCalendarId?: string | null;
+    dispatch: any
+}) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const resourceMap = new Map(resources.map(r => [r.id, r]));
@@ -95,9 +117,24 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
       }
   }
 
+  const handleCalendarChange = (value: string) => {
+      const calendarId = value === 'default' ? null : value;
+      dispatch({
+          type: 'UPDATE_TASK',
+          payload: { id: task.id, calendarId }
+      });
+  }
+
   const totalUnits = assignedResources.reduce((sum, a) => sum + (a.units || 0), 0);
   const isEffortDriven = task.schedulingType === 'effort';
   
+  // Calendar Logic
+  const defaultCalendar = calendars.find(c => c.id === defaultCalendarId) || calendars[0];
+  const effectiveCal = calendars.find(c => c.id === task.effectiveCalendarId) || defaultCalendar;
+  const effectiveName = effectiveCal ? effectiveCal.name : 'Unknown';
+  const isOverridden = task.effectiveCalendarId !== (task.calendarId || defaultCalendar?.id);
+  const hasConflict = !!task.calendarConflict;
+
   const renderMobileContent = () => (
     <div className="flex-grow overflow-y-auto min-h-0">
        <div className="flex flex-col gap-3 p-1">
@@ -170,12 +207,12 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
          <ScrollArea className="border rounded-md min-h-0 w-full flex-1">
             <Table>
                 <TableHeader>
-                    <TableRow>
-                        <TableHead className="w-[80px]">Initials</TableHead>
-                        <TableHead>Resource Name</TableHead>
-                        <TableHead className="w-[120px] text-right">Units</TableHead>
-                        <TableHead className="w-[120px] text-right">Work</TableHead>
-                        <TableHead className="w-[60px]"></TableHead>
+                    <TableRow className="h-8">
+                        <TableHead className="w-[80px] py-1 h-8">Initials</TableHead>
+                        <TableHead className="py-1 h-8">Resource Name</TableHead>
+                        <TableHead className="w-[120px] text-right py-1 h-8">Units</TableHead>
+                        <TableHead className="w-[120px] text-right py-1 h-8">Work</TableHead>
+                        <TableHead className="w-[60px] py-1 h-8"></TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -185,10 +222,10 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
                             : (task.duration || 0) * (assignment.units || 0) * 8; // Assuming 8hr work day
 
                         return (
-                            <TableRow key={assignment.id}>
-                                <TableCell className="font-medium">{assignment.resource?.initials}</TableCell>
-                                <TableCell>{assignment.resource?.name}</TableCell>
-                                <TableCell className="text-right">
+                            <TableRow key={assignment.id} className="h-8">
+                                <TableCell className="font-medium py-1 h-8">{assignment.resource?.initials}</TableCell>
+                                <TableCell className="py-1 h-8">{assignment.resource?.name}</TableCell>
+                                <TableCell className="text-right py-1 h-8">
                                     <EditableCell
                                         value={`${(assignment.units || 0) * 100}%`}
                                         onSave={(newValue) => {
@@ -200,17 +237,17 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
                                         className="text-right w-full"
                                     />
                                 </TableCell>
-                                <TableCell className="text-right">{assignmentWork.toFixed(1)}h</TableCell>
-                                <TableCell>
-                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveAssignment(assignment.id)}>
+                                <TableCell className="text-right py-1 h-8">{assignmentWork.toFixed(1)}h</TableCell>
+                                <TableCell className="py-1 h-8">
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveAssignment(assignment.id)}>
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </TableCell>
                             </TableRow>
                         );
                     })}
-                     <TableRow>
-                        <TableCell colSpan={5} className="p-1">
+                     <TableRow className="h-8">
+                        <TableCell colSpan={5} className="p-1 h-8">
                             <Popover open={open} onOpenChange={setOpen} modal={true}>
                             <PopoverTrigger asChild>
                                 <div className="relative w-full cursor-text" onClick={() => setOpen(true)}>
@@ -241,24 +278,64 @@ export function ResourceSection({ task, assignments, resources, dispatch }: { ta
 
   return (
     <div className="flex flex-col h-full gap-4">
-        {/* Scheduling Type */}
-        <div className="border p-4 rounded-md flex items-center justify-between">
-            <div className="space-y-1">
-                <Label htmlFor="scheduling-type" className="font-semibold">
-                    Scheduling Type
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                    {isEffortDriven ? 'Duration is calculated from Work and Resource Units.' : 'Work is calculated from Duration and Resource Units.'}
-                </p>
+        {/* Calendar & Scheduling */}
+        <div className="border p-4 rounded-md flex flex-col gap-4">
+             <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                    <Label className="font-semibold">Scheduling Mode</Label>
+                    <p className="text-xs text-muted-foreground">
+                        {isEffortDriven ? 'Duration is calculated from Work and Resource Units.' : 'Work is calculated from Duration and Resource Units.'}
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                     <Label htmlFor="scheduling-type" className={cn(!isEffortDriven && "text-primary font-medium")}>Duration</Label>
+                     <Switch
+                        id="scheduling-type"
+                        checked={isEffortDriven}
+                        onCheckedChange={handleSchedulingTypeChange}
+                     />
+                     <Label htmlFor="scheduling-type" className={cn(isEffortDriven && "text-primary font-medium")}>Effort</Label>
+                </div>
             </div>
-            <div className="flex items-center gap-2">
-                 <Label htmlFor="scheduling-type" className={cn(!isEffortDriven && "text-primary font-medium")}>Duration Driven</Label>
-                 <Switch
-                    id="scheduling-type"
-                    checked={isEffortDriven}
-                    onCheckedChange={handleSchedulingTypeChange}
-                 />
-                 <Label htmlFor="scheduling-type" className={cn(isEffortDriven && "text-primary font-medium")}>Effort Driven</Label>
+
+            <Separator />
+
+            <div className="flex flex-col gap-2">
+                 <Label className="font-semibold">Calendar</Label>
+                 <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-1">
+                         <Label className="text-xs text-muted-foreground">Task Calendar</Label>
+                         <Select value={task.calendarId || 'default'} onValueChange={handleCalendarChange}>
+                            <SelectTrigger className="h-8">
+                                <SelectValue placeholder="Select Calendar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="default">Project Default</SelectItem>
+                                {calendars.map(c => (
+                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                         </Select>
+                     </div>
+                     <div className="space-y-1">
+                         <Label className="text-xs text-muted-foreground">Effective Calendar</Label>
+                         <div className="flex items-center h-8 gap-2 px-3 border rounded-md bg-muted/50 text-sm">
+                             <span className={cn("truncate flex-1", isOverridden && "italic")}>
+                                 {effectiveName}
+                             </span>
+                             {hasConflict && (
+                                 <span title={task.calendarConflict}>
+                                     <TriangleAlert className="h-4 w-4 text-destructive flex-shrink-0" />
+                                 </span>
+                             )}
+                             {!hasConflict && isOverridden && (
+                                 <span className="text-[10px] text-muted-foreground border rounded px-1 bg-background" title="Driven by Resource Calendar">
+                                     Resource
+                                 </span>
+                             )}
+                         </div>
+                     </div>
+                 </div>
             </div>
         </div>
 
