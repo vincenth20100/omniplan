@@ -79,10 +79,20 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
                         const projectIds = userDoc.data().projectIds || [];
                         if (projectIds.length > 0) {
                             const projectPromises = projectIds.map((id: string) => getDoc(doc(firestore, 'projects', id)));
-                            const projectSnapshots = await Promise.all(projectPromises);
-                            fetchedProjects = projectSnapshots
+                            const projectResults = await Promise.allSettled(projectPromises);
+
+                            fetchedProjects = projectResults
+                                .filter(result => result.status === 'fulfilled')
+                                .map(result => (result as PromiseFulfilledResult<any>).value)
                                 .filter(snap => snap.exists())
                                 .map(snap => ({ ...snap.data(), id: snap.id } as Project));
+
+                            // Log errors for rejected promises
+                            projectResults.forEach(result => {
+                                if (result.status === 'rejected') {
+                                    console.error("Failed to fetch available project:", result.reason);
+                                }
+                            });
                         }
                     }
                 }
@@ -97,10 +107,21 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
                 // 2. Fetch Linked Projects (to manage)
                 if (existingSubprojectIds && existingSubprojectIds.length > 0) {
                     const linkedPromises = existingSubprojectIds.map(id => getDoc(doc(firestore, 'projects', id)));
-                    const linkedSnapshots = await Promise.all(linkedPromises);
-                    const linked = linkedSnapshots
+                    const linkedResults = await Promise.allSettled(linkedPromises);
+
+                    const linked = linkedResults
+                        .filter(result => result.status === 'fulfilled')
+                        .map(result => (result as PromiseFulfilledResult<any>).value)
                         .filter(snap => snap.exists())
                         .map(snap => ({ ...snap.data(), id: snap.id } as Project));
+
+                    // Log errors for rejected promises
+                    linkedResults.forEach(result => {
+                        if (result.status === 'rejected') {
+                            console.error("Failed to fetch subproject:", result.reason);
+                        }
+                    });
+
                     setLinkedProjects(linked.sort((a, b) => a.name.localeCompare(b.name)));
                 } else {
                     setLinkedProjects([]);
