@@ -27,6 +27,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
     const [isParsing, setIsParsing] = useState(false);
     const [importData, setImportData] = useState<ImportedProjectData | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [xmlSource, setXmlSource] = useState<string | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [showMppGuide, setShowMppGuide] = useState(false);
 
@@ -40,6 +41,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         setIsParsing(true);
         setError(null);
         setImportData(null);
+        setXmlSource(null);
         setShowPreview(false);
         setShowMppGuide(false);
 
@@ -77,6 +79,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
 
                          if (response.ok) {
                              const xmlText = await response.text();
+                             setXmlSource(xmlText);
                              data = parseProjectXML(xmlText);
                          } else {
                              // If the server returns 501 (Not Implemented) or fails, we fall back to the guide.
@@ -124,6 +127,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
     const handleReset = () => {
         setFile(null);
         setImportData(null);
+        setXmlSource(null);
         setError(null);
         setShowPreview(false);
         setShowMppGuide(false);
@@ -182,6 +186,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                 ) : showPreview && importData ? (
                     <ImportPreview
                         data={importData}
+                        xmlSource={xmlSource}
                         onCancel={handleReset}
                         onConfirm={handleConfirmImport}
                     />
