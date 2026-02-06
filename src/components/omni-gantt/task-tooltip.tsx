@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import type { Task, ColumnSpec, Resource, Assignment, TooltipFieldSetting } from "@/lib/types";
+import type { Task, ColumnSpec, Resource, Assignment, TooltipFieldSetting, Link } from "@/lib/types";
 import { format } from "date-fns";
 import { formatDuration } from "@/lib/duration";
 
@@ -14,9 +14,11 @@ interface TaskTooltipProps {
     columns?: ColumnSpec[];
     resources?: Resource[];
     assignments?: Assignment[];
+    links?: Link[];
+    tasks?: Task[];
 }
 
-export const TaskTooltip = ({ task, tooltipFields, tooltipConfig, dateFormat = 'MMM d, yyyy', children, columns, resources, assignments }: TaskTooltipProps) => {
+export const TaskTooltip = ({ task, tooltipFields, tooltipConfig, dateFormat = 'MMM d, yyyy', children, columns, resources, assignments, links, tasks }: TaskTooltipProps) => {
     let activeConfig: TooltipFieldSetting[] = [];
 
     if (tooltipConfig && tooltipConfig.length > 0) {
@@ -29,56 +31,84 @@ export const TaskTooltip = ({ task, tooltipFields, tooltipConfig, dateFormat = '
         return <>{children}</>;
     }
 
-    const renderField = (setting: TooltipFieldSetting) => {
-        const { field, label } = setting;
-
-        const LabelWrapper = ({ children }: { children: React.ReactNode }) => (
-            <span className="text-muted-foreground">{label ? `${label}:` : children}</span>
-        );
+    const renderContent = (setting: TooltipFieldSetting) => {
+        const { field } = setting;
 
         // Standard fields
         switch (field) {
-            case 'name': return <div className="font-semibold">{label ? <><span className="text-muted-foreground font-normal">{label}:</span> </> : null}{task.name}</div>;
-            case 'start': return <div><LabelWrapper>Start:</LabelWrapper> {format(task.start, dateFormat)}</div>;
-            case 'finish': return <div><LabelWrapper>Finish:</LabelWrapper> {format(task.finish, dateFormat)}</div>;
-            case 'duration': return <div><LabelWrapper>Duration:</LabelWrapper> {formatDuration(task.duration, task.durationUnit)}</div>;
-            case 'percentComplete': return <div><LabelWrapper>Progress:</LabelWrapper> {task.percentComplete}%</div>;
-            case 'status': return <div><LabelWrapper>Status:</LabelWrapper> {task.status}</div>;
-            case 'wbs': return task.wbs ? <div><LabelWrapper>WBS:</LabelWrapper> {task.wbs}</div> : null;
-            case 'notes': return (task.notes && task.notes.length > 0) ? <div className="italic text-xs mt-1 border-t pt-1 border-border">{label || "Has notes"}</div> : null;
+            case 'name': return task.name;
+            case 'start': return format(task.start, dateFormat);
+            case 'finish': return format(task.finish, dateFormat);
+            case 'duration': return formatDuration(task.duration, task.durationUnit);
+            case 'percentComplete': return `${task.percentComplete}%`;
+            case 'status': return task.status;
+            case 'wbs': return task.wbs;
+            case 'notes': return (task.notes && task.notes.length > 0) ? "Has notes" : null;
             case 'resourceNames': {
                 if (!resources || !assignments) return null;
                 const taskAssignments = assignments.filter(a => a.taskId === task.id);
                 if (taskAssignments.length === 0) return null;
                 const resourceMap = new Map(resources.map(r => [r.id, r.name]));
-                const names = taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
-                return <div><LabelWrapper>Resources:</LabelWrapper> {names}</div>;
+                return taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean).join(', ');
+            }
+            case 'predecessors':
+            case 'successors': {
+                 if (!links || !tasks) return null;
+                 const isPredecessors = field === 'predecessors';
+                 const relatedLinks = isPredecessors
+                    ? links.filter(l => l.target === task.id)
+                    : links.filter(l => l.source === task.id);
+
+                 if (relatedLinks.length === 0) return null;
+
+                 const taskMap = new Map(tasks.map(t => [t.id, t]));
+                 const fieldsToShow = setting.relatedTaskFields && setting.relatedTaskFields.length > 0
+                    ? setting.relatedTaskFields
+                    : ['name'];
+
+                 return relatedLinks.map(l => {
+                     const relatedId = isPredecessors ? l.source : l.target;
+                     const relatedTask = taskMap.get(relatedId);
+                     if (!relatedTask) return 'Unknown';
+
+                     return fieldsToShow.map(f => {
+                         switch(f) {
+                             case 'id': return relatedTask.wbs || relatedTask.id;
+                             case 'name': return relatedTask.name;
+                             case 'start': return format(relatedTask.start, dateFormat);
+                             case 'finish': return format(relatedTask.finish, dateFormat);
+                             default: return '';
+                         }
+                     }).join(' ');
+                 }).join(', ');
             }
         }
 
-        // Custom attributes and other column fields
-        if (columns) {
+        // Custom attributes
+         if (columns) {
             const column = columns.find(c => c.id === field);
             if (column) {
-                let value: React.ReactNode = null;
                 if (field.startsWith('custom-')) {
-                     value = task.customAttributes?.[field];
-                } else {
-                    if (field === 'cost') {
-                         const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
-                         value = currencyFormatter.format(task.cost || 0);
-                    }
+                     return task.customAttributes?.[field];
                 }
-
-                if (value !== null && value !== undefined && value !== '') {
-                    const displayLabel = label || column.name;
-                    return <div><span className="text-muted-foreground">{displayLabel}:</span> {value}</div>;
+                if (field === 'cost') {
+                     const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                     return currencyFormatter.format(task.cost || 0);
                 }
             }
         }
-
         return null;
     };
+
+    // Grouping logic
+    const groupedConfig: { settings: TooltipFieldSetting[] }[] = [];
+    activeConfig.forEach((setting) => {
+        if (setting.displayInline && groupedConfig.length > 0) {
+             groupedConfig[groupedConfig.length - 1].settings.push(setting);
+        } else {
+             groupedConfig.push({ settings: [setting] });
+        }
+    });
 
     return (
         <TooltipProvider delayDuration={1000}>
@@ -87,11 +117,35 @@ export const TaskTooltip = ({ task, tooltipFields, tooltipConfig, dateFormat = '
                     {children}
                 </TooltipTrigger>
                 <TooltipContent className="flex flex-col gap-0.5 text-xs p-2 max-w-xs break-words">
-                    {activeConfig.map(setting => (
-                        <React.Fragment key={setting.id || setting.field}>
-                            {renderField(setting)}
-                        </React.Fragment>
-                    ))}
+                     {groupedConfig.map((group, groupIndex) => {
+                         // Filter out items with no content to avoid rendering empty separators/labels
+                         const validSettings = group.settings.map(s => ({ setting: s, content: renderContent(s) })).filter(item => item.content !== null && item.content !== undefined && item.content !== '');
+
+                         if (validSettings.length === 0) return null;
+
+                         return (
+                            <div key={groupIndex}>
+                                {validSettings.map(({ setting, content }, settingIndex) => {
+                                     const isFirst = settingIndex === 0;
+                                     // Use nbsp for space to prevent collapse
+                                     const separator = (!isFirst) ? <span className="mx-1">{setting.inlineSeparator || '\u00A0'}</span> : null;
+
+                                     const label = setting.label;
+                                     const showLabel = !!label;
+
+                                     return (
+                                         <React.Fragment key={setting.id || setting.field}>
+                                             {separator}
+                                             <span>
+                                                 {showLabel && <span className="text-muted-foreground mr-1">{label}:</span>}
+                                                 {setting.field === 'name' ? <span className="font-semibold">{content}</span> : content}
+                                             </span>
+                                         </React.Fragment>
+                                     );
+                                })}
+                            </div>
+                         );
+                     })}
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>

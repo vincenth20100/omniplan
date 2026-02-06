@@ -171,6 +171,9 @@ export interface TooltipFieldSetting {
     field: string;
     label: string;
     isEnabled?: boolean;
+    displayInline?: boolean;
+    inlineSeparator?: string;
+    relatedTaskFields?: string[];
 }
 
 export interface GanttSettings {

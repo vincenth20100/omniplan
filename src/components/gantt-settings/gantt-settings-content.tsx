@@ -59,6 +59,8 @@ export function GanttSettingsContent({
     { id: 'notes', label: 'Notes Indicator' },
     { id: 'resourceNames', label: 'Resource Names' },
     { id: 'cost', label: 'Cost' },
+    { id: 'predecessors', label: 'Predecessors' },
+    { id: 'successors', label: 'Successors' },
   ];
 
   // Combine standard options with columns. Prioritize standard options if ID matches.
