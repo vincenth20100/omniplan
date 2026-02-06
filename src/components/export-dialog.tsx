@@ -21,11 +21,11 @@ import {
 import { Label } from "./ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { Loader2, Printer, FileDown, FileSpreadsheet, TableProperties } from "lucide-react";
+import { Loader2, Printer, FileDown, FileSpreadsheet, TableProperties, FileCode, FileText } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useRenderableRows } from "@/hooks/use-renderable-rows";
-import { exportToCSV, exportToExcel } from "@/lib/export-utils";
+import { exportToCSV, exportToExcel, generateProjectXML, generatePrimaveraXER, downloadFile } from "@/lib/export-utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export function ExportDialog({
@@ -37,7 +37,7 @@ export function ExportDialog({
   onOpenChange: (open: boolean) => void;
   projectState: ProjectState;
 }) {
-  const [format, setFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
+  const [format, setFormat] = useState<'pdf' | 'csv' | 'xlsx' | 'xml' | 'xer'>('pdf');
   const [content, setContent] = useState<'both' | 'table' | 'gantt'>('both');
 
   const [isExporting, setIsExporting] = useState(false);
@@ -87,6 +87,20 @@ export function ExportDialog({
                     filename
                 );
             }
+            onOpenChange(false);
+            return;
+        }
+
+        if (format === 'xml') {
+            const xml = generateProjectXML(exportProjectState);
+            downloadFile(xml, `${filename}.xml`, 'text/xml');
+            onOpenChange(false);
+            return;
+        }
+
+        if (format === 'xer') {
+            const xer = generatePrimaveraXER(exportProjectState);
+            downloadFile(xer, `${filename}.xer`, 'text/plain');
             onOpenChange(false);
             return;
         }
@@ -179,6 +193,18 @@ export function ExportDialog({
                             <RadioGroupItem value="xlsx" id="format-xlsx" />
                             <Label htmlFor="format-xlsx" className="flex items-center cursor-pointer font-normal">
                                 <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
+                            </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="xml" id="format-xml" />
+                            <Label htmlFor="format-xml" className="flex items-center cursor-pointer font-normal">
+                                <FileCode className="mr-2 h-4 w-4" /> MS Project (XML)
+                            </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="xer" id="format-xer" />
+                            <Label htmlFor="format-xer" className="flex items-center cursor-pointer font-normal">
+                                <FileText className="mr-2 h-4 w-4" /> Primavera P6 (XER)
                             </Label>
                         </div>
                     </RadioGroup>
