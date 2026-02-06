@@ -27,6 +27,8 @@ export function TaskResourcesPanel({ task, projectState, dispatch, uiDensity }: 
                 task={task}
                 assignments={taskAssignments}
                 resources={resources}
+                calendars={projectState.calendars}
+                defaultCalendarId={projectState.defaultCalendarId}
                 dispatch={dispatch}
             />
         </div>

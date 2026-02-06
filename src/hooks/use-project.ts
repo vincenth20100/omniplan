@@ -832,10 +832,18 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
             filters: finalFilters,
         };
         
+        let finalColumns = newSharedSettings.columns || initialColumns;
+        // Ensure new system columns (like 'calendar') appear in existing projects
+        const existingColIds = new Set(finalColumns.map(c => c.id));
+        const missingColumns = initialColumns.filter(c => !existingColIds.has(c.id));
+        if (missingColumns.length > 0) {
+            finalColumns = [...finalColumns, ...missingColumns];
+        }
+
         return {
             ...state,
             views: newViews,
-            columns: newSharedSettings.columns || initialColumns,
+            columns: finalColumns,
             uiDensity: finalUiDensity,
             ganttSettings: finalGanttSettings,
             stylePresets: loadedStylePresets,
