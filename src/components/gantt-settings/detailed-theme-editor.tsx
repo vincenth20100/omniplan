@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Check, Copy, RotateCcw, Save, Plus, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { format } from "date-fns";
 
 // --- Color Helpers ---
 
@@ -128,6 +129,82 @@ const ColorInput = ({
     );
 };
 
+const MockTaskBar = ({
+    task,
+    taskLabels,
+    colorClass,
+    textClass,
+    borderClass
+}: {
+    task: any,
+    taskLabels: TaskLabelSetting[],
+    colorClass: string,
+    textClass?: string,
+    borderClass?: string
+}) => {
+    // default content (fallback)
+    const defaultContent = (
+         <div className={cn(
+            "relative px-2 text-[10px] truncate w-full flex justify-between items-center",
+            textClass || "text-primary-foreground"
+        )}>
+            <span>{task.name}</span>
+        </div>
+    );
+
+    return (
+        <div className={cn("absolute h-5 rounded-sm shadow-sm flex items-center", colorClass, borderClass)}
+             style={{
+                 left: task.left,
+                 width: task.width,
+                 top: task.top
+             }}
+        >
+             {(!taskLabels || taskLabels.length === 0) ? defaultContent : (
+                <>
+                 {taskLabels.map((labelSetting, index) => {
+                     let content = '';
+                     switch(labelSetting.field) {
+                         case 'name': content = task.name; break;
+                         case 'start': content = format(task.start, "MMM dd"); break;
+                         case 'finish': content = format(task.finish, "MMM dd"); break;
+                         case 'duration': content = task.durationStr; break;
+                         case 'percentComplete': content = `${task.percentComplete}%`; break;
+                         default: content = '';
+                     }
+
+                     const positionClasses = {
+                         inside: "left-0 top-0 w-full h-full flex items-center px-2 overflow-visible",
+                         left: "right-full top-1/2 -translate-y-1/2 mr-2 justify-end text-foreground",
+                         right: "left-full top-1/2 -translate-y-1/2 ml-2 justify-start text-foreground",
+                         top: "bottom-full left-1/2 -translate-x-1/2 mb-1 justify-center text-foreground",
+                         bottom: "top-full left-1/2 -translate-x-1/2 mt-1 justify-center text-foreground"
+                     };
+
+                     const isInside = labelSetting.location === 'inside';
+                     const finalTextColorClass = isInside
+                        ? (textClass || "text-primary-foreground")
+                        : "text-foreground";
+
+                     return (
+                         <div
+                            key={index}
+                            className={cn(
+                                "absolute text-[10px] whitespace-nowrap pointer-events-none flex z-20 drop-shadow-md",
+                                positionClasses[labelSetting.location],
+                                finalTextColorClass
+                            )}
+                         >
+                            {content}
+                         </div>
+                     );
+                 })}
+                </>
+             )}
+        </div>
+    )
+}
+
 const PreviewPane = ({ theme, customStyles, settings }: { theme: string, customStyles: Record<string, string>, settings: GanttSettings }) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -144,6 +221,36 @@ const PreviewPane = ({ theme, customStyles, settings }: { theme: string, customS
             });
         }
     }, [customStyles, theme]);
+
+    // Mock data for preview
+    const mockTasks = [
+        {
+            name: "Research",
+            start: new Date(2023, 10, 13), // Mon
+            finish: new Date(2023, 10, 15), // Wed
+            durationStr: "3d",
+            percentComplete: 0,
+            left: "10%",
+            width: "30%",
+            colorClass: "bg-gantt-bar-default",
+            textClass: "text-primary-foreground",
+            top: "6px" // 1.5 * 4 = 6px
+        },
+        {
+            name: "Planning",
+            start: new Date(2023, 10, 15),
+            finish: new Date(2023, 10, 17),
+            durationStr: "2d",
+            percentComplete: 0,
+            left: "45%",
+            width: "20%",
+            colorClass: "bg-gantt-bar-critical",
+            textClass: "text-destructive-foreground",
+            borderClass: "border border-destructive",
+            top: "6px",
+            isCritical: true
+        }
+    ];
 
     return (
         <div
@@ -230,20 +337,27 @@ const PreviewPane = ({ theme, customStyles, settings }: { theme: string, customS
                         <div className="flex-1 p-2 space-y-3 relative">
                             {/* Row 1 */}
                             <div className="flex items-center relative h-8 hover:bg-accent/10 rounded">
-                                <div className="w-1/4 text-sm font-medium px-2">Research</div>
+                                <div className="w-1/4 text-sm font-medium px-2">{mockTasks[0].name}</div>
                                 <div className="flex-1 relative h-full">
-                                    <div className="absolute top-1.5 left-[10%] w-[30%] h-5 bg-gantt-bar-default rounded-sm shadow-sm flex items-center px-2 text-[10px] text-primary-foreground">
-                                        3d
-                                    </div>
+                                    <MockTaskBar
+                                        task={mockTasks[0]}
+                                        taskLabels={settings.taskLabels || []}
+                                        colorClass={mockTasks[0].colorClass}
+                                        textClass={mockTasks[0].textClass}
+                                    />
                                 </div>
                             </div>
                             {/* Row 2 */}
                              <div className="flex items-center relative h-8 hover:bg-accent/10 rounded">
-                                <div className="w-1/4 text-sm font-medium px-2">Planning</div>
+                                <div className="w-1/4 text-sm font-medium px-2">{mockTasks[1].name}</div>
                                 <div className="flex-1 relative h-full">
-                                    <div className="absolute top-1.5 left-[45%] w-[20%] h-5 bg-gantt-bar-critical rounded-sm shadow-sm flex items-center px-2 text-[10px] text-destructive-foreground border border-destructive">
-                                        ! 2d
-                                    </div>
+                                    <MockTaskBar
+                                        task={mockTasks[1]}
+                                        taskLabels={settings.taskLabels || []}
+                                        colorClass={mockTasks[1].colorClass}
+                                        textClass={mockTasks[1].textClass}
+                                        borderClass={mockTasks[1].borderClass}
+                                    />
                                 </div>
                             </div>
                             {/* Row 3 - Milestone */}
@@ -574,7 +688,7 @@ export function DetailedThemeEditor({
                                 </Button>
                              </div>
                              <div className="flex-1 shadow-2xl rounded-lg overflow-hidden border-4 border-muted">
-                                <PreviewPane theme={baseTheme} customStyles={customStyles} settings={settings} />
+                                <PreviewPane theme={baseTheme} customStyles={customStyles} settings={{...settings, taskLabels}} />
                              </div>
                              <p className="text-center text-xs text-muted-foreground mt-4">
                                 This preview uses a simulated layout. Actual application layout may vary slightly.
