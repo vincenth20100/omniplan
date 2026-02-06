@@ -47,7 +47,7 @@ service cloud.firestore {
     // --- User Profile ---
     match /users/{userId} {
       allow read, create, update: if request.auth.uid == userId || isGlobalAdmin();
-      allow delete: if false;
+      allow delete: if isGlobalAdmin();
     }
     
     // --- User Preferences ---
