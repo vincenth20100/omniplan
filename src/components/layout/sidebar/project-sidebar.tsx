@@ -207,6 +207,7 @@ export function ProjectSidebar({
                     isEditor={isEditor}
                     onSetBaseline={onSetBaseline}
                     onManageBaselines={onManageBaselines}
+                    columns={projectState.columns}
                 />
             );
             break;

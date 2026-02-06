@@ -1307,7 +1307,7 @@ export function TaskTable({
                             const shouldHighlightRow = isRowSelected && (selectionMode === 'row' || !isRowInActiveRange);
 
                             return (
-                                <TaskTooltip key={task.id} task={task} tooltipFields={ganttSettings.tableTooltipFields} dateFormat={dateFormat} columns={columns} resources={resources} assignments={assignments}>
+                                <TaskTooltip key={task.id} task={task} tooltipFields={ganttSettings.tableTooltipFields} tooltipConfig={ganttSettings.tableTooltipConfig} dateFormat={dateFormat} columns={columns} resources={resources} assignments={assignments}>
                                 <TableRow
                                     style={{ height: `${rowHeight}px` }}
                                     onDragOver={(e) => handleDragOver(e, task.id)}

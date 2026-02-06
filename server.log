@@ -12,7 +12,8 @@ This information is used to shape Next.js' roadmap and prioritize features.
 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
 https://nextjs.org/telemetry
 
- ✓ Ready in 1477ms
- ○ Compiling /test-settings ...
- ✓ Compiled /test-settings in 10.2s
- GET /test-settings 200 in 11904ms
+ ✓ Ready in 1452ms
+ ○ Compiling /test-tooltip-config ...
+ ✓ Compiled /test-tooltip-config in 8.6s
+ GET /test-tooltip-config 200 in 10037ms
+[?25h
