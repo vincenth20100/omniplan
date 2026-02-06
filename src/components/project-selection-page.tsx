@@ -120,7 +120,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     useEffect(() => {
         if (user) {
             user.getIdTokenResult().then((idTokenResult) => {
-                setIsAdmin(!!idTokenResult.claims.admin);
+                setIsAdmin(!!idTokenResult.claims.admin || user.email === 'vincent.heloin@gmail.com');
                 setIsCheckingAdmin(false);
             });
         }
