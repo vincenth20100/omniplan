@@ -33,13 +33,13 @@ service cloud.firestore {
     }
     
     function isProjectEditor(projectId) {
-      let userRole = get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role;
-      return isProjectMember(projectId) && userRole in ['owner', 'editor'];
+      return isProjectMember(projectId) &&
+             get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role in ['owner', 'editor'];
     }
 
     function isProjectOwner(projectId) {
-      let userRole = get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role;
-      return isProjectMember(projectId) && userRole == 'owner';
+      return (isProjectMember(projectId) && get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role == 'owner') ||
+             (get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid);
     }
 
     // --- Functions for batched writes (creation) ---
