@@ -133,22 +133,30 @@ export function ProjectSelectionPage({ user }: { user: User }) {
 
             try {
                 let fetchedProjects: ProjectWithMetadata[] = [];
+                let adminFetchFailed = false;
 
                 if (isAdmin) {
-                    const projectsQuery = query(collection(firestore, 'projects'));
-                    const querySnapshot = await getDocs(projectsQuery);
-                    fetchedProjects = querySnapshot.docs.map(snap => {
-                         const data = snap.data() as Project;
-                         return {
-                             ...data,
-                             id: snap.id,
-                             createdAt: data.createdAt ? (data.createdAt as any).toDate() : new Date(),
-                             startDate: data.startDate ? (data.startDate as any).toDate() : undefined,
-                             finishDate: data.finishDate ? (data.finishDate as any).toDate() : undefined,
-                             lastModified: data.lastModified ? (data.lastModified as any).toDate() : undefined,
-                         } as ProjectWithMetadata;
-                    });
-                } else {
+                    try {
+                        const projectsQuery = query(collection(firestore, 'projects'));
+                        const querySnapshot = await getDocs(projectsQuery);
+                        fetchedProjects = querySnapshot.docs.map(snap => {
+                            const data = snap.data() as Project;
+                            return {
+                                ...data,
+                                id: snap.id,
+                                createdAt: data.createdAt ? (data.createdAt as any).toDate() : new Date(),
+                                startDate: data.startDate ? (data.startDate as any).toDate() : undefined,
+                                finishDate: data.finishDate ? (data.finishDate as any).toDate() : undefined,
+                                lastModified: data.lastModified ? (data.lastModified as any).toDate() : undefined,
+                            } as ProjectWithMetadata;
+                        });
+                    } catch (error) {
+                        console.warn("Admin fetch failed, falling back to user fetch", error);
+                        adminFetchFailed = true;
+                    }
+                }
+
+                if (!isAdmin || adminFetchFailed) {
                     const userDocRef = doc(firestore, 'users', user.uid);
                     const userDoc = await getDoc(userDocRef);
 
