@@ -35,6 +35,10 @@ export function getRawTaskPropertyValue(
             return task.name;
         case 'projectSource':
             return task.projectName || null;
+        case 'isCritical':
+            return task.isCritical ? '*' : '';
+        case 'totalFloat':
+            return task.totalFloat ?? null;
         default:
             if (column.id.startsWith('custom-')) {
                 return task.customAttributes?.[column.id] || null;
@@ -59,6 +63,7 @@ export function getTaskPropertyValue(
         return format(new Date(rawValue), 'MMM d, yyyy');
     }
 
+    if (column?.id === 'totalFloat') return rawValue !== null ? `${rawValue}d` : '';
     if (column?.id === 'duration') return `${rawValue} day(s)`;
     if (column?.id === 'percentComplete') return `${rawValue}%`;
 

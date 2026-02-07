@@ -30,6 +30,8 @@ export const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })
     { id: 'baselineStart', name: 'Baseline Start', defaultWidth: 110, type: 'date' },
     { id: 'baselineFinish', name: 'Baseline Finish', defaultWidth: 110, type: 'date' },
     { id: 'finishVariance', name: 'Finish Variance', defaultWidth: 80, type: 'number' },
+    { id: 'isCritical', name: 'C', defaultWidth: 40, type: 'text' },
+    { id: 'totalFloat', name: 'Float', defaultWidth: 80, type: 'number' },
     { id: 'calendar', name: 'Calendar', defaultWidth: 150, type: 'selection' },
     { id: 'lastComment', name: 'Last Comment', defaultWidth: 200, type: 'text' },
 ];

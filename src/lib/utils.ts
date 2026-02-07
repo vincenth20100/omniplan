@@ -14,3 +14,12 @@ export function removeUndefined<T extends object>(obj: T): T {
   });
   return newObj;
 }
+
+export function getProjectColor(id: string): string {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const c = (hash & 0x00ffffff).toString(16).toUpperCase();
+    return '#' + '00000'.substring(0, 6 - c.length) + c;
+}
