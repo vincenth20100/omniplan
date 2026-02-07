@@ -80,7 +80,7 @@ service cloud.firestore {
       allow list: if isGlobalAdmin();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if isProjectEditor(projectId) || isGlobalAdmin();
-      allow delete: if isProjectOwner(projectId) || isGlobalAdmin();
+      allow delete: if (resource.data.ownerId == request.auth.uid) || isProjectOwner(projectId) || isGlobalAdmin();
 
       // Project Members
       match /members/{userId} {
