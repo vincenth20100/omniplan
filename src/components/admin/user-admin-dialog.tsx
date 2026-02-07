@@ -84,12 +84,8 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
                     const snapshot = await getDocs(q);
                     const fetchedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserDoc));
                     setUsers(fetchedUsers);
-                } catch (error: any) {
-                    console.error("Error fetching users:", {
-                        code: error?.code,
-                        message: error?.message,
-                        details: error
-                    });
+                } catch (error) {
+                    console.error("Error fetching users:", error instanceof Error ? error.message : error);
                     toast({
                         variant: "destructive",
                         title: "Error",
