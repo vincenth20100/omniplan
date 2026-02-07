@@ -94,12 +94,12 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
             <DialogContent className={isWide ? "sm:max-w-[900px]" : "sm:max-w-[500px]"}>
                 <DialogHeader>
                     <DialogTitle>Import Project</DialogTitle>
-                    {!importData && (
-                        <DialogDescription>
-                            Upload a project file to create a new project.<br/>
-                            Supports: <strong>.mpp, .xer, .xml, .xlsx, .csv, .gan</strong>
-                        </DialogDescription>
-                    )}
+                    <DialogDescription className={importData ? "sr-only" : ""}>
+                        {importData
+                            ? "Review and confirm the imported project data."
+                            : <>Upload a project file to create a new project.<br/>Supports: <strong>.mpp, .xer, .xml, .xlsx, .csv, .gan</strong></>
+                        }
+                    </DialogDescription>
                 </DialogHeader>
 
                 {importData ? (

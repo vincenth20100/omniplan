@@ -75,7 +75,7 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
                         const querySnapshot = await getDocs(projectsQuery);
                         fetchedProjects = querySnapshot.docs.map(snap => ({ ...snap.data(), id: snap.id } as Project));
                     } catch (error) {
-                        console.warn("Admin fetch failed, falling back to user fetch", error);
+                        console.warn("Admin fetch failed, falling back to user fetch:", error instanceof Error ? error.message : error);
                         fetchUserProjects = true;
                     }
                 }
