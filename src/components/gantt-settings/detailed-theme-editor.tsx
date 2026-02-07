@@ -15,6 +15,8 @@ import { Check, Copy, RotateCcw, Save, Plus, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
+import { useThemeContext } from '@/components/theme/theme-context';
+import { Switch } from "@/components/ui/switch";
 
 // --- Color Helpers ---
 
@@ -401,6 +403,17 @@ export function DetailedThemeEditor({
     const [newLabelField, setNewLabelField] = useState('name');
     const [newLabelLocation, setNewLabelLocation] = useState<'inside' | 'left' | 'right' | 'top' | 'bottom'>('inside');
 
+    const { isCustomizing, setIsCustomizing, layoutConfig, setLayoutConfig, sidebarConfig, setSidebarConfig } = useThemeContext();
+
+    const handleLayoutChange = (key: string, value: any) => {
+        setLayoutConfig({ ...layoutConfig, [key]: value });
+    };
+
+    const handleToggleGroupLabel = (groupId: string, show: boolean) => {
+        const newConfig = sidebarConfig.map(g => g.id === groupId ? { ...g, showLabel: show } : g);
+        setSidebarConfig(newConfig);
+    };
+
     // Initialize state when opening
     useEffect(() => {
         if (open) {
@@ -590,6 +603,48 @@ export function DetailedThemeEditor({
 
                                     {/* Variables Accordion */}
                                     <Accordion type="single" collapsible className="w-full" defaultValue="Global">
+
+                                    {/* Interface Layout */}
+                                    <AccordionItem value="interface">
+                                        <AccordionTrigger>Interface Layout</AccordionTrigger>
+                                        <AccordionContent className="space-y-4 pt-2">
+                                            <div className="flex items-center justify-between">
+                                                <Label>Edit Mode</Label>
+                                                <Switch
+                                                    checked={isCustomizing}
+                                                    onCheckedChange={setIsCustomizing}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">Enable to drag & drop menu items and click to style.</p>
+
+                                            <div className="space-y-2">
+                                                <Label>Menu Position</Label>
+                                                <Select
+                                                    value={layoutConfig.sidebarPosition}
+                                                    onValueChange={(v) => handleLayoutChange('sidebarPosition', v)}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="left">Left</SelectItem>
+                                                        <SelectItem value="right">Right</SelectItem>
+                                                        <SelectItem value="top">Top</SelectItem>
+                                                        <SelectItem value="bottom">Bottom</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="flex items-center justify-between">
+                                                <Label>MacOS Hover Effect</Label>
+                                                <Switch
+                                                    checked={layoutConfig.enableMacOsHover}
+                                                    onCheckedChange={(c) => handleLayoutChange('enableMacOsHover', c)}
+                                                />
+                                            </div>
+                                        </AccordionContent>
+                                    </AccordionItem>
+
                                         {categories.map(category => (
                                             <AccordionItem key={category} value={category}>
                                                 <AccordionTrigger>{category} Variables</AccordionTrigger>
@@ -606,6 +661,27 @@ export function DetailedThemeEditor({
                                                 </AccordionContent>
                                             </AccordionItem>
                                         ))}
+
+                                        {/* Sidebar Configuration */}
+                                        <AccordionItem value="sidebar-config">
+                                            <AccordionTrigger>Sidebar Groups</AccordionTrigger>
+                                            <AccordionContent className="pt-2 space-y-4">
+                                                <div className="space-y-2">
+                                                    {sidebarConfig.map((group) => (
+                                                        <div key={group.id} className="flex items-center justify-between bg-muted/50 p-2 rounded text-sm">
+                                                            <span>{group.label}</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <Label className="text-xs text-muted-foreground">Show Title</Label>
+                                                                <Switch
+                                                                    checked={group.showLabel}
+                                                                    onCheckedChange={(c) => handleToggleGroupLabel(group.id, c)}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
 
                                         {/* Task Labels Section */}
                                         <AccordionItem value="task-labels">
