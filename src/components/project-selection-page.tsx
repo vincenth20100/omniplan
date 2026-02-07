@@ -39,6 +39,7 @@ import { UserAdminDialog } from '@/components/admin/user-admin-dialog';
 import { ImportDialog } from './import-dialog';
 import { ImportedProjectData } from '@/lib/import-utils';
 import { Upload } from 'lucide-react';
+import { useIsAdmin } from '@/hooks/use-is-admin';
 
 export function ProjectSelectionPage({ user }: { user: User }) {
     const firestore = useFirestore();
@@ -53,8 +54,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     const [isCloning, setIsCloning] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [projectToDelete, setProjectToDelete] = useState<ProjectWithMetadata | null>(null);
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
+    const { isAdmin, isLoading: isCheckingAdmin } = useIsAdmin(user);
     const [isUserAdminOpen, setIsUserAdminOpen] = useState(false);
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -122,15 +122,6 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             });
         }
     }
-
-    useEffect(() => {
-        if (user) {
-            user.getIdTokenResult().then((idTokenResult) => {
-                setIsAdmin(!!idTokenResult.claims.admin || user.email === 'vincent.heloin@gmail.com');
-                setIsCheckingAdmin(false);
-            });
-        }
-    }, [user]);
 
     useEffect(() => {
         const fetchProjects = async () => {
