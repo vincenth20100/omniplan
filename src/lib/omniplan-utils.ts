@@ -12,7 +12,7 @@ import { ImportedProjectData, parseProjectXML, parseProjectExcel } from "./impor
 // ─────────────────────────────────────────────────────────
 const API_BASE =
   process.env.NEXT_PUBLIC_OMNIPLAN_API_URL ??
-  "https://huggingface.co/spaces/vincentheloin/omniplan-converter";
+  "https://vincentheloin-omniplan-converter.hf.space";
 
 // Formats that MUST be converted by the Python server first
 export const SERVER_EXTENSIONS = new Set([
