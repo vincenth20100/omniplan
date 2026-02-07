@@ -89,7 +89,7 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
                     toast({
                         variant: "destructive",
                         title: "Error",
-                        description: "Could not fetch users list. " + (error as Error).message
+                        description: `Could not fetch users list. ${error?.code ? `[${error.code}] ` : ''}${error?.message || 'Unknown error'}`
                     });
                 } finally {
                     setLoading(false);
@@ -419,6 +419,7 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
                 <SheetContent side="bottom" className="h-[90vh] flex flex-col">
                     <SheetHeader>
                         <SheetTitle>User Administration</SheetTitle>
+                        <SheetDescription>Manage users, view activity, and control access.</SheetDescription>
                     </SheetHeader>
                     {content}
                 </SheetContent>

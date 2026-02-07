@@ -9,9 +9,9 @@ service cloud.firestore {
 
     function isGlobalAdmin() {
       return isSignedIn() && (
-        request.auth.token.admin == true ||
-        (request.auth.token.email != null && request.auth.token.email.lower() == 'vincent.heloin@gmail.com') ||
-        (exists(/databases/$(database)/documents/system/permissions) && get(/databases/$(database)/documents/system/permissions).data.admins.hasAny([request.auth.token.email]))
+        request.auth.token.get('admin', false) == true ||
+        (request.auth.token.get('email', null) != null && request.auth.token.get('email', null).lower() == 'vincent.heloin@gmail.com') ||
+        (exists(/databases/$(database)/documents/system/permissions) && get(/databases/$(database)/documents/system/permissions).data.admins.hasAny([request.auth.token.get('email', null)]))
       );
     }
 
@@ -169,10 +169,10 @@ service cloud.firestore {
      // --- Invitations ---
     match /invitations/{invitationId} {
       allow create: if isGlobalAdmin() || (request.resource.data.projectId != null && isProjectEditor(request.resource.data.projectId));
-      allow delete: if isGlobalAdmin() || (resource.data.email == request.auth.token.email) || (resource.data.projectId != null && isProjectEditor(resource.data.projectId));
+      allow delete: if isGlobalAdmin() || (resource.data.email == request.auth.token.get('email', null)) || (resource.data.projectId != null && isProjectEditor(resource.data.projectId));
       allow read: if isGlobalAdmin()
                   || (resource.data.projectId != null && isProjectEditor(resource.data.projectId))
-                  || (request.auth.token.email != null && resource.data.email == request.auth.token.email);
+                  || (request.auth.token.get('email', null) != null && resource.data.email == request.auth.token.get('email', null));
       allow update: if false;
     }
   }
