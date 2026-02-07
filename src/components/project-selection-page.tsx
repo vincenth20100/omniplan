@@ -157,7 +157,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                             } as ProjectWithMetadata;
                         });
                     } catch (error) {
-                        console.warn("Admin fetch failed, falling back to user fetch", error);
+                        console.warn("Admin fetch failed, falling back to user fetch:", error instanceof Error ? error.message : error);
                         adminFetchFailed = true;
                     }
                 }
