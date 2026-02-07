@@ -11,8 +11,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useRef } from "react";
-import { Upload, Loader2, FileText, AlertTriangle, FileSpreadsheet } from "lucide-react";
-// 1. IMPORT THE NEW UNIFIED UTILITY
+import { Upload, Loader2, FileText, AlertTriangle } from "lucide-react";
+// --------------------------------------------------------------------------
+// FIX: Import 'analyzeProjectFile' instead of the missing 'fetchProjectAnalysis'
+// --------------------------------------------------------------------------
 import { analyzeProjectFile } from "@/lib/omniplan-utils";
 import { ImportedProjectData } from "@/lib/import-utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,8 +32,8 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
     const [importData, setImportData] = useState<ImportedProjectData | null>(null);
     const [error, setError] = useState<string | null>(null);
     
-    // We can remove analysisData, xmlSource, serverError, etc. 
-    // The new ImportPreview handles all data types rich & simple.
+    // We removed 'analysisData' and 'serverError' because the new utility handles 
+    // conversions internally and returns standard data.
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,7 +47,10 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         setImportData(null);
 
         try {
-            // 2. ONE CALL handles MPP, XER, XML, and Excel
+            // ----------------------------------------------------------------------
+            // CORE FIX: This single call now handles .mpp, .xer, .xml, and .xlsx
+            // It automatically routes binary files to your Python backend.
+            // ----------------------------------------------------------------------
             const data = await analyzeProjectFile(selectedFile);
             
             if (data && data.tasks.length > 0) {
@@ -98,17 +103,16 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                 </DialogHeader>
 
                 {importData ? (
-                    // 3. SHOW THE RICH PREVIEW
+                    // SHOW PREVIEW
                     <ImportPreview
                         data={importData}
                         sourceFile={file || undefined}
                         onCancel={handleReset}
                         onConfirm={handleConfirmImport}
-                        // Add download handler if you want the "Download As" button enabled
                         onDownload={undefined} 
                     />
                 ) : (
-                    // 4. SHOW UPLOAD STATE
+                    // SHOW UPLOAD STATE
                     <div className="space-y-4 py-4">
                         {error && (
                             <Alert variant="destructive">
