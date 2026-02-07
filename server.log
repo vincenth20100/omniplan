@@ -5,7 +5,6 @@
    ▲ Next.js 15.5.9 (Turbopack)
    - Local:        http://localhost:3000
    - Network:      http://192.168.0.2:3000
-   - Environments: .env.local
 
  ✓ Starting...
 Attention: Next.js now collects completely anonymous telemetry regarding usage.
@@ -13,10 +12,9 @@ This information is used to shape Next.js' roadmap and prioritize features.
 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
 https://nextjs.org/telemetry
 
- ✓ Ready in 2.5s
- ○ Compiling /converter ...
- ✓ Compiled /converter in 8.6s
- GET /converter 200 in 10073ms
- GET /converter 200 in 178ms
- GET /converter 200 in 182ms
- GET /converter 200 in 169ms
+ ✓ Ready in 1526ms
+ ○ Compiling /verify-history ...
+ ✓ Compiled /verify-history in 10.3s
+ GET /verify-history 200 in 12024ms
+ GET /verify-history 200 in 397ms
+[?25h
