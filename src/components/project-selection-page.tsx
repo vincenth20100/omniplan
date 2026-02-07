@@ -495,9 +495,17 @@ export function ProjectSelectionPage({ user }: { user: User }) {
 
             // Aggregate all documents to delete
             const allDocsToDelete: any[] = [];
+            let currentUserMemberDocRef: any = null;
+
             subColSnapshots.forEach(snapshot => {
-                snapshot.forEach(doc => {
-                    allDocsToDelete.push(doc.ref);
+                snapshot.forEach(docSnap => {
+                    // Check if this is the current user's member document
+                    // We need to preserve this until the end so the user retains permissions to delete everything else
+                    if (docSnap.ref.path.includes('/members/') && docSnap.id === user.uid) {
+                        currentUserMemberDocRef = docSnap.ref;
+                    } else {
+                        allDocsToDelete.push(docSnap.ref);
+                    }
                 });
             });
 
@@ -516,14 +524,28 @@ export function ProjectSelectionPage({ user }: { user: User }) {
 
             // Remove project ID from all members' user docs
             if (projectToDelete.memberIds && projectToDelete.memberIds.length > 0) {
-                const memberUpdatePromises = projectToDelete.memberIds.map(memberId => {
-                    const userDocRef = doc(firestore, 'users', memberId);
-                    return updateDoc(userDocRef, { projectIds: arrayRemove(projectToDelete.id) });
+                const memberUpdatePromises = projectToDelete.memberIds.map(async (memberId) => {
+                    // Only attempt to update if we have permission (self or admin)
+                    // We catch errors to prevent one failure from stopping the whole process
+                    if (memberId !== user.uid && !isAdmin) return;
+
+                    try {
+                        const userDocRef = doc(firestore, 'users', memberId);
+                        await updateDoc(userDocRef, { projectIds: arrayRemove(projectToDelete.id) });
+                    } catch (error) {
+                        console.warn(`Failed to remove project from user ${memberId}`, error);
+                    }
                 });
                 await Promise.all(memberUpdatePromises);
             }
 
+            // Delete the project document first (relies on member doc or ownerId)
             await deleteDoc(doc(firestore, 'projects', projectToDelete.id));
+
+            // Finally, delete the current user's member document
+            if (currentUserMemberDocRef) {
+                await deleteDoc(currentUserMemberDocRef);
+            }
             
             toast({
                 title: "Project Deleted",
