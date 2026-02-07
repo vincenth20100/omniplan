@@ -167,8 +167,8 @@ service cloud.firestore {
       }
       match /history/{historyId} {
         allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
-        allow create: if isProjectEditor(projectId) || isGlobalAdmin();
-        allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditor(projectId) || isProjectOwner(projectId) || isGlobalAdmin();
+        allow update, delete: if isProjectEditor(projectId) || isProjectOwner(projectId) || isGlobalAdmin();
       }
 
       // Snapshots

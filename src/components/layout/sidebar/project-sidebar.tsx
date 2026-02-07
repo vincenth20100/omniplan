@@ -33,6 +33,7 @@ export function ProjectSidebar({
     user,
     currentProjectId,
     existingSubprojectIds,
+    onDelete,
 }: {
     view: SidebarView;
     onNavigate: (view: SidebarView) => void;
@@ -53,6 +54,7 @@ export function ProjectSidebar({
     user: User;
     currentProjectId: string;
     existingSubprojectIds?: string[];
+    onDelete?: () => void;
 }) {
     const { state, setOpenMobile, setOpen, isMobile } = useSidebar();
     const { layoutConfig } = useThemeContext();

@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Link as LinkIcon, Info, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, ArrowLeft, TableProperties, Rows, ListChecks, Settings } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ResourceManagementDialog } from '@/components/resources/resource-management-dialog';
 import { CalendarManagementDialog } from '@/components/calendars/calendar-management-dialog';
 import { GroupingDialog } from '@/components/view-options/grouping-dialog';
@@ -45,6 +45,7 @@ import { ProjectSidebar, type SidebarView } from '@/components/layout/sidebar/pr
 import { ColumnManagerDialog } from '@/components/view-options/column-manager-dialog';
 import { ThemeProvider, useThemeContext } from '@/components/theme/theme-context';
 import { ViewManagerDialog } from '@/components/view-options/view-manager-dialog';
+import { DeleteConfirmationDialog } from './delete-confirmation-dialog';
 import { Slider } from "@/components/ui/slider";
 import {
   Select,
@@ -166,6 +167,8 @@ function ProjectPageContent({ user, projectId }: { user: User, projectId: string
   const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false);
   const [isViewManagerOpen, setIsViewManagerOpen] = useState(false);
   const [currentSidebarView, setCurrentSidebarView] = useState<SidebarView>('main');
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [deleteSummary, setDeleteSummary] = useState({ taskCount: 0, linkCount: 0 });
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -193,18 +196,61 @@ function ProjectPageContent({ user, projectId }: { user: User, projectId: string
     }
   }, [state.notifications, dispatch, toast]);
   
+  const handleDeleteRequest = useCallback(() => {
+    if (state.selectedTaskIds.length === 0 || !isEditorOrOwner) return;
+
+    const taskIdsToDelete = new Set(state.selectedTaskIds);
+    const tasks = state.tasks;
+
+    // Find all descendants
+    const findDescendants = (parentId: string) => {
+        tasks.forEach(t => {
+            if (t.parentId === parentId) {
+                taskIdsToDelete.add(t.id);
+                findDescendants(t.id);
+            }
+        });
+    };
+
+    state.selectedTaskIds.forEach(id => findDescendants(id));
+
+    const linkCount = state.links.filter(l =>
+        taskIdsToDelete.has(l.source) || taskIdsToDelete.has(l.target)
+    ).length;
+
+    setDeleteSummary({
+        taskCount: taskIdsToDelete.size,
+        linkCount
+    });
+    setIsDeleteConfirmOpen(true);
+  }, [state.selectedTaskIds, state.tasks, state.links, isEditorOrOwner]);
+
+  const handleDeleteConfirm = () => {
+    dispatch({ type: 'REMOVE_TASK' });
+    setIsDeleteConfirmOpen(false);
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'h') {
             event.preventDefault();
             setIsFindReplaceOpen(true);
         }
+        if (event.key === 'Delete' || event.key === 'Backspace') {
+            // Check if user is typing in an input
+            const activeElement = document.activeElement;
+            const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement || activeElement?.getAttribute('contenteditable') === 'true';
+
+            if (!isInput && state.selectedTaskIds.length > 0) {
+                 handleDeleteRequest();
+            }
+        }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
         window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [state.selectedTaskIds, handleDeleteRequest]);
 
   const handleFindReplace = (find: string, replace: string) => {
       dispatch({ type: 'FIND_AND_REPLACE', payload: { find, replace } });
@@ -344,6 +390,7 @@ function ProjectPageContent({ user, projectId }: { user: User, projectId: string
         user={user}
         currentProjectId={projectId}
         existingSubprojectIds={project?.subprojectIds}
+        onDelete={handleDeleteRequest}
     />
   );
 
