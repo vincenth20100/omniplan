@@ -42,6 +42,7 @@ export function SidebarNavigation({
     canIndent,
     canOutdent,
     isEditor,
+    onDelete,
 }: {
     onNavigate: (view: SidebarView) => void;
     dispatch: any;
@@ -51,6 +52,7 @@ export function SidebarNavigation({
     canIndent?: boolean;
     canOutdent?: boolean;
     isEditor: boolean;
+    onDelete?: () => void;
 }) {
 
     return (
@@ -91,7 +93,13 @@ export function SidebarNavigation({
                         </SidebarMenuItem>
                          <SidebarMenuItem>
                             <SidebarMenuButton
-                                onClick={() => dispatch({ type: 'REMOVE_TASK' })}
+                                onClick={() => {
+                                    if (onDelete) {
+                                        onDelete();
+                                    } else {
+                                        dispatch({ type: 'REMOVE_TASK' });
+                                    }
+                                }}
                                 disabled={!canRemove || !isEditor}
                                 tooltip="Delete"
                             >
