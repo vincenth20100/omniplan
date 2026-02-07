@@ -220,6 +220,7 @@ export interface HistoryEntry {
     actionType: string;
     timestamp: Date;
     payloadDescription?: string;
+    details?: any;
 }
 
 export type Representation = 'gantt' | 'kanban' | 'resource-usage';

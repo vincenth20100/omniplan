@@ -230,8 +230,8 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const defaultCalendar = state.calendars.find(c => c.id === state.defaultCalendarId) || state.calendars[0] || null;
   const dateFormat = state.ganttSettings.dateFormat || 'MMM d, yyyy';
 
-  const handleToggleMultiSelect = () => {
-    dispatch({ type: 'TOGGLE_MULTI_SELECT_MODE' });
+  const handleToggleMultiSelect = (pressed: boolean) => {
+    dispatch({ type: 'SET_MULTI_SELECT_MODE', payload: pressed });
   };
   
   const currentZoom = state.ganttSettings.zoom || 1;
