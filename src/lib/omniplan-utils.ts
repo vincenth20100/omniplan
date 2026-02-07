@@ -17,7 +17,7 @@ import { ImportedProjectData } from "@/lib/import-utils";
 // ─────────────────────────────────────────────────────────
 const API_BASE =
   process.env.NEXT_PUBLIC_OMNIPLAN_API_URL ??
-  "https://vincentheloin-omniplan-converter.hf.space";
+  "https://huggingface.co/spaces/vincentheloin/omniplan-converter";
 
 // Extensions that MUST go through the server (binary / proprietary)
 export const SERVER_EXTENSIONS = new Set([
