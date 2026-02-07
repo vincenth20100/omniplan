@@ -222,6 +222,45 @@ const getPayloadDescription = (action: Action, tasks: Task[]): string | undefine
     return undefined;
 }
 
+const getHistoryDetails = (action: Action, state: ProjectState): { description: string | undefined, details: any } => {
+    let description = getPayloadDescription(action, state.tasks);
+    let details: any = null;
+
+    if (action.type === 'REMOVE_TASK') {
+        const idsToRemove = getTaskIdsInSelection(state);
+        const tasksToRemove = state.tasks.filter(t => idsToRemove.has(t.id));
+        if (tasksToRemove.length > 0) {
+             description = tasksToRemove.length === 1
+                ? `Task "${tasksToRemove[0].name}"`
+                : `${tasksToRemove.length} tasks`;
+
+             details = {
+                 deletedTasks: tasksToRemove.map(t => ({ id: t.id, name: t.name }))
+             };
+        }
+    } else if (action.type === 'UPDATE_TASK') {
+         const task = state.tasks.find(t => t.id === action.payload.id);
+         if (task) {
+             const changes: any = {};
+             for (const key in action.payload) {
+                 if (key !== 'id') {
+                    const fromVal = (task as any)[key];
+                    const toVal = (action.payload as any)[key];
+                    // Simple equality check, can be improved for objects/dates
+                    if (JSON.stringify(fromVal) !== JSON.stringify(toVal)) {
+                        changes[key] = { from: fromVal, to: toVal };
+                    }
+                 }
+             }
+             if (Object.keys(changes).length > 0) {
+                 details = { changes, taskName: task.name, taskId: task.id };
+             }
+         }
+    }
+
+    return { description, details };
+}
+
 const sanitizeRestoredTask = (task: any): Task => {
     const sanitized = { ...task };
     Object.keys(sanitized).forEach(key => {
@@ -2548,9 +2587,11 @@ export function useProject(user: User, projectId: string | null) {
 
         batch.commit().then(() => {
             if (isEditAction(finalAction)) {
+                 const { description, details } = getHistoryDetails(finalAction, historyStateRef.current.present);
                  addDoc(collection(firestore, 'projects', projectId, 'history'), {
                      actionType: finalAction.type,
-                     payloadDescription: getPayloadDescription(finalAction, historyStateRef.current.present.tasks) ?? null,
+                     payloadDescription: description ?? null,
+                     details: details ?? null,
                      timestamp: serverTimestamp(),
                      userId: user.uid,
                      userName: user.displayName || user.email || 'Unknown User'
@@ -2788,9 +2829,11 @@ export function useProject(user: User, projectId: string | null) {
             internalDispatch({ type: '_APPLY_STATE_CHANGE', payload: { newState, originalAction: finalAction } });
 
             if (isEditAction(finalAction)) {
+                 const { description, details } = getHistoryDetails(finalAction, historyStateRef.current.present);
                  addDoc(collection(firestore, 'projects', projectId, 'history'), {
                      actionType: finalAction.type,
-                     payloadDescription: getPayloadDescription(finalAction, historyStateRef.current.present.tasks) ?? null,
+                     payloadDescription: description ?? null,
+                     details: details ?? null,
                      timestamp: serverTimestamp(),
                      userId: user.uid,
                      userName: user.displayName || user.email || 'Unknown User'
