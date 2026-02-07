@@ -451,7 +451,8 @@ function mapAnalyzeResponse(
     thursday:  str(c["Thursday"])  || undefined,
     friday:    str(c["Friday"])    || undefined,
     saturday:  str(c["Saturday"])  || undefined,
-    exceptions: str(c["Exceptions"]) || undefined,
+    exceptions: [],  // Calendar type expects array; raw string available in _rawExceptions
+    _rawExceptions: str(c["Exceptions"]) || undefined,
   } as unknown as Calendar));
 
   // ── PROJECT INFO ──
