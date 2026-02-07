@@ -3297,10 +3297,10 @@ export function useProject(user: User, projectId: string | null) {
   }, []);
 
   return { 
-    state: viewingSnapshotId && previewState ? previewState : historyState.present,
+    state: isMockProject ? mockVerificationState : (viewingSnapshotId && previewState ? previewState : historyState.present),
     dispatch,
-    isLoaded: isLoaded && projectId && !isCheckingAdmin && !isMemberLoading,
-    isEditorOrOwner,
+    isLoaded: (isLoaded && projectId && !isCheckingAdmin && !isMemberLoading) || isMockProject,
+    isEditorOrOwner: isEditorOrOwner || isMockProject,
     canUndo: historyState.past.length > 0,
     canRedo: historyState.future.length > 0,
     history: {

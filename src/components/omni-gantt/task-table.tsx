@@ -405,6 +405,12 @@ const TaskCellRenderer = React.memo(({
             const textClass = variance > 0 ? 'text-destructive' : variance < 0 ? 'text-chart-2' : '';
             return <div className={cn("text-right pr-4", textClass)}>{variance !== 0 ? `${variance > 0 ? '+' : ''}${variance}d` : '0d'}</div>;
         }
+        case 'isCritical': {
+             return <div className="text-center w-full">{task.isCritical ? '*' : ''}</div>;
+        }
+        case 'totalFloat': {
+            return <div className="text-right pr-4">{task.totalFloat !== undefined ? formatDuration(task.totalFloat, 'd') : ''}</div>;
+        }
         case 'calendar': {
             if (task.isSummary) return null;
 
@@ -669,6 +675,10 @@ export function TaskTable({
                     return `${displayWbs}${l.type}${lagString}`;
                 }).join(', ');
             }
+            case 'isCritical':
+                return task.isCritical ? '*' : '';
+            case 'totalFloat':
+                return task.totalFloat !== undefined ? `${task.totalFloat}d` : '';
             case 'lastComment': {
                 const lastNote = task.notes && task.notes.length > 0 ? task.notes[task.notes.length - 1] : null;
                 return lastNote ? lastNote.content : '';
