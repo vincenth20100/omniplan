@@ -12,10 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useRef } from "react";
 import { Upload, Loader2, FileText, AlertTriangle, FileSpreadsheet, FileType } from "lucide-react";
-import { parseProjectXML, parsePrimaveraXER, parseProjectExcel, ImportedProjectData } from "@/lib/import-utils";
-import { analyzeProjectFile } from "@/lib/omniplan-utils";
+import { parseProjectXML, parseProjectExcel, ImportedProjectData } from "@/lib/import-utils";
+import { fetchProjectAnalysis, convertAnalysisToImportData, HFAnalyzeResponse } from "@/lib/omniplan-utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ImportPreview } from "./import-preview";
+import { AnalysisPreview } from "./analysis-preview";
 
 interface ImportDialogProps {
     open: boolean;
@@ -27,6 +28,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
     const [file, setFile] = useState<File | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     const [importData, setImportData] = useState<ImportedProjectData | null>(null);
+    const [analysisData, setAnalysisData] = useState<HFAnalyzeResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [serverError, setServerError] = useState<string | null>(null);
     const [xmlSource, setXmlSource] = useState<string | null>(null);
@@ -44,6 +46,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         setError(null);
         setServerError(null);
         setImportData(null);
+        setAnalysisData(null);
         setXmlSource(null);
         setShowPreview(false);
         setShowMppGuide(false);
@@ -55,15 +58,14 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
             if (name.endsWith('.xml')) {
                 const text = await selectedFile.text();
                 data = parseProjectXML(text);
-            } else if (name.endsWith('.xer')) {
-                const text = await selectedFile.text();
-                data = parsePrimaveraXER(text);
+            } else if (name.endsWith('.mpp') || name.endsWith('.xer')) {
+                 // Use OmniPlan API for analysis (Review Mode)
+                 const raw = await fetchProjectAnalysis(selectedFile);
+                 setAnalysisData(raw);
+                 // We don't set importData here yet; we wait for user confirmation
             } else if (name.endsWith('.xlsx') || name.endsWith('.csv')) {
                 const buffer = await selectedFile.arrayBuffer();
                 data = await parseProjectExcel(buffer);
-            } else if (name.endsWith('.mpp')) {
-                 // Use OmniPlan API
-                 data = await analyzeProjectFile(selectedFile);
             } else if (name.endsWith('.mpx') || name.endsWith('.pp') || name.endsWith('.gan')) {
                  // Server-Side Conversion for binary formats or non-native XMLs
                  try {
@@ -106,6 +108,8 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                     setImportData(data);
                     setShowPreview(true);
                 }
+            } else if (!analysisData && !name.endsWith('.mpp') && !name.endsWith('.xer')) {
+                 // Should be covered by logic above, but safety check
             }
         } catch (err) {
             console.error(err);
@@ -118,6 +122,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
     const handleReset = () => {
         setFile(null);
         setImportData(null);
+        setAnalysisData(null);
         setXmlSource(null);
         setError(null);
         setServerError(null);
@@ -136,12 +141,24 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         }
     };
 
+    const handleConfirmAnalysis = () => {
+        if (analysisData && file) {
+            const data = convertAnalysisToImportData(analysisData, file.name);
+            onImport(data);
+            onOpenChange(false);
+            handleReset();
+        }
+    };
+
+    // Determine content width based on active view
+    const isWide = showPreview || (analysisData !== null);
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={showPreview ? "sm:max-w-[850px]" : "sm:max-w-[500px]"}>
+            <DialogContent className={isWide ? "sm:max-w-[850px]" : "sm:max-w-[500px]"}>
                 <DialogHeader>
                     <DialogTitle>Import Project</DialogTitle>
-                    {!showPreview && !showMppGuide && (
+                    {!showPreview && !showMppGuide && !analysisData && (
                         <DialogDescription>
                             Upload a project file to create a new project.
                             <br />
@@ -182,10 +199,16 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                             <Button onClick={() => fileInputRef.current?.click()}>Upload Converted File</Button>
                         </div>
                     </div>
+                ) : analysisData ? (
+                    <AnalysisPreview
+                        data={analysisData}
+                        fileName={file?.name || "Unknown File"}
+                        onCancel={handleReset}
+                        onConfirm={handleConfirmAnalysis}
+                    />
                 ) : showPreview && importData ? (
                     <ImportPreview
                         data={importData}
-                        xmlSource={xmlSource}
                         onCancel={handleReset}
                         onConfirm={handleConfirmImport}
                     />
@@ -225,7 +248,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                                     {isParsing && (
                                         <div className="flex items-center justify-center p-4">
                                             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                                            <span className="ml-2 text-sm">Parsing file...</span>
+                                            <span className="ml-2 text-sm">Analyzing file...</span>
                                         </div>
                                     )}
 
