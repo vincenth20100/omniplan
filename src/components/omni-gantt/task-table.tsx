@@ -1304,8 +1304,26 @@ export function TaskTable({
                             const visibleTaskIndex = taskIdToVisibleIndex.get(task.id) ?? -1;
 
                             const isRowSelected = selectedTaskIds.includes(task.id);
-                            const isRowInActiveRange = selectionMode === 'cell' && selectionRange && visibleTaskIndex !== -1 && visibleTaskIndex >= selectionRange.rowStart && visibleTaskIndex <= selectionRange.rowEnd;
-                            const shouldHighlightRow = isRowSelected && (selectionMode === 'row' || !isRowInActiveRange);
+                            // Only highlight row if in row selection mode. Cell selection logic is handled separately.
+                            const shouldHighlightRow = isRowSelected && selectionMode === 'row';
+
+                            // Check adjacent rows for contiguous selection borders
+                            let isPrevRowSelected = false;
+                            let isNextRowSelected = false;
+                            if (shouldHighlightRow) {
+                                if (rowIndex > 0) {
+                                    const prevItem = renderableRows[rowIndex - 1];
+                                    if (prevItem.itemType === 'task' && selectedTaskIds.includes(prevItem.data.id)) {
+                                        isPrevRowSelected = true;
+                                    }
+                                }
+                                if (rowIndex < renderableRows.length - 1) {
+                                    const nextItem = renderableRows[rowIndex + 1];
+                                    if (nextItem.itemType === 'task' && selectedTaskIds.includes(nextItem.data.id)) {
+                                        isNextRowSelected = true;
+                                    }
+                                }
+                            }
 
                             return (
                                 <TaskTooltip key={task.id} task={task} tooltipFields={ganttSettings.tableTooltipFields} tooltipConfig={ganttSettings.tableTooltipConfig} dateFormat={dateFormat} columns={columns} resources={resources} assignments={assignments} links={links} tasks={tasks}>
@@ -1319,7 +1337,6 @@ export function TaskTable({
                                         "cursor-pointer", 
                                         "transition-all duration-150",
                                         "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                        shouldHighlightRow && "bg-primary/20",
                                         !shouldHighlightRow ? "hover:bg-muted/50" : "hover:bg-primary/10",
                                         draggedIds?.includes(task.id) && "opacity-30",
                                         !draggedIds?.includes(task.id) && dropIndicator?.targetId === task.id && grouping.length === 0 && {
@@ -1368,6 +1385,17 @@ export function TaskTable({
                                             if (isBottomEdge) shadows.push('inset 0 -1px 0 0 hsl(var(--ring))');
                                             if (isLeftEdge) shadows.push('inset 1px 0 0 0 hsl(var(--ring))');
                                             if (isRightEdge) shadows.push('inset -1px 0 0 0 hsl(var(--ring))');
+                                        } else if (shouldHighlightRow) {
+                                            // Row selection box strategy
+                                            if (!isPrevRowSelected) shadows.push('inset 0 1px 0 0 hsl(var(--ring))'); // Top border if not merged with prev
+                                            if (!isNextRowSelected) shadows.push('inset 0 -1px 0 0 hsl(var(--ring))'); // Bottom border if not merged with next
+
+                                            if (colIndex === 0) {
+                                                shadows.push('inset 1px 0 0 0 hsl(var(--ring))'); // Left border on first column
+                                            }
+                                            if (colIndex === orderedAndVisibleColumns.length - 1) {
+                                                shadows.push('inset -1px 0 0 0 hsl(var(--ring))'); // Right border on last column
+                                            }
                                         }
 
                                         return (
@@ -1378,7 +1406,7 @@ export function TaskTable({
                                                 className={cn(
                                                     "font-medium truncate p-0 relative",
                                                     "data-[density=large]:h-12 data-[density=medium]:h-10 data-[density=compact]:h-8",
-                                                    isCellSelected && "bg-primary/5",
+                                                    (isCellSelected || shouldHighlightRow) && "bg-primary/5",
                                                     isFocusCell && !isEditing && "ring-2 ring-inset ring-primary"
                                                 )}
                                                 onClick={(e) => {
