@@ -84,12 +84,16 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
                     const snapshot = await getDocs(q);
                     const fetchedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserDoc));
                     setUsers(fetchedUsers);
-                } catch (error) {
-                    console.error("Error fetching users:", error);
+                } catch (error: any) {
+                    console.error("Error fetching users:", {
+                        code: error?.code,
+                        message: error?.message,
+                        details: error
+                    });
                     toast({
                         variant: "destructive",
                         title: "Error",
-                        description: "Could not fetch users list. " + (error as Error).message
+                        description: `Could not fetch users list. ${error?.code ? `[${error.code}] ` : ''}${error?.message || 'Unknown error'}`
                     });
                 } finally {
                     setLoading(false);
@@ -419,6 +423,7 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
                 <SheetContent side="bottom" className="h-[90vh] flex flex-col">
                     <SheetHeader>
                         <SheetTitle>User Administration</SheetTitle>
+                        <SheetDescription>Manage users, view activity, and control access.</SheetDescription>
                     </SheetHeader>
                     {content}
                 </SheetContent>

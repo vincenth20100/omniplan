@@ -156,8 +156,12 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                                 lastModified: data.lastModified ? (data.lastModified as any).toDate() : undefined,
                             } as ProjectWithMetadata;
                         });
-                    } catch (error) {
-                        console.warn("Admin fetch failed, falling back to user fetch", error);
+                    } catch (error: any) {
+                        console.warn("Admin fetch failed, falling back to user fetch", {
+                            code: error?.code,
+                            message: error?.message,
+                            details: error
+                        });
                         adminFetchFailed = true;
                     }
                 }
