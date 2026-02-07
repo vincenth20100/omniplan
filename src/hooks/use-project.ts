@@ -149,7 +149,7 @@ type Action =
   | { type: 'SAVE_VIEW_AS', payload: { name: string } }
   | { type: 'UPDATE_CURRENT_VIEW' }
   | { type: 'DELETE_VIEW', payload: { viewId: string } }
-  | { type: 'TOGGLE_MULTI_SELECT_MODE' }
+  | { type: 'SET_MULTI_SELECT_MODE', payload: boolean }
   | { type: 'ADD_NOTE_TO_TASK'; payload: { taskId: string; content: string; userId?: string; author?: string } }
   | { type: 'UPDATE_NOTE'; payload: { taskId: string; noteId: string; content: string } }
   | { type: 'DELETE_NOTE'; payload: { taskId: string; noteId: string } }
@@ -1393,8 +1393,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
           isDirty: false
       };
     }
-    case 'TOGGLE_MULTI_SELECT_MODE': {
-      return { ...state, multiSelectMode: !state.multiSelectMode };
+    case 'SET_MULTI_SELECT_MODE': {
+      return { ...state, multiSelectMode: action.payload };
     }
     case 'ADD_TASKS_FROM_PASTE': {
         const { data, activeCell, projectId } = action.payload;
@@ -2197,7 +2197,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
             'SET_UI_DENSITY',
             'SET_REPRESENTATION',
             'MOVE_SELECTION',
-            'TOGGLE_MULTI_SELECT_MODE',
+            'SET_MULTI_SELECT_MODE',
         ];
 
         if (action.type === '_APPLY_STATE_CHANGE') {
@@ -2369,7 +2369,7 @@ export function useProject(user: User, projectId: string | null) {
         'SET_REPRESENTATION',
         'SORT_TASKS',
         'MOVE_SELECTION',
-        'TOGGLE_MULTI_SELECT_MODE',
+        'SET_MULTI_SELECT_MODE',
         'START_EDITING_CELL',
         'STOP_EDITING_CELL',
         'TOGGLE_GROUP',
