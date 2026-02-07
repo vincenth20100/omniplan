@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, Edit2, Check, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useIsAdmin } from '@/hooks/use-is-admin';
 
 interface SubprojectManagerContentProps {
     user: User;
@@ -32,8 +33,7 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
     const [linkedProjects, setLinkedProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
+    const { isAdmin, isLoading: isCheckingAdmin } = useIsAdmin(user);
 
     // State for "Add Project" flow
     const [selectedProjectToAdd, setSelectedProjectToAdd] = useState<Project | null>(null);
@@ -48,15 +48,6 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
     const [editColor, setEditColor] = useState('');
     const [editTextColor, setEditTextColor] = useState('');
     const [editCriticalPathColor, setEditCriticalPathColor] = useState('');
-
-    useEffect(() => {
-        if (user) {
-            user.getIdTokenResult().then((idTokenResult) => {
-                setIsAdmin(!!idTokenResult.claims.admin || user.email === 'vincent.heloin@gmail.com');
-                setIsCheckingAdmin(false);
-            });
-        }
-    }, [user]);
 
     // Initial fetch
     useEffect(() => {

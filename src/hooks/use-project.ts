@@ -11,6 +11,7 @@ import { collection, doc, writeBatch, query, orderBy, setDoc, onSnapshot, arrayU
 import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { User } from 'firebase/auth';
 import { useToast } from "@/hooks/use-toast";
+import { useIsAdmin } from './use-is-admin';
 import { ALL_COLUMNS, initialColumns, initialVisibleColumns } from '@/lib/columns';
 import { THEME_PRESETS } from '@/lib/theme-config';
 
@@ -2287,22 +2288,7 @@ export function useProject(user: User, projectId: string | null) {
   }, [historyState]);
 
 
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
-
-  // Effect to get admin status
-  useEffect(() => {
-    if (user) {
-      setIsCheckingAdmin(true);
-      user.getIdTokenResult(true).then((idTokenResult) => {
-        setIsAdmin(!!idTokenResult.claims.admin || user.email === 'vincent.heloin@gmail.com');
-        setIsCheckingAdmin(false);
-      });
-    } else {
-        setIsAdmin(false);
-        setIsCheckingAdmin(false);
-    }
-  }, [user, projectId]);
+  const { isAdmin, isLoading: isCheckingAdmin } = useIsAdmin(user);
 
   const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
       useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user]),

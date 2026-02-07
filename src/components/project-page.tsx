@@ -11,7 +11,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Users, CalendarDays, Link as LinkIcon, Indent, Outdent, ListChecks, ChevronsDown, ChevronsUp, Columns3, Filter, Layers, Settings, History, Undo2, Redo2, Keyboard, Info, Search, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, FolderTree, ArrowLeft, TableProperties, Rows } from 'lucide-react';
+import { Link as LinkIcon, Info, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, ArrowLeft, TableProperties, Rows, ListChecks, Settings } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -20,7 +20,6 @@ import { CalendarManagementDialog } from '@/components/calendars/calendar-manage
 import { GroupingDialog } from '@/components/view-options/grouping-dialog';
 import { FilterDialog } from '@/components/view-options/filter-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { ColumnSelector } from '@/components/layout/column-selector';
 import { GanttSettingsPanel } from '@/components/gantt-settings/gantt-settings-panel';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { HistoryPanel } from '@/components/history/history-panel';
@@ -30,7 +29,7 @@ import { FindReplaceDialog } from './find-replace-dialog';
 import { useToast } from "@/hooks/use-toast";
 import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import type { Representation, GanttSettings, ProjectMember, Project } from '@/lib/types';
+import type { Representation, GanttSettings, Project } from '@/lib/types';
 import { ExportDialog } from './export-dialog';
 import { ProjectMembers } from './project-members';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -44,6 +43,7 @@ import { SubprojectManagerDialog } from './subproject-manager-dialog';
 import { THEME_VARIABLES } from '@/lib/theme-config';
 import { ProjectSidebar, type SidebarView } from '@/components/layout/sidebar/project-sidebar';
 import { ColumnManagerDialog } from '@/components/view-options/column-manager-dialog';
+import { ThemeProvider, useThemeContext } from '@/components/theme/theme-context';
 import { ViewManagerDialog } from '@/components/view-options/view-manager-dialog';
 import { DeleteConfirmationDialog } from './delete-confirmation-dialog';
 import { Slider } from "@/components/ui/slider";
@@ -54,16 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from "@/components/ui/dropdown-menu"
+import { SidebarPanelContent, getSidebarTitle } from '@/components/layout/sidebar/sidebar-panel-content';
 
 
 const hexToHsl = (hex: string): string => {
@@ -154,7 +145,7 @@ const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], 
 };
 
 
-export function ProjectPage({ user, projectId }: { user: User, projectId: string }) {
+function ProjectPageContent({ user, projectId }: { user: User, projectId: string }) {
   const router = useRouter();
   const { state, dispatch, isLoaded, isEditorOrOwner, canUndo, canRedo, history, persistentHistory, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, previewSnapshot, exitPreview, isPreviewMode } = useProject(user, projectId);
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
@@ -181,6 +172,10 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const firestore = useFirestore();
+
+  const { layoutConfig } = useThemeContext();
+  const { sidebarPosition } = layoutConfig;
+  const isHorizontal = sidebarPosition === 'top' || sidebarPosition === 'bottom';
 
   const projectDocRef = useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]);
   const { data: project } = useDoc<Project>(projectDocRef);
@@ -376,7 +371,7 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
 
   const sidebarContent = (
     <ProjectSidebar
-        view={currentSidebarView}
+        view={isHorizontal ? 'main' : currentSidebarView}
         onNavigate={handleSidebarNavigate}
         projectState={state}
         dispatch={dispatch}
@@ -765,16 +760,40 @@ export function ProjectPage({ user, projectId }: { user: User, projectId: string
                 existingSubprojectIds={project.subprojectIds}
             />
           )}
-          <DeleteConfirmationDialog
-            open={isDeleteConfirmOpen}
-            onOpenChange={setIsDeleteConfirmOpen}
-            onConfirm={handleDeleteConfirm}
-            taskCount={deleteSummary.taskCount}
-            linkCount={deleteSummary.linkCount}
-          />
+
+           {isHorizontal && currentSidebarView !== 'main' && (
+                <Sheet open={true} onOpenChange={(open) => !open && handleSidebarNavigate('main')}>
+                    <SheetContent side="left" className="w-[400px] sm:w-[540px] overflow-y-auto">
+                        <SheetTitle>{getSidebarTitle(currentSidebarView)}</SheetTitle>
+                        <SidebarPanelContent
+                            view={currentSidebarView}
+                            projectState={state}
+                            dispatch={dispatch}
+                            user={user}
+                            currentProjectId={projectId}
+                            existingSubprojectIds={project?.subprojectIds}
+                            onNavigate={handleSidebarNavigate}
+                            onManageThemes={() => setIsThemeManagerOpen(true)}
+                            history={history.log}
+                            historyIndex={history.index}
+                            onSetBaseline={() => setIsSetBaselineOpen(true)}
+                            onManageBaselines={() => handleOpenSettings('baselines')}
+                            isEditor={isEditorOrOwner}
+                        />
+                    </SheetContent>
+                </Sheet>
+           )}
         </>
       )}
     </MainLayout>
     </>
   );
+}
+
+export function ProjectPage(props: any) {
+    return (
+        <ThemeProvider>
+            <ProjectPageContent {...props} />
+        </ThemeProvider>
+    );
 }

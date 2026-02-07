@@ -8,10 +8,18 @@ service cloud.firestore {
     }
 
     function isGlobalAdmin() {
+      let admin = request.auth.token.get('admin', null);
+      let email = request.auth.token.get('email', null);
       return isSignedIn() && (
-        request.auth.token.get('admin', false) == true ||
-        (request.auth.token.get('email', null) != null && request.auth.token.get('email', null).lower() == 'vincent.heloin@gmail.com') ||
-        (exists(/databases/$(database)/documents/system/permissions) && get(/databases/$(database)/documents/system/permissions).data.admins.hasAny([request.auth.token.get('email', null)]))
+        admin == true || admin == 'true' || admin == 1 || admin == '1' ||
+        (email != null && (
+          email.lower() == 'vincent.heloin@gmail.com' ||
+          (
+            exists(/databases/$(database)/documents/system/permissions) &&
+            'admins' in get(/databases/$(database)/documents/system/permissions).data &&
+            get(/databases/$(database)/documents/system/permissions).data.admins.hasAny([email.lower()])
+          )
+        ))
       );
     }
 
@@ -61,6 +69,10 @@ service cloud.firestore {
       allow read, create, update, delete: if isSignedIn() && request.auth.uid == prefId.split('_')[0];
     }
 
+    // --- System Permissions ---
+    match /system/permissions {
+      allow read: if isSignedIn();
+    }
 
     // --- Global Links (for Collection Group Queries) ---
     match /{document=**}/links/{linkId} {
