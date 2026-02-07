@@ -1,5 +1,18 @@
 import { Task, Link, Resource, Assignment, Calendar, LinkType } from './types';
 
+// ─────────────────────────────────────────────────────────
+// Extended import types
+// ─────────────────────────────────────────────────────────
+
+export interface DateWarning {
+    taskIndex: number;
+    taskName: string;
+    field: string;
+    rawValue: string;
+    parsedAs: Date | null;
+    issue: string;  // "unparseable" | "suspicious_year" | "start_after_finish" | "fallback_to_now"
+}
+
 export interface ImportedProjectData {
     name: string;
     tasks: Task[];
@@ -7,7 +20,19 @@ export interface ImportedProjectData {
     resources: Resource[];
     assignments: Assignment[];
     calendars: Calendar[];
-    sourceFormat?: string; // Track origin (e.g. "Primavera P6 via XML")
+    sourceFormat?: string;
+    projectInfo?: Record<string, string>;
+    dateWarnings?: DateWarning[];       // Date parsing issues for review
+    stats?: {                           // Quick data quality summary
+        totalTasks: number;
+        milestones: number;
+        summaryTasks: number;
+        tasksWithDates: number;
+        tasksWithMissingDates: number;
+        dateWarningCount: number;
+        minDate: Date | null;
+        maxDate: Date | null;
+    };
 }
 
 function generateId(prefix: string): string {
@@ -15,7 +40,7 @@ function generateId(prefix: string): string {
 }
 
 // ─────────────────────────────────────────────────────────
-// ROBUST MS PROJECT XML (MSPDI) PARSER
+// MS PROJECT XML (MSPDI) PARSER
 // ─────────────────────────────────────────────────────────
 
 export function parseProjectXML(xmlContent: string): ImportedProjectData {
@@ -27,10 +52,8 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
 
     const projectName = root.querySelector("Title")?.textContent || "Imported Project";
 
-    // 1. Parse Extended Attributes Definitions (Custom Fields)
-    // MPXJ maps P6 fields (Activity ID, etc.) to these custom fields.
-    // We map FieldID -> FieldName/Alias
-    const customFieldMap = new Map<string, string>(); 
+    // 1. Extended Attributes (Custom Fields)
+    const customFieldMap = new Map<string, string>();
     root.querySelectorAll("ExtendedAttributes > ExtendedAttribute").forEach(def => {
         const fieldId = def.querySelector("FieldID")?.textContent;
         const alias = def.querySelector("Alias")?.textContent;
@@ -40,10 +63,10 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
         }
     });
 
-    // 2. Parse Resources
+    // 2. Resources
     const resources: Resource[] = [];
-    const resourceMap = new Map<string, string>(); // UID -> Internal ID
-    
+    const resourceMap = new Map<string, string>();
+
     root.querySelectorAll("Resources > Resource").forEach(res => {
         const uid = res.querySelector("UID")?.textContent;
         const name = res.querySelector("Name")?.textContent;
@@ -54,25 +77,23 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
                 id,
                 name,
                 type: res.querySelector("Type")?.textContent === '1' ? 'Material' : 'Work',
-                availability: 1, 
-                // Capture standard rate if needed: res.querySelector("StandardRate")?.textContent
+                availability: 1,
             });
         }
     });
 
-    // 3. Parse Tasks
+    // 3. Tasks
     const tasks: Task[] = [];
-    const taskMap = new Map<string, Task>(); // UID -> Task Object
     const uidToInternalId = new Map<string, string>();
+    const dateWarnings: DateWarning[] = [];
 
-    root.querySelectorAll("Tasks > Task").forEach(t => {
+    root.querySelectorAll("Tasks > Task").forEach((t, idx) => {
         const uid = t.querySelector("UID")?.textContent;
         if (!uid) return;
 
         const internalId = generateId('task');
         uidToInternalId.set(uid, internalId);
 
-        // Basic Fields
         const name = t.querySelector("Name")?.textContent || "Unnamed Task";
         const startStr = t.querySelector("Start")?.textContent;
         const finishStr = t.querySelector("Finish")?.textContent;
@@ -83,17 +104,17 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
         const outlineLevel = parseInt(t.querySelector("OutlineLevel")?.textContent || "1");
         const milestone = t.querySelector("Milestone")?.textContent === "1";
 
-        // Duration parsing (PT8H0M0S format)
+        // Duration
         let durationDays = 0;
         if (durStr.includes("H")) {
             const h = parseInt(durStr.split("H")[0].replace("PT", "") || "0");
             durationDays = h / 8;
         } else if (durStr.includes("D")) {
-             const d = parseInt(durStr.split("D")[0].replace("P", "") || "0");
-             durationDays = d;
+            const d = parseInt(durStr.split("D")[0].replace("P", "") || "0");
+            durationDays = d;
         }
 
-        // ─── CRITICAL: Extract Custom Fields (P6 Data) ───
+        // Custom fields
         let activityId = "";
         let activityStatus = "";
         let customText: Record<string, string> = {};
@@ -101,81 +122,67 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
         t.querySelectorAll("ExtendedAttribute").forEach(ea => {
             const fieldId = ea.querySelector("FieldID")?.textContent;
             const val = ea.querySelector("Value")?.textContent;
-            
             if (fieldId && val) {
                 const alias = customFieldMap.get(fieldId)?.toLowerCase() || "";
-                
-                // Heuristic: MPXJ often maps "Activity ID" to Text1 or verifies Alias
                 if (alias.includes("activity id")) activityId = val;
                 else if (alias.includes("status") || alias.includes("activity status")) activityStatus = val;
-                else {
-                    // Store other custom fields generically
-                    customText[alias || `Field ${fieldId}`] = val;
-                }
+                else customText[alias || `Field ${fieldId}`] = val;
             }
         });
 
-        // If no explicit Activity ID found in extended attributes, check generic text fields
-        // MPXJ usually writes P6 Activity ID to the "Text1" field if not aliased.
-        if (!activityId) {
-            // Check specific common mappings if needed, or leave blank
+        // Parse dates with validation
+        const start = startStr ? new Date(startStr) : null;
+        const finish = finishStr ? new Date(finishStr) : null;
+
+        if (startStr && (!start || isNaN(start.getTime()))) {
+            dateWarnings.push({ taskIndex: idx, taskName: name, field: "Start", rawValue: startStr, parsedAs: null, issue: "unparseable" });
+        }
+        if (finishStr && (!finish || isNaN(finish.getTime()))) {
+            dateWarnings.push({ taskIndex: idx, taskName: name, field: "Finish", rawValue: finishStr, parsedAs: null, issue: "unparseable" });
+        }
+        if (start && finish && start > finish && !milestone) {
+            dateWarnings.push({ taskIndex: idx, taskName: name, field: "Start/Finish", rawValue: `${startStr} → ${finishStr}`, parsedAs: start, issue: "start_after_finish" });
         }
 
         const task: Task = {
             id: internalId,
             name,
-            start: startStr ? new Date(startStr) : new Date(),
-            finish: finishStr ? new Date(finishStr) : new Date(),
+            start: start && !isNaN(start.getTime()) ? start : new Date(),
+            finish: finish && !isNaN(finish.getTime()) ? finish : new Date(),
             duration: durationDays,
             percentComplete: parseInt(pctStr),
             isSummary: summary,
             isMilestone: milestone,
-            level: outlineLevel - 1, // Normalized to 0-based
+            level: outlineLevel - 1,
             wbs: wbs || "",
-            parentId: null, // Will calculate in Pass 2
-            
-            // P6 Specific Fields
-            activityId: activityId || undefined, // Captured from ExtendedAttributes!
+            parentId: null,
+            activityId: activityId || undefined,
             status: activityStatus || (parseInt(pctStr) === 100 ? "Completed" : "Active"),
             customText: Object.keys(customText).length > 0 ? customText : undefined
         };
 
         tasks.push(task);
-        taskMap.set(uid, task);
     });
 
-    // 4. Pass 2: Hierarchy & Links
-    // Reconstruct Parent-Child relationships using OutlineLevel stack
+    // 4. Hierarchy
     const stack: Task[] = [];
     tasks.forEach(task => {
-        const level = task.level;
-        if (stack.length === 0) {
-            stack.push(task);
-        } else {
-            while (stack.length > 0 && stack[stack.length - 1].level >= level) {
-                stack.pop();
-            }
-            if (stack.length > 0) {
-                task.parentId = stack[stack.length - 1].id;
-            }
-            stack.push(task);
-        }
+        while (stack.length > 0 && stack[stack.length - 1].level >= task.level) stack.pop();
+        if (stack.length > 0) task.parentId = stack[stack.length - 1].id;
+        stack.push(task);
     });
 
-    // Links (Dependencies)
+    // 5. Links
     const links: Link[] = [];
     root.querySelectorAll("Tasks > Task").forEach(t => {
         const taskUid = t.querySelector("UID")?.textContent;
         if (!taskUid) return;
-        
         const targetId = uidToInternalId.get(taskUid);
         if (!targetId) return;
 
         t.querySelectorAll("PredecessorLink").forEach(pred => {
             const predUid = pred.querySelector("PredecessorUID")?.textContent;
-            const typeCode = pred.querySelector("Type")?.textContent; // 1=FS, 2=SF, 3=SS, 0=FF
-            const lagStr = pred.querySelector("LinkLag")?.textContent; // Duration format
-
+            const typeCode = pred.querySelector("Type")?.textContent;
             if (predUid) {
                 const sourceId = uidToInternalId.get(predUid);
                 if (sourceId) {
@@ -183,35 +190,24 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
                     if (typeCode === '3') type = 'SS';
                     if (typeCode === '0') type = 'FF';
                     if (typeCode === '2') type = 'SF';
-
-                    links.push({
-                        id: generateId('link'),
-                        source: sourceId,
-                        target: targetId,
-                        type,
-                        lag: 0 // Parse lag string if strict accuracy needed
-                    });
+                    links.push({ id: generateId('link'), source: sourceId, target: targetId, type, lag: 0 });
                 }
             }
         });
     });
 
-    // 5. Assignments
+    // 6. Assignments
     const assignments: Assignment[] = [];
     root.querySelectorAll("Assignments > Assignment").forEach(asn => {
         const taskUid = asn.querySelector("TaskUID")?.textContent;
         const resUid = asn.querySelector("ResourceUID")?.textContent;
         const units = asn.querySelector("Units")?.textContent;
-
         if (taskUid && resUid) {
             const taskId = uidToInternalId.get(taskUid);
             const resId = resourceMap.get(resUid);
-            
             if (taskId && resId) {
                 assignments.push({
-                    id: generateId('asn'),
-                    taskId,
-                    resourceId: resId,
+                    id: generateId('asn'), taskId, resourceId: resId,
                     units: units ? parseFloat(units) * 100 : 100
                 });
             }
@@ -220,17 +216,16 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
 
     return {
         name: projectName,
-        tasks,
-        links,
-        resources,
-        assignments,
+        tasks, links, resources, assignments,
         calendars: [],
-        sourceFormat: "XML/MSPDI"
+        sourceFormat: "XML/MSPDI",
+        dateWarnings: dateWarnings.length > 0 ? dateWarnings : undefined,
+        stats: computeStats(tasks, dateWarnings),
     };
 }
 
 // ─────────────────────────────────────────────────────────
-// EXCEL PARSER (Kept largely the same, just ensuring exports)
+// EXCEL PARSER (placeholder)
 // ─────────────────────────────────────────────────────────
 
 export async function parseProjectExcel(buffer: ArrayBuffer): Promise<ImportedProjectData> {
@@ -239,16 +234,34 @@ export async function parseProjectExcel(buffer: ArrayBuffer): Promise<ImportedPr
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawData = XLSX.utils.sheet_to_json<any>(sheet);
 
-    // [Insert your existing Excel parsing logic here, mapping columns to Task interface]
-    // Ensure you return { tasks, links, resources, ... } structure.
-    
-    // Placeholder to make file complete for copy-paste:
     return {
         name: "Excel Import",
-        tasks: [], 
-        links: [],
-        resources: [],
-        assignments: [],
-        calendars: []
+        tasks: [], links: [], resources: [], assignments: [], calendars: []
+    };
+}
+
+// ─────────────────────────────────────────────────────────
+// STATS HELPER
+// ─────────────────────────────────────────────────────────
+
+export function computeStats(tasks: Task[], dateWarnings: DateWarning[]): ImportedProjectData['stats'] {
+    const validDates = tasks
+        .flatMap(t => [t.start, t.finish])
+        .filter((d): d is Date => d instanceof Date && !isNaN(d.getTime()));
+
+    const tasksWithDates = tasks.filter(t =>
+        t.start instanceof Date && !isNaN(t.start.getTime()) &&
+        t.finish instanceof Date && !isNaN(t.finish.getTime())
+    ).length;
+
+    return {
+        totalTasks: tasks.length,
+        milestones: tasks.filter(t => t.isMilestone).length,
+        summaryTasks: tasks.filter(t => t.isSummary).length,
+        tasksWithDates,
+        tasksWithMissingDates: tasks.length - tasksWithDates,
+        dateWarningCount: dateWarnings.length,
+        minDate: validDates.length > 0 ? new Date(Math.min(...validDates.map(d => d.getTime()))) : null,
+        maxDate: validDates.length > 0 ? new Date(Math.max(...validDates.map(d => d.getTime()))) : null,
     };
 }
