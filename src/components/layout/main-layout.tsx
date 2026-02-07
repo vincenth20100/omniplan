@@ -25,9 +25,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { User } from 'firebase/auth';
+import { useThemeContext } from '@/components/theme/theme-context';
+import { cn } from '@/lib/utils';
 
-const AppHeader = ({ children }: { children: React.ReactNode }) => (
-  <header className="flex h-14 items-center gap-4 border-b bg-background/95 px-4 lg:h-[60px] lg:px-6 backdrop-blur-sm sticky top-0 z-[35]">
+const AppHeader = ({ children, className }: { children: React.ReactNode, className?: string }) => (
+  <header className={cn("flex h-14 items-center gap-4 border-b bg-background/95 px-4 lg:h-[60px] lg:px-6 backdrop-blur-sm sticky top-0 z-[35]", className)}>
     {children}
   </header>
 );
@@ -64,11 +66,71 @@ const UserMenu = ({ user }: { user: User }) => {
     )
 }
 
-export function MainLayout({ children, sidebarContent, headerLeftActions, headerRightActions, user }: { children: React.ReactNode, sidebarContent: React.ReactNode, headerLeftActions?: React.ReactNode, headerRightActions?: React.ReactNode, user: User }) {
+interface MainLayoutProps {
+  children: React.ReactNode;
+  sidebarContent: React.ReactNode;
+  headerLeftActions?: React.ReactNode;
+  headerRightActions?: React.ReactNode;
+  user: User;
+}
+
+function MainLayoutContent({ children, sidebarContent, headerLeftActions, headerRightActions, user }: MainLayoutProps) {
   const isMobile = useIsMobile();
+  const { layoutConfig } = useThemeContext();
+  const { sidebarPosition } = layoutConfig;
+  const isHorizontal = sidebarPosition === 'top' || sidebarPosition === 'bottom';
+  const isRight = sidebarPosition === 'right';
+
+  if (isHorizontal) {
+     return (
+        <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
+            {/* Top Bar */}
+            {sidebarPosition === 'top' && (
+                <div className="border-b p-2 flex overflow-x-auto bg-sidebar text-sidebar-foreground shrink-0 items-center min-h-[50px]">
+                   <div className="flex items-center gap-2 mr-4 shrink-0">
+                        <GanttChartSquare className="h-6 w-6 text-primary" />
+                        <h2 className="text-lg font-semibold font-headline truncate">OmniPlan AI</h2>
+                   </div>
+                   <div className="flex-1 overflow-x-auto">
+                        {sidebarContent}
+                   </div>
+                </div>
+            )}
+
+            {/* Header and Content */}
+             <div className="flex-1 flex flex-col min-h-0 relative">
+                <AppHeader>
+                  {headerLeftActions}
+                  {!isMobile && <h1 className="text-xl font-semibold font-headline">Project Plan</h1>}
+                   <div className="ml-auto flex items-center gap-4">
+                      {headerRightActions}
+                      {user && <UserMenu user={user} />}
+                  </div>
+                </AppHeader>
+                <div className="flex-1 p-4 md:p-6 overflow-auto">
+                    {children}
+                </div>
+             </div>
+
+             {/* Bottom Bar */}
+             {sidebarPosition === 'bottom' && (
+                <div className="border-t p-2 flex overflow-x-auto bg-sidebar text-sidebar-foreground shrink-0 items-center min-h-[50px]">
+                    <div className="flex items-center gap-2 mr-4 shrink-0">
+                        <GanttChartSquare className="h-6 w-6 text-primary" />
+                        <h2 className="text-lg font-semibold font-headline truncate">OmniPlan AI</h2>
+                   </div>
+                   <div className="flex-1 overflow-x-auto">
+                       {sidebarContent}
+                   </div>
+                </div>
+             )}
+        </div>
+     );
+  }
+
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="icon">
+    <>
+      <Sidebar collapsible="icon" side={isRight ? 'right' : 'left'}>
         <SidebarHeader>
           <div className="flex items-center gap-2 p-2 group-data-[collapsible=icon]:justify-center">
             <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8">
@@ -100,6 +162,14 @@ export function MainLayout({ children, sidebarContent, headerLeftActions, header
           {children}
         </div>
       </SidebarInset>
-    </SidebarProvider>
+    </>
   );
+}
+
+export function MainLayout(props: MainLayoutProps) {
+    return (
+        <SidebarProvider>
+            <MainLayoutContent {...props} />
+        </SidebarProvider>
+    );
 }
