@@ -29,6 +29,25 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased" suppressHydrationWarning>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var originalWarn = console.warn;
+                  console.warn = function(...args) {
+                    if (args[0] && typeof args[0] === 'string' && args[0].includes("Default export is deprecated. Instead use 'import { create } from 'zustand'")) {
+                      return;
+                    }
+                    originalWarn.apply(console, args);
+                  };
+                } catch (e) {
+                  // Ignore errors in suppression script
+                }
+              })();
+            `,
+          }}
+        />
         <FirebaseClientProvider>
           {children}
         </FirebaseClientProvider>
