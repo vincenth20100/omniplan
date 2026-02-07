@@ -40,7 +40,7 @@ export function requiresServer(filename: string): boolean {
 // ─────────────────────────────────────────────────────────
 // HF Space response types (matches /analyze JSON output)
 // ─────────────────────────────────────────────────────────
-interface HFAnalyzeResponse {
+export interface HFAnalyzeResponse {
   project_info: Record<string, string>;
   tasks: Record<string, string>[];
   resources: Record<string, string>[];
@@ -69,42 +69,10 @@ export async function checkServiceHealth(): Promise<{ ok: boolean; error?: strin
 }
 
 /**
- * Upload a project file → returns ImportedProjectData ready for your app.
- *
- * Works for every format the HF service supports. XER files in particular
- * come back with P6-specific fields (Activity ID, Activity Type, activity
- * codes, etc.) that local parsers miss.
+ * Fetch raw analysis data from the external API without mapping it to internal format.
+ * Useful for displaying raw data in a review UI before import.
  */
-export async function analyzeProjectFile(file: File): Promise<ImportedProjectData> {
-  const raw = await callAnalyze(file);
-  return mapToImportedProjectData(raw, file.name);
-}
-
-/**
- * Download a converted file blob (json / xml / xlsx / pmxml / mpx / sdef).
- * Returns a Blob you can create a download link from.
- */
-export async function convertProjectFile(
-  file: File,
-  format: "json" | "xml" | "xlsx" | "pmxml" | "mpx" | "sdef",
-): Promise<Blob> {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("format", format);
-
-  const res = await fetch(`${API_BASE}/convert`, { method: "POST", body: fd });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(err.error ?? `Conversion failed (${res.status})`);
-  }
-  return res.blob();
-}
-
-// ─────────────────────────────────────────────────────────
-// Internal helpers
-// ─────────────────────────────────────────────────────────
-
-async function callAnalyze(file: File): Promise<HFAnalyzeResponse> {
+export async function fetchProjectAnalysis(file: File): Promise<HFAnalyzeResponse> {
   const fd = new FormData();
   fd.append("file", file);
 
@@ -119,76 +87,10 @@ async function callAnalyze(file: File): Promise<HFAnalyzeResponse> {
   return data;
 }
 
-// ── Date helpers ────────────────────────────────────────
-
-function parseDate(s: string | undefined): Date | null {
-  if (!s || s === "" || s === "null" || s === "None") return null;
-
-  // ISO or standard: "2024-01-15T08:00:00", "2024-01-15"
-  let d = new Date(s);
-  if (!isNaN(d.getTime())) return d;
-
-  // mpxj format: "Thu Nov 01 08:00:00 UTC 2012"
-  const m = s.match(/\w+\s+(\w+\s+\d+\s+\d+:\d+:\d+)\s+(\w+)\s+(\d{4})/);
-  if (m) {
-    d = new Date(`${m[1]} ${m[3]} ${m[2]}`);
-    if (!isNaN(d.getTime())) return d;
-  }
-  return null;
-}
-
-function parseDateOrNow(s: string | undefined): Date {
-  return parseDate(s) ?? new Date();
-}
-
-// ── Duration "10.0d" → days ─────────────────────────────
-
-function parseDuration(s: string | undefined): number {
-  if (!s) return 0;
-  const m = s.match(/([\d.]+)\s*([a-zA-Z]*)/);
-  if (!m) return 0;
-  const v = parseFloat(m[1]);
-  switch ((m[2] || "d").toLowerCase()) {
-    case "m": case "min": return v / 480;
-    case "h":             return v / 8;
-    case "w": case "ew":  return v * 5;
-    case "mo": case "emo":return v * 20;
-    case "y":             return v * 250;
-    default:              return v;        // "d", "ed", ""
-  }
-}
-
-function pct(s: string | undefined): number {
-  if (!s) return 0;
-  const n = parseFloat(s.replace("%", ""));
-  return isNaN(n) ? 0 : n;
-}
-
-function bool(s: string | undefined): boolean {
-  return s?.toLowerCase() === "true" || s?.toLowerCase() === "yes";
-}
-
-function str(s: string | undefined): string {
-  return (!s || s === "null" || s === "None") ? "" : s;
-}
-
-// ── Source format label ─────────────────────────────────
-
-function sourceLabel(filename: string): string {
-  const ext = filename.toLowerCase().split(".").pop() ?? "";
-  const map: Record<string, string> = {
-    mpp: "Microsoft Project", mpt: "MS Project Template", mpx: "MS Project Exchange",
-    xer: "Primavera P6 XER", pmxml: "Primavera P6 XML", xml: "XML",
-    pp: "Asta Powerproject", pod: "Asta Powerproject", gan: "GanttProject",
-    planner: "Gnome Planner", sdef: "USACE SDEF", fts: "FastTrack",
-    xlsx: "Excel", csv: "CSV",
-  };
-  return map[ext] ?? ext.toUpperCase();
-}
-
-// ── Main mapper ─────────────────────────────────────────
-
-function mapToImportedProjectData(raw: HFAnalyzeResponse, filename: string): ImportedProjectData {
+/**
+ * Convert raw HF analysis response to the internal ImportedProjectData format.
+ */
+export function convertAnalysisToImportData(raw: HFAnalyzeResponse, filename: string): ImportedProjectData {
   const info = raw.project_info ?? {};
 
   // ── Tasks ──
@@ -323,5 +225,113 @@ function mapToImportedProjectData(raw: HFAnalyzeResponse, filename: string): Imp
     activityCodes,
     projectInfo: info,
     sourceFormat: sourceLabel(filename),
+  } as unknown as ImportedProjectData;
+  // Cast to unknown first to avoid TS issues if ImportedProjectData doesn't strictly match the extra fields
+  // (though in runtime these extra fields are useful for ImportPreview)
+}
+
+
+/**
+ * Upload a project file → returns ImportedProjectData ready for your app.
+ *
+ * Works for every format the HF service supports. XER files in particular
+ * come back with P6-specific fields (Activity ID, Activity Type, activity
+ * codes, etc.) that local parsers miss.
+ */
+export async function analyzeProjectFile(file: File): Promise<ImportedProjectData> {
+  const raw = await fetchProjectAnalysis(file);
+  return convertAnalysisToImportData(raw, file.name);
+}
+
+/**
+ * Download a converted file blob (json / xml / xlsx / pmxml / mpx / sdef).
+ * Returns a Blob you can create a download link from.
+ */
+export async function convertProjectFile(
+  file: File,
+  format: "json" | "xml" | "xlsx" | "pmxml" | "mpx" | "sdef",
+): Promise<Blob> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("format", format);
+
+  const res = await fetch(`${API_BASE}/convert`, { method: "POST", body: fd });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(err.error ?? `Conversion failed (${res.status})`);
+  }
+  return res.blob();
+}
+
+// ─────────────────────────────────────────────────────────
+// Internal helpers
+// ─────────────────────────────────────────────────────────
+
+// Removed internal callAnalyze as it is now fetchProjectAnalysis
+
+// ── Date helpers ────────────────────────────────────────
+
+function parseDate(s: string | undefined): Date | null {
+  if (!s || s === "" || s === "null" || s === "None") return null;
+
+  // ISO or standard: "2024-01-15T08:00:00", "2024-01-15"
+  let d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+
+  // mpxj format: "Thu Nov 01 08:00:00 UTC 2012"
+  const m = s.match(/\w+\s+(\w+\s+\d+\s+\d+:\d+:\d+)\s+(\w+)\s+(\d{4})/);
+  if (m) {
+    d = new Date(`${m[1]} ${m[3]} ${m[2]}`);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
+function parseDateOrNow(s: string | undefined): Date {
+  return parseDate(s) ?? new Date();
+}
+
+// ── Duration "10.0d" → days ─────────────────────────────
+
+function parseDuration(s: string | undefined): number {
+  if (!s) return 0;
+  const m = s.match(/([\d.]+)\s*([a-zA-Z]*)/);
+  if (!m) return 0;
+  const v = parseFloat(m[1]);
+  switch ((m[2] || "d").toLowerCase()) {
+    case "m": case "min": return v / 480;
+    case "h":             return v / 8;
+    case "w": case "ew":  return v * 5;
+    case "mo": case "emo":return v * 20;
+    case "y":             return v * 250;
+    default:              return v;        // "d", "ed", ""
+  }
+}
+
+function pct(s: string | undefined): number {
+  if (!s) return 0;
+  const n = parseFloat(s.replace("%", ""));
+  return isNaN(n) ? 0 : n;
+}
+
+function bool(s: string | undefined): boolean {
+  return s?.toLowerCase() === "true" || s?.toLowerCase() === "yes";
+}
+
+function str(s: string | undefined): string {
+  return (!s || s === "null" || s === "None") ? "" : s;
+}
+
+// ── Source format label ─────────────────────────────────
+
+function sourceLabel(filename: string): string {
+  const ext = filename.toLowerCase().split(".").pop() ?? "";
+  const map: Record<string, string> = {
+    mpp: "Microsoft Project", mpt: "MS Project Template", mpx: "MS Project Exchange",
+    xer: "Primavera P6 XER", pmxml: "Primavera P6 XML", xml: "XML",
+    pp: "Asta Powerproject", pod: "Asta Powerproject", gan: "GanttProject",
+    planner: "Gnome Planner", sdef: "USACE SDEF", fts: "FastTrack",
+    xlsx: "Excel", csv: "CSV",
   };
+  return map[ext] ?? ext.toUpperCase();
 }
