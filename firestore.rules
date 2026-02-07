@@ -155,14 +155,14 @@ service cloud.firestore {
       }
       match /history/{historyId} {
         allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
-        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditor(projectId) || isGlobalAdmin();
         allow update, delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
 
       // Snapshots
       match /snapshots/{snapshotId} {
         allow read, list: if isProjectViewer(projectId) || isGlobalAdmin();
-        allow create: if isProjectEditorAfter(projectId) || isGlobalAdmin();
+        allow create: if isProjectEditor(projectId) || isGlobalAdmin();
         allow delete: if isProjectEditor(projectId) || isGlobalAdmin();
       }
     }
