@@ -20,6 +20,7 @@ import {
   computeStats,
 } from "./import-utils";
 import { Task, Link, Resource, Assignment, Calendar, LinkType } from "./types";
+import { format } from "date-fns";
 
 // ─────────────────────────────────────────────────────────
 // CONFIG
@@ -439,21 +440,108 @@ function mapAnalyzeResponse(
     });
 
   // ── CALENDARS ──
-  const calendars: Calendar[] = (raw.calendars ?? []).map((c) => ({
-    id: generateId("cal"),
-    name: str(c["Name"]) || "Unnamed",
-    type: str(c["Type"]) || undefined,
-    parentCalendar: str(c["Parent Calendar"]) || undefined,
-    sunday:    str(c["Sunday"])    || undefined,
-    monday:    str(c["Monday"])    || undefined,
-    tuesday:   str(c["Tuesday"])   || undefined,
-    wednesday: str(c["Wednesday"]) || undefined,
-    thursday:  str(c["Thursday"])  || undefined,
-    friday:    str(c["Friday"])    || undefined,
-    saturday:  str(c["Saturday"])  || undefined,
-    exceptions: [],  // Calendar type expects array; raw string available in _rawExceptions
-    _rawExceptions: str(c["Exceptions"]) || undefined,
-  } as unknown as Calendar));
+  // Map /analyze day strings like "WORKING [08:00-12:00, 13:00-17:00]"
+  // or "NON_WORKING" into the engine's workingDays: number[] format
+  // and parse exception strings into Exception[] objects.
+
+  const isWorkingStr = (s: string | undefined): boolean => {
+    if (!s) return false;
+    const upper = s.toUpperCase();
+    return upper.includes("WORKING") && !upper.includes("NON_WORKING") && !upper.includes("NON-WORKING");
+  };
+
+  // Day fields in /analyze output, mapped to JS getDay() indices
+  const dayFields: [string, number][] = [
+    ["Sunday", 0], ["Monday", 1], ["Tuesday", 2], ["Wednesday", 3],
+    ["Thursday", 4], ["Friday", 5], ["Saturday", 6],
+  ];
+
+  const calendars: Calendar[] = (raw.calendars ?? []).map((c) => {
+    // Build workingDays array from day strings
+    const workingDays: number[] = [];
+    for (const [field, dayIndex] of dayFields) {
+      if (isWorkingStr(str(c[field]))) {
+        workingDays.push(dayIndex);
+      }
+    }
+
+    // If no day info was provided at all, default to Mon-Fri
+    if (
+      !str(c["Sunday"]) && !str(c["Monday"]) && !str(c["Tuesday"]) &&
+      !str(c["Wednesday"]) && !str(c["Thursday"]) && !str(c["Friday"]) && !str(c["Saturday"])
+    ) {
+      workingDays.push(1, 2, 3, 4, 5); // Mon-Fri default
+    }
+
+    // Parse exceptions string → Exception[] objects
+    // /analyze may return exceptions as a semicolon or comma-separated string like:
+    //   "Christmas: 2012-12-25 to 2012-12-25; New Year: 2013-01-01 to 2013-01-01"
+    // or just dates like "2012-12-25, 2013-01-01"
+    const exceptions: Array<{
+      id: string; name: string; start: Date; finish: Date; isActive: boolean;
+    }> = [];
+
+    const rawExceptions = str(c["Exceptions"]);
+    if (rawExceptions) {
+      // Try splitting by semicolons first, then commas
+      const parts = rawExceptions.includes(";")
+        ? rawExceptions.split(";")
+        : rawExceptions.split(",");
+
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (!trimmed) continue;
+
+        // Pattern: "Name: YYYY-MM-DD to YYYY-MM-DD" or "Name: YYYY-MM-DD"
+        const namedRange = trimmed.match(/^(.+?):\s*(.+?)(?:\s+to\s+(.+))?$/i);
+        if (namedRange) {
+          const name = namedRange[1].trim();
+          const startDate = parseDateOrNull(namedRange[2].trim());
+          const endDate = namedRange[3] ? parseDateOrNull(namedRange[3].trim()) : startDate;
+          if (startDate) {
+            exceptions.push({
+              id: generateId("ex"),
+              name,
+              start: startDate,
+              finish: endDate ?? startDate,
+              isActive: true,
+            });
+          }
+          continue;
+        }
+
+        // Pattern: just a date "YYYY-MM-DD" or "Dec 25, 2012"
+        const dateOnly = parseDateOrNull(trimmed);
+        if (dateOnly) {
+          exceptions.push({
+            id: generateId("ex"),
+            name: `Exception ${format(dateOnly, "MMM dd, yyyy")}`,
+            start: dateOnly,
+            finish: dateOnly,
+            isActive: true,
+          });
+        }
+      }
+    }
+
+    return {
+      id: generateId("cal"),
+      name: str(c["Name"]) || "Unnamed",
+      workingDays,
+      exceptions,
+      workingDayOverrides: [],
+      nonWorkingDayOverrides: [],
+      // Preserve raw data for preview tooltips
+      _rawDays: {
+        sunday: str(c["Sunday"]), monday: str(c["Monday"]),
+        tuesday: str(c["Tuesday"]), wednesday: str(c["Wednesday"]),
+        thursday: str(c["Thursday"]), friday: str(c["Friday"]),
+        saturday: str(c["Saturday"]),
+      },
+      _calendarType: str(c["Type"]),
+      _parentCalendar: str(c["Parent Calendar"]),
+    } as Calendar;
+  });
 
   // ── PROJECT INFO ──
   const projectInfo: Record<string, string> = {};
