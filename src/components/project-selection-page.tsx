@@ -6,6 +6,7 @@ import type { User } from 'firebase/auth';
 import { useFirestore, useAuth } from '@/firebase';
 import { collection, doc, getDoc, getDocs, writeBatch, deleteDoc, updateDoc, arrayRemove, query, arrayUnion } from 'firebase/firestore';
 import type { Project } from '@/lib/types';
+import { fetchProjectsByIds } from '@/lib/firestore-helpers';
 import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { ALL_COLUMNS } from '@/lib/columns';
 import { removeUndefined } from '@/lib/utils';
@@ -160,21 +161,14 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                     if (userDoc.exists()) {
                         const projectIds = userDoc.data().projectIds || [];
                         if (projectIds.length > 0) {
-                            const projectPromises = projectIds.map((id: string) => getDoc(doc(firestore, 'projects', id)));
-                            const projectSnapshots = await Promise.all(projectPromises);
-                            fetchedProjects = projectSnapshots
-                                .filter(snap => snap.exists())
-                                .map(snap => {
-                                    const data = snap.data() as Project;
-                                    return {
-                                        ...data,
-                                        id: snap.id,
-                                        createdAt: data.createdAt ? (data.createdAt as any).toDate() : new Date(),
-                                        startDate: data.startDate ? (data.startDate as any).toDate() : undefined,
-                                        finishDate: data.finishDate ? (data.finishDate as any).toDate() : undefined,
-                                        lastModified: data.lastModified ? (data.lastModified as any).toDate() : undefined,
-                                    } as ProjectWithMetadata;
-                                });
+                            const projects = await fetchProjectsByIds(firestore, projectIds);
+                            fetchedProjects = projects.map(p => ({
+                                ...p,
+                                createdAt: p.createdAt ? (p.createdAt as any).toDate() : new Date(),
+                                startDate: p.startDate ? (p.startDate as any).toDate() : undefined,
+                                finishDate: p.finishDate ? (p.finishDate as any).toDate() : undefined,
+                                lastModified: p.lastModified ? (p.lastModified as any).toDate() : undefined,
+                            } as ProjectWithMetadata));
                         }
                     }
                 }
