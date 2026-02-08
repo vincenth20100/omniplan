@@ -383,8 +383,8 @@ export function Timeline({
                               projectColors={projectColors}
                               projectTextColors={projectTextColors}
                               projectCriticalPathColors={projectCriticalPathColors}
-                              tooltipFields={ganttSettings.tooltipFields}
-                              tooltipConfig={ganttSettings.tooltipConfig}
+                              tooltipFields={ganttSettings.showGanttTooltip !== false ? ganttSettings.tooltipFields : []}
+                              tooltipConfig={ganttSettings.showGanttTooltip !== false ? ganttSettings.tooltipConfig : []}
                               columns={columns}
                               resources={resources}
                               assignments={assignments}
