@@ -15,6 +15,7 @@
 import {
   ImportedProjectData,
   DateWarning,
+  ActivityCode,
   parseProjectXML,
   parseProjectExcel,
   computeStats,
@@ -233,6 +234,51 @@ function mapAnalyzeResponse(
   const taskIdMap  = new Map<string, string>();
   const resUidMap  = new Map<string, string>();
 
+  // ── ACTIVITY CODES (P6-style) ──
+  // Parse definitions and build lookup for enriching tasks
+  const activityCodes: ActivityCode[] = (raw.activity_codes ?? []).map((ac) => ({
+    codeName: str(ac["Code Name"]) || str(ac["Name"]) || "",
+    description: str(ac["Description"]) || str(ac["Desc"]) || "",
+    value: str(ac["Value"]) || str(ac["Code Value"]) || "",
+  })).filter(ac => ac.codeName);
+
+  // Unique code names → used to detect activity code fields on tasks
+  const activityCodeNames = new Set(activityCodes.map(ac => ac.codeName));
+
+  // Build value→description lookup per code name for display enrichment
+  // e.g. { "PROJECT PHASE": { "E": "Engineering", "P": "Procurement" } }
+  const codeValueLookup = new Map<string, Map<string, string>>();
+  for (const ac of activityCodes) {
+    if (!codeValueLookup.has(ac.codeName)) {
+      codeValueLookup.set(ac.codeName, new Map());
+    }
+    if (ac.value && ac.description) {
+      codeValueLookup.get(ac.codeName)!.set(ac.value, ac.description);
+    }
+  }
+
+  // Also collect known standard fields to EXCLUDE from activity code detection
+  const standardFields = new Set([
+    "ID", "Unique ID", "Name", "Task Name", "Start", "Finish", "Duration",
+    "% Complete", "Percent Complete", "Summary", "Milestone", "Outline Level",
+    "WBS", "Activity ID", "Activity Type", "Priority", "Type",
+    "Earned Value Method", "Constraint Type", "Constraint Date",
+    "Deadline", "Notes", "Hyperlink",
+    // Fields already captured or structural noise
+    "Total Slack", "Free Slack", "Work", "Actual Work", "Remaining Work",
+    "Baseline Start", "Baseline Finish", "Baseline Duration", "Baseline Work",
+    "Actual Start", "Actual Finish", "Actual Duration",
+    "Early Start", "Early Finish", "Late Start", "Late Finish",
+    "Calendar", "Calendar UID", "Resource Group",
+    "Critical", "Level Assignments", "Leveling Can Split",
+    "Outline Number", "Predecessors", "Successors",
+    "Cost", "Actual Cost", "Remaining Cost", "Baseline Cost",
+    "Fixed Cost", "Fixed Cost Accrual",
+    "GUID", "Task GUID", "Created", "Stop", "Resume",
+    "Rollup", "Hide Bar", "Ignore Resource Calendar",
+    "Active", "Manual", "Placeholder",
+  ]);
+
   // ── TASKS ──
   const tasks: Task[] = (raw.tasks ?? [])
     .filter((t) => str(t["Name"]) || str(t["Task Name"]))
@@ -322,10 +368,41 @@ function mapAnalyzeResponse(
         dur = Math.max(0, (finish.getTime() - start.getTime()) / 86_400_000);
       }
 
-      // Custom fields
+      // Custom fields — capture Text/Number/Flag fields AND activity code fields
       const customText: Record<string, string> = {};
       for (const [k, v] of Object.entries(t)) {
-        if (v && v !== "null" && (k.startsWith("Text") || k.startsWith("Number") || k.startsWith("Flag"))) {
+        if (!v || v === "null" || v === "None" || v === "") continue;
+
+        // Standard Text/Number/Flag fields (MS Project style)
+        if (k.startsWith("Text")) {
+          customText[k] = v;
+          continue;
+        }
+        if (k.startsWith("Number")) {
+          // Skip zero-value Number fields (0, 0.0, 0.00, etc.)
+          const num = parseFloat(v);
+          if (isNaN(num) || num === 0) continue;
+          customText[k] = v;
+          continue;
+        }
+        if (k.startsWith("Flag")) {
+          // Skip false/no/0 Flag fields
+          if (v.toLowerCase() === "false" || v === "0" || v.toLowerCase() === "no") continue;
+          customText[k] = v;
+          continue;
+        }
+
+        // Activity code fields — either known from activity_codes definitions
+        // or detected as non-standard fields on tasks
+        if (activityCodeNames.has(k)) {
+          // Look up description if we have it
+          const desc = codeValueLookup.get(k)?.get(v);
+          customText[k] = desc ? `${v} (${desc})` : v;
+          continue;
+        }
+
+        // Any other non-standard field with a value → capture as custom
+        if (!standardFields.has(k) && !k.startsWith("_") && k.length > 1) {
           customText[k] = v;
         }
       }
@@ -563,6 +640,7 @@ function mapAnalyzeResponse(
     calendars,
     sourceFormat: sourceLabel(filename),
     projectInfo,
+    activityCodes: activityCodes.length > 0 ? activityCodes : undefined,
     dateWarnings: dateWarnings.length > 0 ? dateWarnings : undefined,
     stats: computeStats(tasks, dateWarnings),
   };
