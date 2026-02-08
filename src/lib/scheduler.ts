@@ -566,6 +566,64 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
             task.totalFloat = 0;
         }
         task.isCritical = (task.criticalFor && task.criticalFor.length > 0);
+
+        // Calculate Free Float
+        const successors = successorsMap.get(taskId) || [];
+        if (successors.length === 0) {
+             task.freeFloat = task.totalFloat;
+        } else {
+             // Calculate min permissible finish based on successors' EARLY start
+             let minConstraintDate = MAX_DATE;
+
+             for (const link of successors) {
+                 const successorTask = taskMap.get(link.target)!;
+                 // Use successor's EARLY start/finish
+                 const sStart = successorTask.start;
+                 const sFinish = successorTask.finish;
+
+                 const successorCalendar = taskCalendarMap.get(successorTask.id) || calendar;
+
+                 let constraintDate: Date;
+
+                 switch (link.type) {
+                    case 'FS':
+                        constraintDate = calendarService.addWorkingDays(sStart, -(link.lag + 1), successorCalendar);
+                        break;
+                    case 'FF':
+                        constraintDate = calendarService.addWorkingDays(sFinish, -link.lag, successorCalendar);
+                        break;
+                    case 'SS':
+                         const tempStart = calendarService.addWorkingDays(sStart, -link.lag, successorCalendar);
+                         constraintDate = calendarService.calculateFinishDate(tempStart, task.duration, task.durationUnit || 'd', taskCalendar);
+                        break;
+                     case 'SF':
+                         const tempStartSF = calendarService.addWorkingDays(sFinish, -link.lag, successorCalendar);
+                         constraintDate = calendarService.calculateFinishDate(tempStartSF, task.duration, task.durationUnit || 'd', taskCalendar);
+                        break;
+                    default:
+                        constraintDate = MAX_DATE;
+                }
+
+                if (constraintDate < minConstraintDate) {
+                    minConstraintDate = constraintDate;
+                }
+             }
+
+             if (minConstraintDate.getTime() === MAX_DATE.getTime()) {
+                 task.freeFloat = task.totalFloat;
+             } else {
+                 if (task.finish) {
+                     let ff = calendarService.getWorkingDaysDuration(task.finish, minConstraintDate, taskCalendar);
+                     if (ff > 0) ff -= 1;
+                     if (minConstraintDate < task.finish) {
+                         ff = 0;
+                     }
+                     task.freeFloat = ff;
+                 } else {
+                    task.freeFloat = 0;
+                 }
+             }
+        }
     }
 
     // Update driving status on links

@@ -88,6 +88,7 @@ export interface Task {
   isCritical?: boolean;
   criticalFor?: string[]; // IDs of projects for which this task is critical
   totalFloat?: number; // in working days
+  freeFloat?: number; // in working days
   lateStart?: Date;
   lateFinish?: Date;
 

@@ -32,6 +32,8 @@ export const ALL_COLUMNS: (Omit<ColumnSpec, 'width'> & { defaultWidth: number })
     { id: 'finishVariance', name: 'Finish Variance', defaultWidth: 80, type: 'number' },
     { id: 'isCritical', name: 'C', defaultWidth: 40, type: 'text' },
     { id: 'totalFloat', name: 'Float', defaultWidth: 80, type: 'number' },
+    { id: 'freeFloat', name: 'Free Float', defaultWidth: 80, type: 'number' },
+    { id: 'slack', name: 'Slack', defaultWidth: 80, type: 'number' },
     { id: 'calendar', name: 'Task Calendar', defaultWidth: 150, type: 'selection' },
     { id: 'resourceCalendar', name: 'Resource Calendar', defaultWidth: 150, type: 'text' },
     { id: 'lastComment', name: 'Last Comment', defaultWidth: 200, type: 'text' },
