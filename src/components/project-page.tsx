@@ -746,6 +746,13 @@ function ProjectPageContent({ user, projectId }: { user: User, projectId: string
             onOpenChange={setIsPrintPreviewOpen}
             projectState={state}
           />
+          <DeleteConfirmationDialog
+            open={isDeleteConfirmOpen}
+            onOpenChange={setIsDeleteConfirmOpen}
+            onConfirm={handleDeleteConfirm}
+            taskCount={deleteSummary.taskCount}
+            linkCount={deleteSummary.linkCount}
+          />
           <SetBaselineDialog
               open={isSetBaselineOpen}
               onOpenChange={setIsSetBaselineOpen}
