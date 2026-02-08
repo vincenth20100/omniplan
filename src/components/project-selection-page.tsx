@@ -530,13 +530,13 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                 await Promise.all(memberUpdatePromises);
             }
 
-            // Delete the project document first (relies on member doc or ownerId)
-            await deleteDoc(doc(firestore, 'projects', projectToDelete.id));
-
             // Finally, delete the current user's member document
             if (currentUserMemberDocRef) {
                 await deleteDoc(currentUserMemberDocRef);
             }
+
+            // Delete the project document (relies on member doc or ownerId)
+            await deleteDoc(doc(firestore, 'projects', projectToDelete.id));
             
             toast({
                 title: "Project Deleted",
