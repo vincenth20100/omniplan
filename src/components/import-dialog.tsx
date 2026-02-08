@@ -63,10 +63,18 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         await handleFile(selectedFile);
     };
 
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(true);
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'copy';
+        }
     };
 
     const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
@@ -174,6 +182,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                                 ${isParsing ? "bg-muted/50 border-muted" : "bg-muted/10 border-muted-foreground/25 hover:border-primary/50"}
                                 ${isDragging ? "border-primary bg-primary/5 scale-[1.02]" : ""}
                             `}
+                            onDragEnter={handleDragEnter}
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
