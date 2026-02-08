@@ -62,7 +62,7 @@ const defaultUserPreferences = {
 };
 
 
-const initialState: ProjectState = {
+export const initialProjectState: ProjectState = {
   tasks: [],
   links: [],
   resources: [],
@@ -1658,15 +1658,15 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     }
     case 'LOAD_PROJECT': {
         const loaded = action.payload;
-        const ganttSettings = { ...initialState.ganttSettings, ...(loaded.ganttSettings || {}) };
+        const ganttSettings = { ...initialProjectState.ganttSettings, ...(loaded.ganttSettings || {}) };
         const stylePresets = loaded.stylePresets?.length ? loaded.stylePresets : defaultStylePresets;
         
         const loadedState = { 
-            ...initialState, 
+            ...initialProjectState,
             ...loaded,
             ganttSettings: ganttSettings,
             stylePresets: stylePresets,
-            groupingState: loaded.groupingState || initialState.groupingState,
+            groupingState: loaded.groupingState || initialProjectState.groupingState,
         };
         const scheduledTasks = runScheduler(loadedState.tasks, loadedState.links, loadedState.columns, loadedState.calendars, loadedState.defaultCalendarId, loadedState.assignments, loadedState.resources);
         return {
@@ -2185,7 +2185,7 @@ type HistoryState = {
 
 const historyInitialState: HistoryState = {
     past: [],
-    present: initialState,
+    present: initialProjectState,
     future: [],
 }
 
@@ -2263,7 +2263,7 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
                 ];
                 return {
                     past: newPast,
-                    present: newPast.length > 0 ? newPast[newPast.length-1].state : initialState,
+                    present: newPast.length > 0 ? newPast[newPast.length-1].state : initialProjectState,
                     future: newFuture
                 }
             }

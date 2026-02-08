@@ -209,12 +209,19 @@ export function Timeline({
     }
   }, [ganttSettings.viewMode, ganttSettings.zoom]);
 
-  const getScrollElement = useCallback(() => viewportRef.current, [viewportRef]);
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  const setScrollElementRef = useCallback((node: HTMLDivElement | null) => {
+    if (viewportRef) {
+         (viewportRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    }
+    setScrollElement(node);
+  }, [viewportRef]);
+
   const estimateSize = useCallback(() => rowHeight, [rowHeight]);
 
   const { virtualItems: verticalVirtualItems } = useVirtualization({
     count: renderableRows.length,
-    getScrollElement,
+    scrollElement,
     estimateSize,
     overscan: 20,
     axis: 'y'
@@ -265,7 +272,7 @@ export function Timeline({
 
   const { virtualItems: horizontalVirtualItems } = useVirtualization({
     count: totalDays,
-    getScrollElement,
+    scrollElement,
     estimateSize: estimateColumnSize,
     overscan: 10,
     axis: 'x'
@@ -433,7 +440,7 @@ export function Timeline({
         content
       ) : (
       <ScrollAreaPrimitive.Root className="h-full w-full relative overflow-hidden">
-        <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
+        <ScrollAreaPrimitive.Viewport ref={setScrollElementRef} className="h-full w-full rounded-[inherit]" onScroll={onScroll}>
           {content}
         </ScrollAreaPrimitive.Viewport>
         <ScrollBar orientation="vertical" />
