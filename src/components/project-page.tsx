@@ -11,7 +11,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ViewOptions } from '@/components/view-options/view-options';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Link as LinkIcon, Info, GanttChartSquare, LayoutGrid, ZoomIn, ZoomOut, ArrowLeft, TableProperties, Rows, ListChecks, Settings } from 'lucide-react';
+import { Link as LinkIcon, Info, GanttChartSquare, LayoutGrid, ArrowLeft, TableProperties, Rows, ListChecks, Settings } from 'lucide-react';
 import { SpatialView } from '@/components/spatial/spatial-view';
 import { ConflictDetector } from '@/components/ai/conflict-detector';
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -46,7 +46,7 @@ import { ColumnManagerDialog } from '@/components/view-options/column-manager-di
 import { ThemeProvider, useThemeContext } from '@/components/theme/theme-context';
 import { ViewManagerDialog } from '@/components/view-options/view-manager-dialog';
 import { DeleteConfirmationDialog } from './delete-confirmation-dialog';
-import { Slider } from "@/components/ui/slider";
+import { ZoomSelector } from '@/components/zoom-selector';
 import {
   Select,
   SelectContent,
@@ -277,13 +277,7 @@ function ProjectPageContent({ user, projectId }: { user: User, projectId: string
   
   const currentZoom = state.ganttSettings.zoom || 1;
 
-  const handleZoomIn = () => {
-    const newZoom = Math.min(currentZoom + 0.1, 5);
-    dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, zoom: newZoom }});
-  };
-
-  const handleZoomOut = () => {
-    const newZoom = Math.max(currentZoom - 0.1, 0.1);
+  const handleZoomChange = (newZoom: number) => {
     dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, zoom: newZoom }});
   };
 
@@ -476,23 +470,11 @@ function ProjectPageContent({ user, projectId }: { user: User, projectId: string
 
                      <Separator orientation="vertical" className="h-6" />
 
-                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut} title="Zoom Out" disabled={state.currentRepresentation !== 'gantt' || currentZoom <= 0.1}>
-                        <ZoomOut className="h-4 w-4" />
-                     </Button>
-
-                     <Slider
-                        value={[currentZoom]}
-                        min={0.1}
-                        max={5}
-                        step={0.1}
-                        onValueChange={(vals) => dispatch({ type: 'UPDATE_GANTT_SETTINGS', payload: { ...state.ganttSettings, zoom: vals[0] }})}
-                        className="w-[80px]"
+                     <ZoomSelector
+                        value={currentZoom}
+                        onValueChange={handleZoomChange}
                         disabled={state.currentRepresentation !== 'gantt'}
                      />
-
-                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn} title="Zoom In" disabled={state.currentRepresentation !== 'gantt' || currentZoom >= 5}>
-                         <ZoomIn className="h-4 w-4" />
-                     </Button>
                 </div>
             </>
         )}
