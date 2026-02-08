@@ -34,6 +34,7 @@ const TaskCellRenderer = React.memo(({
     links,
     idToWbsMap,
     resourceMap,
+    resourceCalendarMap,
     assignments,
     handleToggle,
     displayLevel,
@@ -55,6 +56,7 @@ const TaskCellRenderer = React.memo(({
     links: Link[];
     idToWbsMap: Map<string, string>;
     resourceMap: Map<string, string>;
+    resourceCalendarMap: Map<string, string>;
     assignments: Assignment[];
     handleToggle: (e: React.MouseEvent, taskId: string) => void;
     displayLevel: number;
@@ -435,20 +437,25 @@ const TaskCellRenderer = React.memo(({
             }
 
             // Display logic
-            const effectiveCal = calendars.find(c => c.id === task.effectiveCalendarId) || defaultCalendar;
-            const effectiveName = effectiveCal ? effectiveCal.name : 'Unknown';
-            const isOverridden = task.effectiveCalendarId !== (task.calendarId || defaultCalendar?.id);
-            const hasConflict = !!task.calendarConflict;
+            const calId = task.calendarId;
+            let calName = 'Project Default';
+            if (calId) {
+                const cal = calendars.find(c => c.id === calId);
+                if (cal) calName = cal.name;
+            }
 
             return (
-                <div className="flex items-center gap-1 w-full" title={task.calendarConflict || (isOverridden ? "Driven by Resource Calendar" : undefined)}>
-                    <span className={cn("truncate", isOverridden && "text-muted-foreground italic")}>
-                        {effectiveName}
-                    </span>
-                    {hasConflict && <TriangleAlert className="h-4 w-4 text-destructive flex-shrink-0" />}
-                    {!hasConflict && isOverridden && <span className="text-[10px] text-muted-foreground border rounded px-1">R</span>}
+                <div className="flex items-center gap-1 w-full">
+                    <span className="truncate">{calName}</span>
                 </div>
             );
+        }
+        case 'resourceCalendar': {
+            if (task.isSummary && grouping.length === 0) return null;
+            const taskAssignments = assignments.filter(a => a.taskId === task.id);
+            const calNames = taskAssignments.map(a => resourceCalendarMap.get(a.resourceId)).filter(Boolean) as string[];
+            const unique = Array.from(new Set(calNames));
+            return <div className="truncate">{unique.join(', ')}</div>;
         }
         case 'lastComment': {
             const lastNote = task.notes && task.notes.length > 0 ? task.notes[task.notes.length - 1] : null;
@@ -1173,6 +1180,19 @@ export function TaskTable({
 
     const resourceMap = React.useMemo(() => new Map(resources.map(r => [r.id, r.name])), [resources]);
 
+    const resourceCalendarMap = React.useMemo(() => {
+        const map = new Map<string, string>();
+        resources.forEach(r => {
+             let calName = 'Project Default';
+             if (r.calendarId) {
+                 const cal = calendars.find(c => c.id === r.calendarId);
+                 if (cal) calName = cal.name;
+             }
+             map.set(r.id, calName);
+        });
+        return map;
+    }, [resources, calendars]);
+
     const defaultCalendar = React.useMemo(() => calendars.find(c => c.id === defaultCalendarId) || calendars[0] || null, [calendars, defaultCalendarId]);
     const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
     const { rowHeight } = DENSITY_SETTINGS[uiDensity];
@@ -1466,6 +1486,7 @@ export function TaskTable({
                                                         links={links}
                                                         idToWbsMap={idToWbsMap}
                                                         resourceMap={resourceMap}
+                                                        resourceCalendarMap={resourceCalendarMap}
                                                         assignments={assignments}
                                                         handleToggle={handleToggle}
                                                         displayLevel={item.displayLevel}
