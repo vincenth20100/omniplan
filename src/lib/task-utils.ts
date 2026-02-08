@@ -38,7 +38,10 @@ export function getRawTaskPropertyValue(
         case 'isCritical':
             return task.isCritical ? '*' : '';
         case 'totalFloat':
+        case 'slack':
             return task.totalFloat ?? null;
+        case 'freeFloat':
+            return task.freeFloat ?? null;
         default:
             if (column.id.startsWith('custom-')) {
                 return task.customAttributes?.[column.id] || null;
@@ -63,7 +66,7 @@ export function getTaskPropertyValue(
         return format(new Date(rawValue), 'MMM d, yyyy');
     }
 
-    if (column?.id === 'totalFloat') return rawValue !== null ? `${rawValue}d` : '';
+    if (['totalFloat', 'freeFloat', 'slack'].includes(column?.id || '')) return rawValue !== null ? `${rawValue}d` : '';
     if (column?.id === 'duration') return `${rawValue} day(s)`;
     if (column?.id === 'percentComplete') return `${rawValue}%`;
 
