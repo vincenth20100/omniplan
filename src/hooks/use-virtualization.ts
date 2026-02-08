@@ -2,13 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 
 export function useVirtualization({
     count,
-    getScrollElement,
+    scrollElement,
     estimateSize,
     overscan = 5,
     axis = 'y'
 }: {
     count: number;
-    getScrollElement: () => HTMLElement | null;
+    scrollElement: HTMLElement | null;
     estimateSize: (index: number) => number;
     overscan?: number;
     axis?: 'x' | 'y';
@@ -16,21 +16,19 @@ export function useVirtualization({
     const [scrollOffset, setScrollOffset] = useState(0);
     const [viewportSize, setViewportSize] = useState(0);
 
-    // Using a ref to track if we've already attached listeners to a specific element
-    const elementRef = useRef<HTMLElement | null>(null);
-
     useEffect(() => {
-        const element = getScrollElement();
+        const element = scrollElement;
         if (!element) return;
 
-        // If element changed, update ref
-        elementRef.current = element;
-
+        let ticking = false;
         const handleScroll = () => {
-            // We use requestAnimationFrame to throttle scroll updates if needed,
-            // but React state updates are often batched enough.
-            // For now, direct update.
-            setScrollOffset(axis === 'y' ? element.scrollTop : element.scrollLeft);
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    setScrollOffset(axis === 'y' ? element.scrollTop : element.scrollLeft);
+                    ticking = false;
+                });
+                ticking = true;
+            }
         };
 
         const resizeObserver = new ResizeObserver((entries) => {
@@ -50,7 +48,7 @@ export function useVirtualization({
             element.removeEventListener('scroll', handleScroll);
             resizeObserver.disconnect();
         };
-    }, [getScrollElement, axis]);
+    }, [scrollElement, axis]);
 
     // Calculate visible range
     // Assuming fixed height for now as per project requirements (DENSITY_SETTINGS)
