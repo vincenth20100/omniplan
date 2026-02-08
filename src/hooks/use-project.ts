@@ -2099,9 +2099,20 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         const targetIndex = tasks.findIndex(t => t.id === targetId);
         if (targetIndex === -1) return state;
         
-        const sourceTasks = sourceIds.map(id => tasks.find(t => t.id === id)).filter((t): t is Task => !!t);
+        let sourceTasks: Task[];
+        // Use a Map for O(1) lookup when reordering many tasks to avoid O(N*M) complexity
+        if (sourceIds.length < 50) {
+             sourceTasks = sourceIds.map(id => tasks.find(t => t.id === id)).filter((t): t is Task => !!t);
+        } else {
+             const taskMap = new Map(tasks.map(t => [t.id, t] as [string, Task]));
+             sourceTasks = sourceIds.map(id => taskMap.get(id)).filter((t): t is Task => !!t);
+        }
+
         const sourceOrders = sourceTasks.map(t => t.order || 0);
-        tasks = tasks.filter(t => !sourceIds.includes(t.id));
+
+        // Use Set for O(1) lookup during filter
+        const sourceIdSet = new Set(sourceIds);
+        tasks = tasks.filter(t => !sourceIdSet.has(t.id));
 
         const targetTask = tasks.find(t => t.id === targetId);
         if (!targetTask) { // Should not happen if targetIndex is valid
