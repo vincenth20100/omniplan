@@ -1,4 +1,5 @@
-import { Task, Link, Resource, Assignment, Calendar, LinkType } from './types';
+import { Task, Link, Resource, Assignment, Calendar, LinkType, Exception } from './types';
+import { formatISO, addDays } from 'date-fns';
 
 // ─────────────────────────────────────────────────────────
 // Extended import types
@@ -43,6 +44,16 @@ function generateId(prefix: string): string {
 // MS PROJECT XML (MSPDI) PARSER
 // ─────────────────────────────────────────────────────────
 
+interface RawCalendar {
+    uid: string;
+    internalId: string;
+    name: string;
+    baseUid?: string;
+    weekDays: Map<number, boolean>; // dayIndex (0=Sun) -> isWorking
+    exceptions: Exception[];
+    workingDayOverrides: string[]; // ISO date strings
+}
+
 export function parseProjectXML(xmlContent: string): ImportedProjectData {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
@@ -52,7 +63,151 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
 
     const projectName = root.querySelector("Title")?.textContent || "Imported Project";
 
-    // 1. Extended Attributes (Custom Fields)
+    // 1. Calendars
+    const rawCalendars = new Map<string, RawCalendar>();
+    const uidToCalendarId = new Map<string, string>();
+
+    root.querySelectorAll("Calendars > Calendar").forEach(cal => {
+        const uid = cal.querySelector("UID")?.textContent;
+        const name = cal.querySelector("Name")?.textContent || "Unnamed Calendar";
+        const baseUid = cal.querySelector("BaseCalendarUID")?.textContent;
+
+        if (!uid) return;
+
+        const internalId = generateId('cal');
+        uidToCalendarId.set(uid, internalId);
+
+        const weekDays = new Map<number, boolean>();
+        cal.querySelectorAll("WeekDays > WeekDay").forEach(wd => {
+            const dayType = parseInt(wd.querySelector("DayType")?.textContent || "0");
+            const dayWorking = wd.querySelector("DayWorking")?.textContent === "1";
+            // MSPDI: 1=Sun, 2=Mon ... 7=Sat
+            // JS: 0=Sun, 1=Mon ... 6=Sat
+            if (dayType >= 1 && dayType <= 7) {
+                weekDays.set(dayType - 1, dayWorking);
+            }
+        });
+
+        const exceptions: Exception[] = [];
+        const workingDayOverrides: string[] = [];
+
+        cal.querySelectorAll("Exceptions > Exception").forEach(ex => {
+            const dayWorking = ex.querySelector("DayWorking")?.textContent === "1";
+            const fromDateStr = ex.querySelector("TimePeriod > FromDate")?.textContent;
+            const toDateStr = ex.querySelector("TimePeriod > ToDate")?.textContent;
+            const exName = ex.querySelector("Name")?.textContent || "Exception";
+
+            if (fromDateStr && toDateStr) {
+                const start = new Date(fromDateStr);
+                const finish = new Date(toDateStr);
+
+                // Adjust finish date: MSPDI ToDate is exclusive, so subtract 1ms to include correctly in range check
+                finish.setMilliseconds(finish.getMilliseconds() - 1);
+
+                if (!isNaN(start.getTime()) && !isNaN(finish.getTime())) {
+                    if (!dayWorking) {
+                        // Non-working exception (Holiday)
+                        exceptions.push({
+                            id: generateId('ex'),
+                            name: exName,
+                            start,
+                            finish,
+                            isActive: true
+                        });
+                    } else {
+                        // Working exception (Override)
+                        // Expand range to individual days
+                        let current = new Date(start);
+                        current.setHours(0,0,0,0);
+                        const end = new Date(finish);
+                        end.setHours(0,0,0,0);
+
+                        while (current <= end) {
+                            workingDayOverrides.push(formatISO(current, { representation: 'date' }));
+                            current = addDays(current, 1);
+                        }
+                    }
+                }
+            }
+        });
+
+        rawCalendars.set(uid, {
+            uid,
+            internalId,
+            name,
+            baseUid: baseUid !== "-1" ? baseUid : undefined,
+            weekDays,
+            exceptions,
+            workingDayOverrides
+        });
+    });
+
+    // Resolve inheritance and build final Calendars
+    const calendars: Calendar[] = [];
+    rawCalendars.forEach(raw => {
+        // Resolve working days
+        // Strategy: Start with base calendar's working days (if exists), then apply local overrides.
+        // If no base, default to Standard (Mon-Fri 8-5) IF local weekDays are empty?
+        // Actually, if local WeekDays are present, they define the calendar.
+
+        let workingDaysSet = new Set<number>();
+
+        if (raw.baseUid && rawCalendars.has(raw.baseUid)) {
+            const base = rawCalendars.get(raw.baseUid)!;
+            // Recursively resolve base? For now assume 1 level of inheritance which is typical.
+            // If base has base, we might need a recursive helper.
+            // Let's implement a simple recursive helper for working days.
+             const getWorkingDays = (r: RawCalendar): Set<number> => {
+                let days = new Set<number>();
+                if (r.baseUid && rawCalendars.has(r.baseUid)) {
+                    days = getWorkingDays(rawCalendars.get(r.baseUid)!);
+                } else {
+                    // Default to Standard (Mon-Fri) if absolutely no definition?
+                    // Or empty? MSPDI usually defines 'Standard' calendar fully.
+                    // If this is a root calendar without definition, let's assume empty to avoid assumptions.
+                    // Wait, Standard calendar usually has UID 1.
+                }
+
+                // Apply local definitions
+                if (r.weekDays.size > 0) {
+                    // If local definitions exist, do they replace or merge?
+                    // In MSPDI, WeekDays collection replaces the base calendar's WeekDays.
+                    // It's not a merge of individual days, it's a replacement of the WeekDays definition.
+                    // Wait, documentation says: "If the calendar is a derived calendar, the WeekDays collection specifies the exceptions to the base calendar."
+                    // So it IS a merge/override.
+                    r.weekDays.forEach((isWorking, dayIndex) => {
+                        if (isWorking) days.add(dayIndex);
+                        else days.delete(dayIndex);
+                    });
+                }
+                return days;
+            };
+            workingDaysSet = getWorkingDays(raw);
+        } else {
+            // No base. Use local definitions.
+            if (raw.weekDays.size > 0) {
+                raw.weekDays.forEach((isWorking, dayIndex) => {
+                    if (isWorking) workingDaysSet.add(dayIndex);
+                });
+            } else {
+                // Fallback to Standard Mon-Fri if it's the Standard calendar or similar
+                // But generally safe to default to Mon-Fri if nothing specified?
+                // Let's stick to what's defined. If empty, it's empty (non-working).
+                // EXCEPT if it is the "Standard" calendar (UID 1 often), maybe we should default?
+                // Let's trust the XML.
+            }
+        }
+
+        calendars.push({
+            id: raw.internalId,
+            name: raw.name,
+            workingDays: Array.from(workingDaysSet).sort(),
+            exceptions: raw.exceptions,
+            workingDayOverrides: raw.workingDayOverrides
+        });
+    });
+
+    // 2. Extended Attributes (Custom Fields)
     const customFieldMap = new Map<string, string>();
     root.querySelectorAll("ExtendedAttributes > ExtendedAttribute").forEach(def => {
         const fieldId = def.querySelector("FieldID")?.textContent;
@@ -63,26 +218,32 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
         }
     });
 
-    // 2. Resources
+    // 3. Resources
     const resources: Resource[] = [];
     const resourceMap = new Map<string, string>();
 
     root.querySelectorAll("Resources > Resource").forEach(res => {
         const uid = res.querySelector("UID")?.textContent;
         const name = res.querySelector("Name")?.textContent;
+        const calendarUid = res.querySelector("CalendarUID")?.textContent;
+
         if (uid && name) {
             const id = generateId('res');
             resourceMap.set(uid, id);
+
+            const calendarId = calendarUid ? uidToCalendarId.get(calendarUid) : undefined;
+
             resources.push({
                 id,
                 name,
                 type: res.querySelector("Type")?.textContent === '1' ? 'Material' : 'Work',
                 availability: 1,
+                calendarId
             });
         }
     });
 
-    // 3. Tasks
+    // 4. Tasks
     const tasks: Task[] = [];
     const uidToInternalId = new Map<string, string>();
     const dateWarnings: DateWarning[] = [];
@@ -103,6 +264,7 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
         const wbs = t.querySelector("WBS")?.textContent;
         const outlineLevel = parseInt(t.querySelector("OutlineLevel")?.textContent || "1");
         const milestone = t.querySelector("Milestone")?.textContent === "1";
+        const calendarUid = t.querySelector("CalendarUID")?.textContent;
 
         // Duration
         let durationDays = 0;
@@ -158,13 +320,14 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
             parentId: null,
             activityId: activityId || undefined,
             status: activityStatus || (parseInt(pctStr) === 100 ? "Completed" : "Active"),
-            customText: Object.keys(customText).length > 0 ? customText : undefined
+            customText: Object.keys(customText).length > 0 ? customText : undefined,
+            calendarId: calendarUid ? uidToCalendarId.get(calendarUid) : undefined
         };
 
         tasks.push(task);
     });
 
-    // 4. Hierarchy
+    // 5. Hierarchy
     const stack: Task[] = [];
     tasks.forEach(task => {
         while (stack.length > 0 && stack[stack.length - 1].level >= task.level) stack.pop();
@@ -172,7 +335,7 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
         stack.push(task);
     });
 
-    // 5. Links
+    // 6. Links
     const links: Link[] = [];
     root.querySelectorAll("Tasks > Task").forEach(t => {
         const taskUid = t.querySelector("UID")?.textContent;
@@ -196,7 +359,7 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
         });
     });
 
-    // 6. Assignments
+    // 7. Assignments
     const assignments: Assignment[] = [];
     root.querySelectorAll("Assignments > Assignment").forEach(asn => {
         const taskUid = asn.querySelector("TaskUID")?.textContent;
@@ -217,7 +380,7 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
     return {
         name: projectName,
         tasks, links, resources, assignments,
-        calendars: [],
+        calendars,
         sourceFormat: "XML/MSPDI",
         dateWarnings: dateWarnings.length > 0 ? dateWarnings : undefined,
         stats: computeStats(tasks, dateWarnings),
