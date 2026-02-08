@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ImportedProjectData, DateWarning } from "@/lib/import-utils";
+import { ImportedProjectData, DateWarning, ActivityCode } from "@/lib/import-utils";
 import { format } from "date-fns";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CheckCircle2, AlertTriangle, XCircle,
-  ListChecks, Users, Link2, CalendarDays, Info, Paperclip, ShieldCheck,
+  ListChecks, Users, Link2, CalendarDays, Info, Paperclip, ShieldCheck, Tag,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -26,17 +26,19 @@ export function ImportPreview({
   data, sourceFile, onCancel, onConfirm, onDownload,
 }: ImportPreviewProps) {
   // ── Safe access ──
-  const tasks       = data.tasks ?? [];
-  const links       = data.links ?? [];
-  const resources   = data.resources ?? [];
-  const assignments = data.assignments ?? [];
-  const calendars   = data.calendars ?? [];
-  const projectInfo = data.projectInfo ?? {};
-  const warnings    = data.dateWarnings ?? [];
-  const stats       = data.stats;
+  const tasks        = data.tasks ?? [];
+  const links        = data.links ?? [];
+  const resources    = data.resources ?? [];
+  const assignments  = data.assignments ?? [];
+  const calendars    = data.calendars ?? [];
+  const projectInfo  = data.projectInfo ?? {};
+  const warnings     = data.dateWarnings ?? [];
+  const activityCodes = data.activityCodes ?? [];
+  const stats        = data.stats;
 
-  const hasProjectInfo = Object.keys(projectInfo).length > 0;
-  const hasWarnings    = warnings.length > 0;
+  const hasProjectInfo  = Object.keys(projectInfo).length > 0;
+  const hasWarnings     = warnings.length > 0;
+  const hasActivityCodes = activityCodes.length > 0;
 
   // Default tab: show data quality if warnings, else project info, else tasks
   const [activeTab, setActiveTab] = useState(
@@ -49,6 +51,30 @@ export function ImportPreview({
   const hasWbs          = sample.some(t => t.wbs);
   const hasCustomFields = sample.some(t => t.customText && Object.keys(t.customText).length > 0);
   const hasMilestones   = sample.some(t => t.isMilestone);
+
+  // Detect common custom field names across tasks → show as dedicated columns
+  // Count how many tasks have each custom field
+  const customFieldCounts: Record<string, number> = {};
+  for (const t of tasks) {
+    if (t.customText) {
+      for (const key of Object.keys(t.customText)) {
+        customFieldCounts[key] = (customFieldCounts[key] ?? 0) + 1;
+      }
+    }
+  }
+  // Show as dedicated column if at least 10% of tasks have it (min 3 tasks)
+  const dedicatedCustomCols = Object.entries(customFieldCounts)
+    .filter(([, count]) => count >= Math.max(3, tasks.length * 0.1))
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)  // max 5 dedicated custom columns
+    .map(([name]) => name);
+  const dedicatedCustomSet = new Set(dedicatedCustomCols);
+
+  // Any remaining custom fields go into "Other" column
+  const hasOtherCustom = sample.some(t => {
+    if (!t.customText) return false;
+    return Object.keys(t.customText).some(k => !dedicatedCustomSet.has(k));
+  });
 
   const fmt = (d: Date | undefined | null, showTime = false) => {
     if (!d || isNaN(d.getTime())) return "\u2014";
@@ -134,6 +160,12 @@ export function ImportPreview({
             <TabsTrigger value="calendars" className="text-xs gap-1.5">
               <CalendarDays className="h-3 w-3" /> Calendars
               <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-0.5">{calendars.length}</Badge>
+            </TabsTrigger>
+          )}
+          {hasActivityCodes && (
+            <TabsTrigger value="codes" className="text-xs gap-1.5">
+              <Tag className="h-3 w-3" /> Activity Codes
+              <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-0.5">{activityCodes.length}</Badge>
             </TabsTrigger>
           )}
         </TabsList>
@@ -281,7 +313,10 @@ export function ImportPreview({
                     <TableHead className="text-[11px]">Finish</TableHead>
                     <TableHead className="text-[11px]">Dur</TableHead>
                     <TableHead className="text-[11px]">%</TableHead>
-                    {hasCustomFields && <TableHead className="text-[11px]">Custom</TableHead>}
+                    {dedicatedCustomCols.map(col => (
+                      <TableHead key={col} className="text-[11px] text-indigo-700">{col}</TableHead>
+                    ))}
+                    {hasOtherCustom && <TableHead className="text-[11px]">Other</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -337,9 +372,19 @@ export function ImportPreview({
                             {t.percentComplete ?? 0}%
                           </div>
                         </TableCell>
-                        {hasCustomFields && (
+                        {dedicatedCustomCols.map(col => (
+                          <TableCell key={col} className="text-[11px] text-indigo-600 max-w-[120px] truncate" title={t.customText?.[col]}>
+                            {t.customText?.[col] ?? ""}
+                          </TableCell>
+                        ))}
+                        {hasOtherCustom && (
                           <TableCell className="text-[10px] text-muted-foreground max-w-[150px] truncate">
-                            {t.customText ? Object.values(t.customText).join(", ") : ""}
+                            {t.customText
+                              ? Object.entries(t.customText)
+                                  .filter(([k]) => !dedicatedCustomSet.has(k))
+                                  .map(([k, v]) => `${k}: ${v}`)
+                                  .join(", ")
+                              : ""}
                           </TableCell>
                         )}
                       </TableRow>
@@ -528,6 +573,34 @@ export function ImportPreview({
               </Table>
             </div>
           </TabsContent>
+
+          {/* ═══════ ACTIVITY CODES ═══════ */}
+          {hasActivityCodes && (
+            <TabsContent value="codes" className="m-0">
+              <div className="max-h-[500px] overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-muted/90 z-10">
+                    <TableRow>
+                      <TableHead className="text-[11px]">Code Name</TableHead>
+                      <TableHead className="text-[11px]">Description</TableHead>
+                      <TableHead className="text-[11px]">Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activityCodes.map((ac, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-[11px] font-medium">{ac.codeName}</TableCell>
+                        <TableCell className="text-[11px]">{ac.description}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px] font-mono">{ac.value}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+          )}
         </div>
       </Tabs>
 
