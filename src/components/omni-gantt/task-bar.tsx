@@ -1,6 +1,6 @@
 'use client';
-import React, { useRef, useEffect } from 'react';
-import { differenceInCalendarDays, addDays, format } from 'date-fns';
+import React, { useRef } from 'react';
+import { differenceInCalendarDays, format } from 'date-fns';
 import type { Task, UiDensity, Calendar, TaskLabelSetting, ColumnSpec, Resource, Assignment, TooltipFieldSetting, Link } from '@/lib/types';
 import { cn, getProjectColor } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
@@ -10,7 +10,7 @@ import { TaskTooltip } from './task-tooltip';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, registerBarElement, uiDensity, showProgress, showTaskLabels, taskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {}, tooltipFields = [], tooltipConfig, columns, resources, assignments, links, tasks }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, uiDensity, showProgress, showTaskLabels, taskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {}, tooltipFields = [], tooltipConfig, columns, resources, assignments, links, tasks }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
@@ -18,7 +18,6 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     row: number;
     isSelected: boolean;
     onSelect: (event: React.MouseEvent) => void;
-    registerBarElement: (taskId: string, element: HTMLDivElement | null) => void;
     uiDensity: UiDensity;
     showProgress: boolean;
     showTaskLabels: boolean;
@@ -37,7 +36,6 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     links?: Link[];
     tasks?: Task[];
 }) => {
-    const barRef = useRef<HTMLDivElement>(null);
     const dragStartInfo = useRef<{
         startX: number;
         originalStart: Date;
@@ -48,11 +46,6 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     const isSummary = task.isSummary;
     const { rowHeight, barHeight, summaryBarHeight } = DENSITY_SETTINGS[uiDensity];
 
-    useEffect(() => {
-        registerBarElement(task.id, barRef.current);
-        return () => registerBarElement(task.id, null);
-    }, [task.id, registerBarElement]);
-    
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, mode: DragMode) => {
         if (isSummary || !mode) return;
         e.preventDefault();
@@ -139,7 +132,6 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
         return (
             <TaskTooltip task={task} tooltipFields={tooltipFields} tooltipConfig={tooltipConfig} dateFormat={dateFormat} columns={columns} resources={resources} assignments={assignments} links={links} tasks={tasks}>
             <div
-                ref={barRef}
                 className={cn("absolute flex items-center justify-center cursor-pointer", isSelected ? "z-10" : "")}
                 style={{
                     top: `${top}px`,
@@ -199,7 +191,6 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     return (
         <TaskTooltip task={task} tooltipFields={tooltipFields} tooltipConfig={tooltipConfig} dateFormat={dateFormat} columns={columns} resources={resources} assignments={assignments} links={links} tasks={tasks}>
         <div
-            ref={barRef}
             className={cn(
                 "absolute flex items-center group transition-all duration-200",
                 !isSummary && "cursor-pointer",

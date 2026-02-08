@@ -26,6 +26,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { calendarService } from '@/lib/calendar';
 import { DENSITY_SETTINGS } from '@/lib/settings';
 import { TaskTooltip } from './task-tooltip';
+import { useVirtualization } from '@/hooks/use-virtualization';
 
 const TaskCellRenderer = React.memo(({
     task,
@@ -725,12 +726,18 @@ export function TaskTable({
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
+            // ... (keep existing handleKeyDown logic)
+            // It uses stateRef.current so it's independent of rendering
+            // However, Arrow navigation relies on renderableRows
+            // and dispatching SET_CELL_SELECTION
+            // This logic is independent of virtualization as long as renderableRows is complete.
+            // renderableRows is passed as prop and is complete.
+
             const { focusCell: activeCell, columns, visibleColumns, editingCell } = stateRef.current;
 
             const isEditing = !!editingCell;
             const isNavKey = event.key.startsWith('Arrow') || event.key === 'Enter';
 
-            // If editing, commit value on Enter/Arrow, then allow navigation logic to run
             if (isEditing && isNavKey) {
                 event.preventDefault();
                 if (document.activeElement instanceof HTMLElement) {
@@ -759,7 +766,6 @@ export function TaskTable({
                 return;
             }
 
-            // F2 key to start editing without clearing content
             if (event.key === 'F2') {
               const target = event.target as HTMLElement;
               if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
@@ -776,12 +782,10 @@ export function TaskTable({
               return;
             }
             
-            // If editing and not a nav key, let the input handle it
             if (isEditing && !isNavKey) {
                 return;
             }
 
-            // Start editing on Enter
             if (event.key === 'Enter' && !isEditing && activeCell) {
                  event.preventDefault();
                 const value = getCellValueForEditing(activeCell.taskId, activeCell.columnId);
@@ -792,10 +796,8 @@ export function TaskTable({
                 return;
             }
 
-            // Type-to-edit logic
             if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && activeCell) {
                 const target = event.target as HTMLElement;
-                // Do not trigger "type-to-edit" if the event originates from an element that already accepts text input.
                 if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
                     return;
                 }
@@ -809,7 +811,6 @@ export function TaskTable({
 
             if ((event.key === 'Backspace' || event.key === 'Delete') && activeCell && !isEditing) {
                 const target = event.target as HTMLElement;
-                // Do not trigger "type-to-edit" if the event originates from an element that already accepts text input.
                 if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
                     return;
                 }
@@ -818,19 +819,16 @@ export function TaskTable({
                 const { taskId, columnId } = activeCell;
 
                 if (event.key === 'Delete') {
-                    // If WBS column is active, or selection mode is 'row', delete the whole task
                     if (columnId === 'wbs' || stateRef.current.selectionMode === 'row') {
                         dispatch({ type: 'REMOVE_TASK' });
-                        return; // Action handled
+                        return;
                     }
-                    // If relationship columns, just clear the content
                     if (columnId === 'predecessors' || columnId === 'successors') {
                         dispatch({ type: 'UPDATE_RELATIONSHIPS', payload: { taskId, field: columnId as 'predecessors' | 'successors', value: '' } });
-                        return; // Action handled
+                        return;
                     }
                 }
 
-                // For Backspace on any column, or Delete on other columns, start editing with empty content
                 dispatch({
                     type: 'START_EDITING_CELL',
                     payload: { ...activeCell, initialValue: '' }
@@ -907,6 +905,7 @@ export function TaskTable({
         };
 
         const handleCopy = (e: ClipboardEvent) => {
+             // ... (keep logic)
             const { editingCell } = stateRef.current;
             if (editingCell) return;
 
@@ -936,8 +935,9 @@ export function TaskTable({
         };
 
         const handlePaste = (e: ClipboardEvent) => {
+             // ... (keep logic)
             const { editingCell, focusCell } = stateRef.current;
-            if (editingCell) return; // Don't handle paste when editing a cell
+            if (editingCell) return;
 
             const pastedData = e.clipboardData?.getData('text/plain');
             if (pastedData) {
@@ -1063,7 +1063,7 @@ export function TaskTable({
         setDropIndicator(null);
     };
 
-    const handleDrop = (e: React.DragEvent<HTMLTableRowElement>) => {
+    const handleDrop = (e: React.DragEvent<HTMLTableSectionElement>) => {
         e.preventDefault();
         
         if (!dropIndicator || !draggedIds || grouping.length > 0) { // Disable drop when grouping
@@ -1122,6 +1122,7 @@ export function TaskTable({
     };
 
     const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>, columnId: string) => {
+        // ... (keep logic)
         e.preventDefault();
         e.stopPropagation();
 
@@ -1145,6 +1146,7 @@ export function TaskTable({
     };
 
     const handleResizeTouchStart = (e: React.TouchEvent<HTMLDivElement>, columnId: string) => {
+        // ... (keep logic)
         e.stopPropagation();
 
         const startX = e.touches[0].clientX;
@@ -1200,6 +1202,23 @@ export function TaskTable({
     const totalWidth = React.useMemo(() => {
         return orderedAndVisibleColumns.reduce((acc, col) => acc + col.width, 0) + 40;
     }, [orderedAndVisibleColumns]);
+
+    const getScrollElement = useCallback(() => viewportRef.current, [viewportRef]);
+    const estimateSize = useCallback(() => rowHeight, [rowHeight]);
+
+    const { virtualItems, startOffset, endOffset } = useVirtualization({
+        count: renderableRows.length,
+        getScrollElement,
+        estimateSize,
+        overscan: 20
+    });
+
+    const rowsToRender = disableScroll ?
+        renderableRows.map((_, index) => ({ index })) :
+        virtualItems;
+
+    const topSpacerHeight = disableScroll ? 0 : startOffset;
+    const bottomSpacerHeight = disableScroll ? 0 : endOffset;
 
     const content = (
         <div className="pb-40">
@@ -1303,7 +1322,15 @@ export function TaskTable({
                         </TableRow>
                     </TableHeader>
                     <TableBody onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragLeave}>
-                        {renderableRows.map((item, rowIndex) => {
+                        {topSpacerHeight > 0 && (
+                             <TableRow style={{ height: `${topSpacerHeight}px` }}>
+                                <TableCell colSpan={orderedAndVisibleColumns.length + 1} className="p-0 border-0" />
+                             </TableRow>
+                        )}
+                        {rowsToRender.map((virtualRow) => {
+                            const rowIndex = virtualRow.index;
+                            const item = renderableRows[rowIndex];
+
                             if (item.itemType === 'group') {
                                 return (
                                     <TableRow
@@ -1510,6 +1537,11 @@ export function TaskTable({
                                 </TaskTooltip>
                             )
                         })}
+                        {bottomSpacerHeight > 0 && (
+                             <TableRow style={{ height: `${bottomSpacerHeight}px` }}>
+                                <TableCell colSpan={orderedAndVisibleColumns.length + 1} className="p-0 border-0" />
+                             </TableRow>
+                        )}
                         </TableBody>
                     </table>
                 </div>

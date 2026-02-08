@@ -14,28 +14,22 @@ import { ZoomIn, ZoomOut } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
 import { calendarService } from '@/lib/calendar';
 import { cn } from '@/lib/utils';
+import { useVirtualization } from '@/hooks/use-virtualization';
 
 const VIEW_PADDING_DAYS = 30;
 
-const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensity, selectedTaskIds, dispatch, registerBarElement, index, viewStartDate, scale }: {
+const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensity, selectedTaskIds, dispatch, index, viewStartDate, scale }: {
     task: Task,
     ganttSettings: GanttSettings,
     allTasks: Task[],
     uiDensity: UiDensity,
     selectedTaskIds: string[],
     dispatch: any,
-    registerBarElement: (taskId: string, element: HTMLDivElement | null) => void,
     index: number,
     viewStartDate: Date,
     scale: number
 }) => {
-    const barRef = useRef<HTMLDivElement>(null);
     
-    useEffect(() => {
-        registerBarElement(task.id, barRef.current);
-        return () => registerBarElement(task.id, null);
-    }, [task.id, registerBarElement]);
-
     const children = allTasks.filter(t => t.parentId === task.id);
     children.sort((a, b) => a.start.getTime() - b.start.getTime());
 
@@ -65,7 +59,6 @@ const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensi
     if (segments.length === 0) {
         return (
             <div
-                ref={barRef}
                 className={cn(
                     "absolute flex items-center group transition-all duration-200",
                     selectedTaskIds.includes(task.id) ? "ring-2 ring-offset-2 ring-accent ring-offset-card" : "hover:ring-1 hover:ring-accent",
@@ -94,7 +87,6 @@ const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensi
     return (
          <div 
             key={task.id}
-            ref={barRef}
             className="absolute"
             style={{
                 top: `${top}px`,
@@ -185,10 +177,7 @@ export function Timeline({
     resources?: Resource[],
     assignments?: Assignment[],
 }) {
-  const [taskBarElements, setTaskBarElements] = useState<Record<string, HTMLDivElement | null>>({});
   const [defaultDateRange, setDefaultDateRange] = useState<{viewStartDate: Date, viewEndDate: Date} | null>(null);
-
-  const pendingElementsRef = useRef<Map<string, HTMLDivElement | null>>(new Map());
 
   const comparisonBaseline = useMemo(() => {
     if (!ganttSettings.comparisonBaselineId) return null;
@@ -203,33 +192,6 @@ export function Timeline({
       });
       return map;
   }, [comparisonBaseline]);
-
-  // This effect collects all ref changes from a render pass and applies them in a single batch.
-  // It runs after every render to ensure the state is up-to-date.
-  // The state update is guarded to prevent re-renders if no elements have actually changed.
-  useEffect(() => {
-    if (pendingElementsRef.current.size === 0) {
-      return;
-    }
-    const newElements = new Map(pendingElementsRef.current);
-    pendingElementsRef.current.clear();
-    
-    setTaskBarElements(prev => {
-        let hasChanged = false;
-        const next = {...prev};
-        const allKeys = new Set([...Object.keys(prev), ...newElements.keys()]);
-        
-        for (const key of allKeys) {
-            const oldEl = prev[key];
-            const newEl = newElements.get(key) || null;
-            if (oldEl !== newEl) {
-                next[key] = newEl;
-                hasChanged = true;
-            }
-        }
-        return hasChanged ? next : prev;
-    });
-  });
 
   const { rowHeight, barHeight } = DENSITY_SETTINGS[uiDensity];
 
@@ -246,6 +208,20 @@ export function Timeline({
         return 40 * zoom;
     }
   }, [ganttSettings.viewMode, ganttSettings.zoom]);
+
+  const getScrollElement = useCallback(() => viewportRef.current, [viewportRef]);
+  const estimateSize = useCallback(() => rowHeight, [rowHeight]);
+
+  const { virtualItems } = useVirtualization({
+    count: renderableRows.length,
+    getScrollElement,
+    estimateSize,
+    overscan: 20
+  });
+
+  const rowsToRender = disableScroll ?
+    renderableRows.map((_, index) => ({ index })) :
+    virtualItems;
 
 
   React.useEffect(() => {
@@ -287,10 +263,6 @@ export function Timeline({
   const totalWidth = useMemo(() => {
     return (differenceInCalendarDays(viewEndDate, viewStartDate) + 1) * scale;
   }, [viewStartDate, viewEndDate, scale]);
-
-  const registerBarElement = useCallback((taskId: string, element: HTMLDivElement | null) => {
-    pendingElementsRef.current.set(taskId, element);
-  }, []);
   
   const taskIndexMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -341,7 +313,11 @@ export function Timeline({
                 </div>
               )}
 
-              {renderableRows.map((row, index) => {
+              {rowsToRender.map((virtualRow) => {
+                const index = virtualRow.index;
+                const row = renderableRows[index];
+                if (!row) return null;
+
                 if (row.itemType === 'task') {
                     const task = row.data;
                     const isSplit = task.isSummary && ganttSettings.renderSplitTasks;
@@ -358,7 +334,6 @@ export function Timeline({
                                 uiDensity={uiDensity}
                                 selectedTaskIds={selectedTaskIds}
                                 dispatch={dispatch}
-                                registerBarElement={registerBarElement}
                                 index={index}
                                 viewStartDate={viewStartDate}
                                 scale={scale}
@@ -372,7 +347,6 @@ export function Timeline({
                               row={index}
                               isSelected={selectedTaskIds.includes(task.id)}
                               onSelect={(e) => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
-                              registerBarElement={registerBarElement}
                               uiDensity={uiDensity}
                               showProgress={ganttSettings.showProgress}
                               showTaskLabels={ganttSettings.showTaskLabels}
@@ -411,10 +385,11 @@ export function Timeline({
               })}
               {ganttSettings.showDependencies && <DependencyLines 
                 links={links} 
-                taskBarElements={taskBarElements}
+                tasks={allTasks}
                 taskIndexMap={taskIndexMap}
                 rowHeight={rowHeight}
                 scale={scale}
+                ganttStartDate={viewStartDate}
               />}
             </div>
           </div>
