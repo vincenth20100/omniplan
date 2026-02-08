@@ -285,13 +285,21 @@ export function GanttSettingsContent({
 
             {/* Tooltip Configuration Section */}
             <div>
-              <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Gantt Tooltip Configuration</h4>
+              <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-muted-foreground">Table Tooltip Configuration</h4>
+                  <Switch
+                      checked={settings.showTableTooltip !== false}
+                      onCheckedChange={(checked) => handleSettingChange('showTableTooltip', checked)}
+                      disabled={!isEditor}
+                  />
+              </div>
               <div className="space-y-4">
                   <TooltipConfigPanel
-                      config={currentTooltipConfig}
+                      config={currentTableTooltipConfig}
                       options={allOptions}
-                      onChange={(newConfig) => updateTooltipSettings('tooltipConfig', newConfig)}
-                      disabled={!isEditor}
+                      onChange={(newConfig) => updateTooltipSettings('tableTooltipConfig', newConfig)}
+                      disabled={!isEditor || settings.showTableTooltip === false}
+                      labelBeforeField={true}
                   />
               </div>
             </div>
@@ -299,13 +307,20 @@ export function GanttSettingsContent({
             <Separator />
 
              <div>
-              <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Table Tooltip Configuration</h4>
+              <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-muted-foreground">Gantt Tooltip Configuration</h4>
+                  <Switch
+                      checked={settings.showGanttTooltip !== false}
+                      onCheckedChange={(checked) => handleSettingChange('showGanttTooltip', checked)}
+                      disabled={!isEditor}
+                  />
+              </div>
               <div className="space-y-4">
                   <TooltipConfigPanel
-                      config={currentTableTooltipConfig}
+                      config={currentTooltipConfig}
                       options={allOptions}
-                      onChange={(newConfig) => updateTooltipSettings('tableTooltipConfig', newConfig)}
-                      disabled={!isEditor}
+                      onChange={(newConfig) => updateTooltipSettings('tooltipConfig', newConfig)}
+                      disabled={!isEditor || settings.showGanttTooltip === false}
                       labelBeforeField={true}
                   />
               </div>

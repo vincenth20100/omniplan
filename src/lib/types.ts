@@ -184,6 +184,8 @@ export interface GanttSettings {
   tableTooltipFields?: string[]; // Deprecated: use tableTooltipConfig
   tooltipConfig?: TooltipFieldSetting[];
   tableTooltipConfig?: TooltipFieldSetting[];
+  showGanttTooltip?: boolean;
+  showTableTooltip?: boolean;
   showDependencies: boolean;
   showProgress: boolean;
   highlightNonWorkingTime: boolean;

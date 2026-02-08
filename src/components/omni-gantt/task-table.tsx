@@ -1356,7 +1356,7 @@ export function TaskTable({
                             }
 
                             return (
-                                <TaskTooltip key={task.id} task={task} tooltipFields={ganttSettings.tableTooltipFields} tooltipConfig={ganttSettings.tableTooltipConfig} dateFormat={dateFormat} columns={columns} resources={resources} assignments={assignments} links={links} tasks={tasks}>
+                                <TaskTooltip key={task.id} task={task} tooltipFields={ganttSettings.showTableTooltip !== false ? ganttSettings.tableTooltipFields : []} tooltipConfig={ganttSettings.showTableTooltip !== false ? ganttSettings.tableTooltipConfig : []} dateFormat={dateFormat} columns={columns} resources={resources} assignments={assignments} links={links} tasks={tasks}>
                                 <TableRow
                                     style={{ height: `${rowHeight}px` }}
                                     onDragOver={(e) => handleDragOver(e, task.id)}

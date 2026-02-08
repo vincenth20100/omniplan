@@ -20,7 +20,7 @@ const defaultViews: View[] = [
     { id: 'default', name: 'Default View', grouping: [], visibleColumns: initialVisibleColumns, filters: [] }
 ];
 
-const initialGanttSettings: GanttSettings = {
+export const initialGanttSettings: GanttSettings = {
   viewMode: 'day',
   showDependencies: true,
   showProgress: true,
@@ -29,6 +29,8 @@ const initialGanttSettings: GanttSettings = {
   showTaskLabels: true,
   tooltipFields: ['name', 'start', 'duration', 'finish'],
   tableTooltipFields: ['name', 'start', 'duration', 'finish'],
+  showGanttTooltip: true,
+  showTableTooltip: true,
   highlightCriticalPath: true,
   renderSplitTasks: false,
   dateFormat: 'MMM d, yyyy',
