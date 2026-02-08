@@ -212,16 +212,19 @@ export function Timeline({
   const getScrollElement = useCallback(() => viewportRef.current, [viewportRef]);
   const estimateSize = useCallback(() => rowHeight, [rowHeight]);
 
-  const { virtualItems } = useVirtualization({
+  const { virtualItems: verticalVirtualItems } = useVirtualization({
     count: renderableRows.length,
     getScrollElement,
     estimateSize,
-    overscan: 20
+    overscan: 20,
+    axis: 'y'
   });
+
+  const estimateColumnSize = useCallback(() => scale, [scale]);
 
   const rowsToRender = disableScroll ?
     renderableRows.map((_, index) => ({ index })) :
-    virtualItems;
+    verticalVirtualItems;
 
 
   React.useEffect(() => {
@@ -257,7 +260,22 @@ export function Timeline({
     };
   }, [visibleTasks, defaultDateRange]);
   
-  const days = useMemo(() => eachDayOfInterval({ start: viewStartDate, end: viewEndDate }), [viewStartDate, viewEndDate]);
+  // Calculate total days for virtualization
+  const totalDays = useMemo(() => differenceInCalendarDays(viewEndDate, viewStartDate) + 1, [viewStartDate, viewEndDate]);
+
+  const { virtualItems: horizontalVirtualItems } = useVirtualization({
+    count: totalDays,
+    getScrollElement,
+    estimateSize: estimateColumnSize,
+    overscan: 10,
+    axis: 'x'
+  });
+
+  // Calculate visible horizontal range
+  const visibleStartX = horizontalVirtualItems.length > 0 ? horizontalVirtualItems[0].start : 0;
+  const lastHorizontalItem = horizontalVirtualItems[horizontalVirtualItems.length - 1];
+  const visibleEndX = lastHorizontalItem ? lastHorizontalItem.start + lastHorizontalItem.size : 0;
+
   const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
   const totalWidth = useMemo(() => {
@@ -283,19 +301,31 @@ export function Timeline({
   
   const totalHeight = renderableRows.length * rowHeight;
 
+  // Calculate visible vertical range for dependency filtering
+  const visibleRowStart = rowsToRender.length > 0 ? rowsToRender[0].index : 0;
+  const visibleRowEnd = rowsToRender.length > 0 ? rowsToRender[rowsToRender.length - 1].index : 0;
+
   const content = (
           <div style={{ width: totalWidth, minHeight: '100%' }} className="relative pb-40">
-            <TimelineHeader startDate={viewStartDate} endDate={viewEndDate} scale={scale} viewMode={ganttSettings.viewMode} />
+            <TimelineHeader
+                startDate={viewStartDate}
+                endDate={viewEndDate}
+                scale={scale}
+                viewMode={ganttSettings.viewMode}
+                visibleStartX={visibleStartX}
+                visibleEndX={visibleEndX}
+            />
             <div className="relative h-full" style={{height: `${totalHeight}px`}}>
-              {defaultCalendar && ganttSettings.highlightNonWorkingTime && days.map((day, index) => {
+              {defaultCalendar && ganttSettings.highlightNonWorkingTime && horizontalVirtualItems.map((virtualColumn) => {
+                    const day = addDays(viewStartDate, virtualColumn.index);
                     if (!calendarService.isWorkingDay(day, defaultCalendar)) {
                         return (
                             <div
-                                key={index}
+                                key={virtualColumn.index}
                                 className="absolute top-0 h-full bg-muted/20"
                                 style={{
-                                    left: `${index * scale}px`,
-                                    width: `${scale}px`,
+                                    left: `${virtualColumn.start}px`,
+                                    width: `${virtualColumn.size}px`,
                                 }}
                             />
                         );
@@ -390,6 +420,8 @@ export function Timeline({
                 rowHeight={rowHeight}
                 scale={scale}
                 ganttStartDate={viewStartDate}
+                visibleRowStart={visibleRowStart}
+                visibleRowEnd={visibleRowEnd}
               />}
             </div>
           </div>

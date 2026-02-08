@@ -1,18 +1,20 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export function useVirtualization({
     count,
     getScrollElement,
     estimateSize,
-    overscan = 5
+    overscan = 5,
+    axis = 'y'
 }: {
     count: number;
     getScrollElement: () => HTMLElement | null;
     estimateSize: (index: number) => number;
     overscan?: number;
+    axis?: 'x' | 'y';
 }) {
     const [scrollOffset, setScrollOffset] = useState(0);
-    const [viewportHeight, setViewportHeight] = useState(0);
+    const [viewportSize, setViewportSize] = useState(0);
 
     // Using a ref to track if we've already attached listeners to a specific element
     const elementRef = useRef<HTMLElement | null>(null);
@@ -28,12 +30,12 @@ export function useVirtualization({
             // We use requestAnimationFrame to throttle scroll updates if needed,
             // but React state updates are often batched enough.
             // For now, direct update.
-            setScrollOffset(element.scrollTop);
+            setScrollOffset(axis === 'y' ? element.scrollTop : element.scrollLeft);
         };
 
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
-                setViewportHeight(entry.contentRect.height);
+                setViewportSize(axis === 'y' ? entry.contentRect.height : entry.contentRect.width);
             }
         });
 
@@ -41,22 +43,22 @@ export function useVirtualization({
         resizeObserver.observe(element);
 
         // Initial values
-        setScrollOffset(element.scrollTop);
-        setViewportHeight(element.clientHeight);
+        setScrollOffset(axis === 'y' ? element.scrollTop : element.scrollLeft);
+        setViewportSize(axis === 'y' ? element.clientHeight : element.clientWidth);
 
         return () => {
             element.removeEventListener('scroll', handleScroll);
             resizeObserver.disconnect();
         };
-    }, [getScrollElement]);
+    }, [getScrollElement, axis]);
 
     // Calculate visible range
     // Assuming fixed height for now as per project requirements (DENSITY_SETTINGS)
-    const itemHeight = estimateSize(0);
-    const totalSize = count * itemHeight;
+    const itemSize = estimateSize(0);
+    const totalSize = count * itemSize;
 
-    let startIndex = Math.floor(scrollOffset / itemHeight);
-    let endIndex = Math.ceil((scrollOffset + viewportHeight) / itemHeight);
+    let startIndex = Math.floor(scrollOffset / itemSize);
+    let endIndex = Math.ceil((scrollOffset + viewportSize) / itemSize);
 
     // Add overscan
     startIndex = Math.max(0, startIndex - overscan);
@@ -66,13 +68,13 @@ export function useVirtualization({
     for (let i = startIndex; i <= endIndex; i++) {
         virtualItems.push({
             index: i,
-            start: i * itemHeight,
-            size: itemHeight
+            start: i * itemSize,
+            size: itemSize
         });
     }
 
-    const startOffset = startIndex * itemHeight;
-    const endOffset = Math.max(0, totalSize - (endIndex + 1) * itemHeight);
+    const startOffset = startIndex * itemSize;
+    const endOffset = Math.max(0, totalSize - (endIndex + 1) * itemSize);
 
     return {
         virtualItems,

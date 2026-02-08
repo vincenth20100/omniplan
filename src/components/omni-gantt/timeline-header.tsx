@@ -2,7 +2,7 @@
 import {
     addDays, differenceInDays, format, startOfMonth, endOfMonth,
     eachDayOfInterval, startOfQuarter, endOfQuarter, startOfYear, endOfYear,
-    getYear, getMonth, eachWeekOfInterval
+    getYear, getMonth, differenceInCalendarDays
 } from 'date-fns';
 import React from 'react';
 import type { GanttSettings } from '@/lib/types';
@@ -53,8 +53,7 @@ const getSemesters = (startDate: Date, endDate: Date) => {
              const year = getYear(d);
              const month = getMonth(d);
              if (month < 6) {
-                 return new Date(year, 5, 30); // End of June. Safe approximation? June has 30 days.
-                 // Better: endOfMonth(new Date(year, 5, 1))
+                 return new Date(year, 5, 30);
              } else {
                  return new Date(year, 11, 31);
              }
@@ -88,54 +87,15 @@ const getMonths = (startDate: Date, endDate: Date) => {
 };
 
 const getWeeks = (startDate: Date, endDate: Date) => {
-    // Re-implementing with robust logic
-    // Week starts on Sunday? date-fns default.
-    // If startDate is Tue, first unit is Tue-Sat (or Tue-Sun depending on week start).
-    // `endOfWeek` would be useful.
-    // But `eachWeekOfInterval` was used before.
-
-    // I'll use simple 7-day logic or align to week boundaries?
-    // Gantt charts usually align weeks to specific days (e.g. Mon or Sun).
-    // Let's assume ISO week (Mon start) or default (Sun start).
-    // The previous implementation used `eachWeekOfInterval`.
-    // I'll stick to a simpler "Week N" label, but I need to know boundaries.
-
-    // Let's use `getUnits` with endOfWeek logic.
-    // But I need to import `endOfWeek`.
-    // Instead I can rely on `format(d, 'w')` changing?
-
     const units: {name: string, days: number, date: Date, key: string}[] = [];
     let currentDate = startDate;
 
     while (currentDate <= endDate) {
-        // Find end of week.
-        // Assuming we want to align to week boundaries.
-        // But the first week might be partial.
-
-        // This is tricky without `endOfWeek`.
-        // Let's try to infer next week start.
-        // `eachWeekOfInterval` returns starts of weeks.
-
-        // Let's revert to a simpler "chunk 7 days" or "align to Sunday".
-        // Let's just use `getUnits` but I'll approximate end of week by finding next boundary.
-        // Actually, just loop day by day? No, efficient loop needed.
-
-        // Let's assume standard behavior:
-        // We want strict alignment.
-        // I will use a custom loop.
-
         const currentWeekStr = format(currentDate, 'w');
-        let tempDate = currentDate;
-        // Search forward for end of week (change in week number)
-        // This is inefficient (O(days)).
-        // Better: use date math.
-        // day of week: 0 (Sun) - 6 (Sat).
-        // days until end of week = 6 - getDay(currentDate). (For Sat end).
-        const dayOfWeek = tempDate.getDay();
+        const dayOfWeek = currentDate.getDay();
         const daysRemainingInWeek = 6 - dayOfWeek;
 
-        let unitEnd = addDays(currentDate, daysRemainingInWeek);
-
+        const unitEnd = addDays(currentDate, daysRemainingInWeek);
         const effectiveEndDate = unitEnd > endDate ? endDate : unitEnd;
         const daysInUnit = differenceInDays(effectiveEndDate, currentDate) + 1;
 
@@ -152,14 +112,20 @@ const getWeeks = (startDate: Date, endDate: Date) => {
 };
 
 
-export const TimelineHeader = React.memo(({ startDate, endDate, scale, viewMode }: { startDate: Date, endDate: Date, scale: number, viewMode: GanttSettings['viewMode'] }) => {
+export const TimelineHeader = React.memo(({ startDate, endDate, scale, viewMode, visibleStartX, visibleEndX }: {
+    startDate: Date,
+    endDate: Date,
+    scale: number,
+    viewMode: GanttSettings['viewMode'],
+    visibleStartX?: number,
+    visibleEndX?: number
+}) => {
 
     // Determine Top and Bottom rows based on viewMode
     let TopRowUnits: ReturnType<typeof getUnits> = [];
     let BottomRowUnits: ReturnType<typeof getUnits> | Date[] = [];
     let showDayView = false;
 
-    // Default fallbacks
     const vm = viewMode || (scale > 20 ? 'day' : (scale > 1 ? 'week' : 'month'));
 
     switch (vm) {
@@ -186,10 +152,8 @@ export const TimelineHeader = React.memo(({ startDate, endDate, scale, viewMode 
         case 'day':
             TopRowUnits = getMonths(startDate, endDate);
             showDayView = true;
-            // For Day view, bottom row is just Days. Handled separately in render.
             break;
         default:
-             // Fallback to existing logicish
              if (scale > 20) {
                  TopRowUnits = getMonths(startDate, endDate);
                  showDayView = true;
@@ -199,49 +163,82 @@ export const TimelineHeader = React.memo(({ startDate, endDate, scale, viewMode 
              }
     }
 
-    const days = eachDayOfInterval({ start: startDate, end: endDate });
+    const renderUnit = (unit: any, index: number, isBottomRow = false) => {
+         const offsetDays = differenceInCalendarDays(unit.date, startDate);
+         const left = offsetDays * scale;
+         const width = unit.days * scale;
+
+         const right = left + width;
+         // Visibility check with buffer
+         const buffer = 100; // pixels
+         const vStart = (visibleStartX ?? 0) - buffer;
+         const vEnd = (visibleEndX ?? Infinity) + buffer;
+
+         if (right < vStart || left > vEnd) return null;
+
+         return (
+            <div
+                key={unit.key}
+                className="flex items-center justify-center flex-shrink-0 text-center border-r overflow-hidden absolute top-0 h-full bg-background"
+                style={{
+                    left: `${left}px`,
+                    width: `${width}px`
+                }}
+            >
+                <span className={isBottomRow ? "text-xs font-semibold whitespace-nowrap overflow-hidden text-ellipsis px-1" : "text-sm font-semibold whitespace-nowrap overflow-hidden text-ellipsis px-1"}>
+                    {unit.name}
+                </span>
+            </div>
+         )
+    }
+
+    // Render days optimization
+    const renderDays = () => {
+        if (!showDayView) return null;
+
+        const totalDays = differenceInCalendarDays(endDate, startDate) + 1;
+        const vStart = visibleStartX ?? 0;
+        const vEnd = visibleEndX ?? (totalDays * scale);
+
+        const startDayIndex = Math.max(0, Math.floor(vStart / scale));
+        const endDayIndex = Math.min(totalDays - 1, Math.ceil(vEnd / scale));
+
+        const dayElements = [];
+        // Add buffer
+        const buffer = 5;
+        const bufferedStart = Math.max(0, startDayIndex - buffer);
+        const bufferedEnd = Math.min(totalDays - 1, endDayIndex + buffer);
+
+        for (let i = bufferedStart; i <= bufferedEnd; i++) {
+             const day = addDays(startDate, i);
+             const left = i * scale;
+
+             dayElements.push(
+                <div
+                    key={i}
+                    className="flex-shrink-0 flex items-center justify-center border-r overflow-hidden absolute top-0 h-full bg-background"
+                    style={{ left: `${left}px`, width: `${scale}px` }}
+                >
+                    <span className="text-xs">{format(day, 'd')}</span>
+                </div>
+             );
+        }
+        return dayElements;
+    };
 
     return (
-        <div className="sticky top-0 z-50 bg-background">
+        <div className="sticky top-0 z-50 bg-background w-full">
             {/* Top Row */}
-            <div className="relative flex border-b h-12">
-                {TopRowUnits.map((unit) => (
-                    <div
-                        key={unit.key}
-                        className="flex items-center justify-center flex-shrink-0 text-center border-r overflow-hidden"
-                        style={{ width: unit.days * scale }}
-                    >
-                        <span className="text-sm font-semibold whitespace-nowrap overflow-hidden text-ellipsis px-1">
-                            {unit.name}
-                        </span>
-                    </div>
-                ))}
+            <div className="relative border-b h-12 w-full overflow-hidden">
+                {TopRowUnits.map((unit, index) => renderUnit(unit, index))}
             </div>
 
             {/* Bottom Row */}
-            <div className="relative flex h-12 border-b">
+            <div className="relative h-12 border-b w-full overflow-hidden">
                 {showDayView ? (
-                    days.map((day, index) => (
-                        <div
-                            key={index}
-                            className="flex-shrink-0 flex items-center justify-center border-r overflow-hidden"
-                            style={{ width: scale }}
-                        >
-                            <span className="text-xs">{format(day, 'd')}</span>
-                        </div>
-                    ))
+                    renderDays()
                 ) : (
-                    (BottomRowUnits as any[]).map((unit) => (
-                        <div
-                            key={unit.key}
-                            className="flex items-center justify-center flex-shrink-0 text-center border-r overflow-hidden"
-                            style={{ width: unit.days * scale }}
-                        >
-                            <span className="text-xs font-semibold whitespace-nowrap overflow-hidden text-ellipsis px-1">
-                                {unit.name}
-                            </span>
-                        </div>
-                    ))
+                    (BottomRowUnits as any[]).map((unit, index) => renderUnit(unit, index, true))
                 )}
             </div>
         </div>
