@@ -12,9 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useRef } from "react";
 import { Upload, Loader2, FileText, AlertTriangle } from "lucide-react";
-// --------------------------------------------------------------------------
-// FIX: Import 'analyzeProjectFile' instead of the missing 'fetchProjectAnalysis'
-// --------------------------------------------------------------------------
 import { analyzeProjectFile } from "@/lib/omniplan-utils";
 import { ImportedProjectData } from "@/lib/import-utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -31,9 +28,6 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
     const [isParsing, setIsParsing] = useState(false);
     const [importData, setImportData] = useState<ImportedProjectData | null>(null);
     const [error, setError] = useState<string | null>(null);
-    
-    // We removed 'analysisData' and 'serverError' because the new utility handles 
-    // conversions internally and returns standard data.
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,10 +41,6 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
         setImportData(null);
 
         try {
-            // ----------------------------------------------------------------------
-            // CORE FIX: This single call now handles .mpp, .xer, .xml, and .xlsx
-            // It automatically routes binary files to your Python backend.
-            // ----------------------------------------------------------------------
             const data = await analyzeProjectFile(selectedFile);
             
             if (data && data.tasks.length > 0) {
@@ -63,7 +53,6 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
             setError(err.message || "Failed to parse file.");
         } finally {
             setIsParsing(false);
-            // Reset input so you can select the same file again if it failed
             e.target.value = "";
         }
     };
@@ -77,13 +66,44 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
 
     const handleConfirmImport = () => {
         if (importData) {
-            onImport(importData);
+            // ──────────────────────────────────────────────────────
+            // SANITIZE before passing to the scheduling engine.
+            //
+            // The /analyze endpoint returns calendar day info as
+            // strings ("WORKING [08:00-12:00, ...]") which are great
+            // for preview but crash the engine's isWorkingDay() method.
+            //
+            // Pass empty calendars so the engine uses its built-in
+            // defaults. The preview still shows calendar info for review.
+            // ──────────────────────────────────────────────────────
+            const sanitized: ImportedProjectData = {
+                ...importData,
+                // Strip internal display-only fields from tasks
+                tasks: importData.tasks.map(t => {
+                    const { _rawStart, _rawFinish, ...clean } = t as any;
+                    return clean;
+                }),
+                // Strip display-only names from assignments
+                assignments: importData.assignments.map(a => {
+                    const { _taskName, _resourceName, ...clean } = a as any;
+                    return clean;
+                }),
+                // Strip preview-only fields from calendars
+                calendars: importData.calendars.map(c => {
+                    const { _rawDays, _calendarType, _parentCalendar, ...clean } = c as any;
+                    return clean;
+                }),
+                // Remove preview-only metadata
+                dateWarnings: undefined,
+                stats: undefined,
+            };
+
+            onImport(sanitized);
             onOpenChange(false);
             handleReset();
         }
     };
 
-    // Width adjustments based on whether we are showing the large preview table
     const isWide = !!importData;
 
     return (
@@ -94,16 +114,15 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
             <DialogContent className={isWide ? "sm:max-w-[900px]" : "sm:max-w-[500px]"}>
                 <DialogHeader>
                     <DialogTitle>Import Project</DialogTitle>
-                    <DialogDescription className={importData ? "sr-only" : ""}>
-                        {importData
-                            ? "Review and confirm the imported project data."
-                            : <>Upload a project file to create a new project.<br/>Supports: <strong>.mpp, .xer, .xml, .xlsx, .csv, .gan</strong></>
-                        }
-                    </DialogDescription>
+                    {!importData && (
+                        <DialogDescription>
+                            Upload a project file to create a new project.<br/>
+                            Supports: <strong>.mpp, .xer, .xml, .xlsx, .csv, .gan</strong>
+                        </DialogDescription>
+                    )}
                 </DialogHeader>
 
                 {importData ? (
-                    // SHOW PREVIEW
                     <ImportPreview
                         data={importData}
                         sourceFile={file || undefined}
@@ -112,7 +131,6 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                         onDownload={undefined} 
                     />
                 ) : (
-                    // SHOW UPLOAD STATE
                     <div className="space-y-4 py-4">
                         {error && (
                             <Alert variant="destructive">
@@ -132,8 +150,8 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                                     <div className="space-y-1">
                                         <h3 className="font-semibold">Analyzing File...</h3>
                                         <p className="text-sm text-muted-foreground">
-                                            {file?.name.endsWith('.mpp') || file?.name.endsWith('.xer') 
-                                                ? "Converting binary data on server..." 
+                                            {file?.name.match(/\.(mpp|xer|pp|gan|sdef)$/i) 
+                                                ? "Converting on server (may take a few seconds)..." 
                                                 : "Parsing local file..."}
                                         </p>
                                     </div>
@@ -148,7 +166,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                                         <Input
                                             ref={fileInputRef}
                                             type="file"
-                                            accept=".xml,.xer,.mpp,.mpt,.xlsx,.csv,.mpx,.pp,.gan"
+                                            accept=".xml,.xer,.mpp,.mpt,.xlsx,.csv,.mpx,.pp,.gan,.pmxml,.sdef"
                                             className="hidden"
                                             onChange={handleFileChange}
                                         />
@@ -157,7 +175,6 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                             )}
                         </div>
                         
-                        {/* File Details (if file selected but failed) */}
                         {!isParsing && file && !importData && !error && (
                              <div className="flex items-center gap-3 p-3 border rounded-md bg-muted/20">
                                 <FileText className="h-5 w-5 text-primary" />
@@ -168,7 +185,6 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                     </div>
                 )}
                 
-                {/* Hide default footer when preview is active as it has its own buttons */}
                 {!importData && (
                     <DialogFooter>
                         <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
