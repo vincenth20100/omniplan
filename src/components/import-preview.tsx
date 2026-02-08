@@ -480,33 +480,47 @@ export function ImportPreview({
                     <TableHead className="text-[11px]">Fri</TableHead>
                     <TableHead className="text-[11px]">Sat</TableHead>
                     <TableHead className="text-[11px]">Sun</TableHead>
+                    <TableHead className="text-[11px]">Exceptions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {calendars.map((cal: any, i: number) => {
-                    const dayBadge = (val: string | undefined) => {
-                      if (!val) return <span className="text-[10px] text-muted-foreground">{"\u2014"}</span>;
-                      const isWorking = val.toUpperCase().includes("WORKING") && !val.toUpperCase().includes("NON");
+                    // workingDays is now number[] (0=Sun, 1=Mon, ..., 6=Sat)
+                    const wd: number[] = cal.workingDays ?? [];
+                    const rawDays = cal._rawDays ?? {};
+
+                    // dayIndex: 0=Sun, 1=Mon, etc. rawField for tooltip
+                    const dayBadge = (dayIndex: number, rawField?: string) => {
+                      const isWorking = wd.includes(dayIndex);
                       return (
                         <Badge variant="outline"
-                          className={`text-[9px] ${isWorking
+                          className={`text-[9px] cursor-help ${isWorking
                             ? "bg-green-50 text-green-700 border-green-200"
-                            : "bg-red-50 text-red-600 border-red-200"}`}>
+                            : "bg-red-50 text-red-600 border-red-200"}`}
+                          title={rawField || undefined}>
                           {isWorking ? "Work" : "Off"}
                         </Badge>
                       );
                     };
+
+                    const exCount = cal.exceptions?.length ?? 0;
+
                     return (
                       <TableRow key={cal.id || i}>
                         <TableCell className="text-[11px] font-medium">{cal.name}</TableCell>
-                        <TableCell className="text-[11px] text-muted-foreground">{cal.type || "\u2014"}</TableCell>
-                        <TableCell>{dayBadge(cal.monday)}</TableCell>
-                        <TableCell>{dayBadge(cal.tuesday)}</TableCell>
-                        <TableCell>{dayBadge(cal.wednesday)}</TableCell>
-                        <TableCell>{dayBadge(cal.thursday)}</TableCell>
-                        <TableCell>{dayBadge(cal.friday)}</TableCell>
-                        <TableCell>{dayBadge(cal.saturday)}</TableCell>
-                        <TableCell>{dayBadge(cal.sunday)}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground">{cal._calendarType || "\u2014"}</TableCell>
+                        <TableCell>{dayBadge(1, rawDays.monday)}</TableCell>
+                        <TableCell>{dayBadge(2, rawDays.tuesday)}</TableCell>
+                        <TableCell>{dayBadge(3, rawDays.wednesday)}</TableCell>
+                        <TableCell>{dayBadge(4, rawDays.thursday)}</TableCell>
+                        <TableCell>{dayBadge(5, rawDays.friday)}</TableCell>
+                        <TableCell>{dayBadge(6, rawDays.saturday)}</TableCell>
+                        <TableCell>{dayBadge(0, rawDays.sunday)}</TableCell>
+                        <TableCell className="text-[11px]">
+                          {exCount > 0 ? (
+                            <Badge variant="outline" className="text-[9px]">{exCount}</Badge>
+                          ) : "\u2014"}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
