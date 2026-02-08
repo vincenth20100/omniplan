@@ -69,12 +69,9 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
             // ──────────────────────────────────────────────────────
             // SANITIZE before passing to the scheduling engine.
             //
-            // The /analyze endpoint returns calendar day info as
-            // strings ("WORKING [08:00-12:00, ...]") which are great
-            // for preview but crash the engine's isWorkingDay() method.
-            //
-            // Pass empty calendars so the engine uses its built-in
-            // defaults. The preview still shows calendar info for review.
+            // Strip internal display-only fields (_raw*, _taskName, etc.)
+            // that were added during mapping for preview tooltips.
+            // Everything else (tasks, calendars, activity codes) passes through.
             // ──────────────────────────────────────────────────────
             const sanitized: ImportedProjectData = {
                 ...importData,
