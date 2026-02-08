@@ -28,13 +28,11 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
     const [isParsing, setIsParsing] = useState(false);
     const [importData, setImportData] = useState<ImportedProjectData | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (!selectedFile) return;
-
+    const handleFile = async (selectedFile: File) => {
         setFile(selectedFile);
         setIsParsing(true);
         setError(null);
@@ -53,7 +51,40 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
             setError(err.message || "Failed to parse file.");
         } finally {
             setIsParsing(false);
-            e.target.value = "";
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (!selectedFile) return;
+        await handleFile(selectedFile);
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Check if we're really leaving the drop zone (and not just entering a child)
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setIsDragging(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const selectedFile = e.dataTransfer.files?.[0];
+        if (selectedFile) {
+            await handleFile(selectedFile);
         }
     };
 
@@ -137,10 +168,16 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
                             </Alert>
                         )}
 
-                        <div className={`
-                            relative border-2 border-dashed rounded-xl p-8 text-center transition-all
-                            ${isParsing ? "bg-muted/50 border-muted" : "bg-muted/10 border-muted-foreground/25 hover:border-primary/50"}
-                        `}>
+                        <div
+                            className={`
+                                relative border-2 border-dashed rounded-xl p-8 text-center transition-all
+                                ${isParsing ? "bg-muted/50 border-muted" : "bg-muted/10 border-muted-foreground/25 hover:border-primary/50"}
+                                ${isDragging ? "border-primary bg-primary/5 scale-[1.02]" : ""}
+                            `}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                        >
                             {isParsing ? (
                                 <div className="flex flex-col items-center gap-4 py-4">
                                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
