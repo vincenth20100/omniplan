@@ -9,27 +9,41 @@ interface LineInfo {
     isDriving: boolean;
 }
 
-export const DependencyLines = React.memo(({ links, tasks, taskIndexMap, rowHeight, scale, ganttStartDate }: {
+export const DependencyLines = React.memo(({ links, tasks, taskIndexMap, rowHeight, scale, ganttStartDate, visibleRowStart, visibleRowEnd }: {
     links: Link[];
     tasks: Task[];
     taskIndexMap: Map<string, number>;
     rowHeight: number;
     scale: number;
     ganttStartDate: Date;
+    visibleRowStart?: number;
+    visibleRowEnd?: number;
 }) => {
     const taskMap = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
 
     const lines: LineInfo[] = useMemo(() => {
         return links.map(link => {
-            const sourceTask = taskMap.get(link.source);
-            const targetTask = taskMap.get(link.target);
-
-            if (!sourceTask || !targetTask) return null;
-
             const sourceIndex = taskIndexMap.get(link.source);
             const targetIndex = taskIndexMap.get(link.target);
 
             if (sourceIndex === undefined || targetIndex === undefined) return null;
+
+            // Optimization: Skip if not visible
+            if (visibleRowStart !== undefined && visibleRowEnd !== undefined) {
+                 const minRow = Math.min(sourceIndex, targetIndex);
+                 const maxRow = Math.max(sourceIndex, targetIndex);
+                 const buffer = 10; // Generous buffer
+
+                 // If the entire connection is above the viewport
+                 if (maxRow < visibleRowStart - buffer) return null;
+                 // If the entire connection is below the viewport
+                 if (minRow > visibleRowEnd + buffer) return null;
+            }
+
+            const sourceTask = taskMap.get(link.source);
+            const targetTask = taskMap.get(link.target);
+
+            if (!sourceTask || !targetTask) return null;
 
             const sourceY = sourceIndex * rowHeight + rowHeight / 2;
             const targetY = targetIndex * rowHeight + rowHeight / 2;
@@ -92,7 +106,7 @@ export const DependencyLines = React.memo(({ links, tasks, taskIndexMap, rowHeig
             return { id: link.id, path, isDriving };
 
         }).filter((l): l is LineInfo => l !== null);
-    }, [links, taskMap, taskIndexMap, rowHeight, scale, ganttStartDate]);
+    }, [links, taskMap, taskIndexMap, rowHeight, scale, ganttStartDate, visibleRowStart, visibleRowEnd]);
 
 
     return (

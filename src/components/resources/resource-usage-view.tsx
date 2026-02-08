@@ -54,7 +54,7 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
     const [viewRange, setViewRange] = useState<{start: Date, end: Date} | null>(null);
 
     // View Controls
-    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>(ganttSettings.viewMode || 'day');
+    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>((['day', 'week', 'month'].includes(ganttSettings.viewMode || '') ? ganttSettings.viewMode as any : 'day'));
     const [displayMode, setDisplayMode] = useState<'hours' | 'bar'>('hours');
     const [sortColumn, setSortColumn] = useState<string | null>(null);
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
@@ -287,7 +287,7 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
                     }}
                 >
                     <div style={{ width: totalWidth, minHeight: '100%' }} className="relative">
-                        <TimelineHeader startDate={viewRange.start} endDate={viewRange.end} scale={scale} />
+                        <TimelineHeader startDate={viewRange.start} endDate={viewRange.end} scale={scale} viewMode={viewMode} />
 
                         <div className="relative">
                             {/* Grid Rows */}
@@ -407,7 +407,7 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
                         rows={visibleRows}
                         expandedResourceIds={expandedResourceIds}
                         onToggleExpand={toggleExpand}
-                        viewportRef={tableViewportRef}
+                        viewportRef={tableViewportRef as any}
                         onScroll={() => handleScroll('table', 'vertical')}
                         sortColumn={sortColumn}
                         sortDirection={sortDirection}
@@ -430,7 +430,7 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
                             <ResizablePanel defaultSize={30}>
                                 <div className="h-full w-full relative">
                                     <div
-                                        ref={chartViewportRef}
+                                        ref={chartViewportRef as any}
                                         className="h-full w-full overflow-x-auto overflow-y-hidden"
                                         onScroll={() => handleScroll('chart', 'horizontal')}
                                     >

@@ -12,9 +12,10 @@ This information is used to shape Next.js' roadmap and prioritize features.
 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
 https://nextjs.org/telemetry
 
- ✓ Ready in 1454ms
+ ✓ Ready in 1620ms
  ○ Compiling /verification ...
- ✓ Compiled /verification in 8.5s
- GET /verification 200 in 9889ms
- GET /verification 200 in 156ms
- GET /verification 200 in 146ms
+ ✓ Compiled /verification in 13s
+ GET /verification 200 in 15086ms
+ GET /verification 200 in 551ms
+ GET /verification 200 in 541ms
+ GET /verification 200 in 661ms
