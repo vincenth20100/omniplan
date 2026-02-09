@@ -51,6 +51,24 @@ function updateAllSummaryTasks(tasks: Task[], links: Link[], columns: ColumnSpec
             // A summary task is critical if any of its children are critical.
             summaryTask.isCritical = children.some(c => c.isCritical);
             
+            // Calculate float for summary task as minimum of children's float
+            const childrenTotalFloat = children
+                .map(c => c.totalFloat)
+                .filter(f => f !== undefined) as number[];
+
+            if (childrenTotalFloat.length > 0) {
+                summaryTask.totalFloat = Math.min(...childrenTotalFloat);
+                summaryTask.slack = summaryTask.totalFloat;
+            }
+
+            const childrenFreeFloat = children
+                .map(c => c.freeFloat)
+                .filter(f => f !== undefined) as number[];
+
+            if (childrenFreeFloat.length > 0) {
+                summaryTask.freeFloat = Math.min(...childrenFreeFloat);
+            }
+
             // Aggregate criticalFor from children
             const childCriticalFor = new Set<string>();
             children.forEach(c => {
@@ -394,6 +412,11 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
             let lateFinish = passLFs.get(taskId) || MAX_DATE;
 
             const successors = successorsMap.get(taskId) || [];
+            if (successors.length === 0) {
+                 if (lateFinish.getTime() === MAX_DATE.getTime()) {
+                     lateFinish = targetFinishDate;
+                 }
+            }
             if (successors.length > 0) {
                 const potentialLateFinishes = successors.map(link => {
                     const successorTask = taskMap.get(link.target)!;
@@ -562,9 +585,11 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         if (task.lateStart && task.start) {
             task.totalFloat = calendarService.getWorkingDaysDuration(task.start, task.lateStart, taskCalendar);
              if (task.totalFloat > 0) task.totalFloat -= 1;
+             else if (task.totalFloat < 0) task.totalFloat += 1;
         } else {
             task.totalFloat = 0;
         }
+        task.slack = task.totalFloat;
         task.isCritical = (task.criticalFor && task.criticalFor.length > 0);
 
         // Calculate Free Float
@@ -615,9 +640,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
                  if (task.finish) {
                      let ff = calendarService.getWorkingDaysDuration(task.finish, minConstraintDate, taskCalendar);
                      if (ff > 0) ff -= 1;
-                     if (minConstraintDate < task.finish) {
-                         ff = 0;
-                     }
+                     else if (ff < 0) ff += 1;
                      task.freeFloat = ff;
                  } else {
                     task.freeFloat = 0;
