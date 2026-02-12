@@ -1200,7 +1200,7 @@ export function TaskTable({
     const { rowHeight } = DENSITY_SETTINGS[uiDensity];
 
     const totalWidth = React.useMemo(() => {
-        return orderedAndVisibleColumns.reduce((acc, col) => acc + col.width, 0) + 40;
+        return orderedAndVisibleColumns.reduce((acc, col) => acc + col.width, 0) + 80;
     }, [orderedAndVisibleColumns]);
 
     const [scrollElement, setScrollElement] = React.useState<HTMLDivElement | null>(null);
@@ -1233,12 +1233,14 @@ export function TaskTable({
                     <table className="w-full caption-bottom text-sm border-collapse table-fixed" style={{ width: `${totalWidth}px` }}>
                         <colgroup>
                             <col style={{ width: '40px' }} />
+                            <col style={{ width: '40px' }} />
                             {orderedAndVisibleColumns.map((col) => (
                                 <col key={col.id} style={{ width: `${col.width}px` }} />
                             ))}
                         </colgroup>
                         <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
                         <TableRow>
+                            <TableHead className="p-0 text-center text-xs text-muted-foreground w-[40px]">#</TableHead>
                             <TableHead className="p-0 align-middle text-center">
                                 {onToggleFixed && (
                                     <Button
@@ -1312,6 +1314,7 @@ export function TaskTable({
                         </TableRow>
                         <TableRow>
                              <TableHead className="p-0 bg-card border-b border-border"></TableHead>
+                             <TableHead className="p-0 bg-card border-b border-border"></TableHead>
                              {orderedAndVisibleColumns.map(column => {
                                  const currentFilter = filters.find(f => f.columnId === column.id);
                                  return (
@@ -1331,7 +1334,7 @@ export function TaskTable({
                     <TableBody onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragLeave}>
                         {topSpacerHeight > 0 && (
                              <TableRow style={{ height: `${topSpacerHeight}px` }}>
-                                <TableCell colSpan={orderedAndVisibleColumns.length + 1} className="p-0 border-0" />
+                                <TableCell colSpan={orderedAndVisibleColumns.length + 2} className="p-0 border-0" />
                              </TableRow>
                         )}
                         {rowsToRender.map((virtualRow) => {
@@ -1345,6 +1348,7 @@ export function TaskTable({
                                         className="bg-muted/50 hover:bg-muted/50 font-semibold"
                                         style={{ height: `${rowHeight}px` }}
                                     >
+                                        <TableCell className="p-0 text-center text-xs text-muted-foreground">{rowIndex + 1}</TableCell>
                                         <TableCell colSpan={orderedAndVisibleColumns.length + 1} className="p-0">
                                             <div 
                                                 className="flex items-center gap-2 h-full"
@@ -1410,6 +1414,7 @@ export function TaskTable({
                                         }
                                     )}
                                 >
+                                    <TableCell className="p-0 text-center text-xs text-muted-foreground">{rowIndex + 1}</TableCell>
                                     <TableCell className="p-0 align-middle">
                                         <div 
                                             onClick={(e) => {
@@ -1546,7 +1551,7 @@ export function TaskTable({
                         })}
                         {bottomSpacerHeight > 0 && (
                              <TableRow style={{ height: `${bottomSpacerHeight}px` }}>
-                                <TableCell colSpan={orderedAndVisibleColumns.length + 1} className="p-0 border-0" />
+                                <TableCell colSpan={orderedAndVisibleColumns.length + 2} className="p-0 border-0" />
                              </TableRow>
                         )}
                         </TableBody>
