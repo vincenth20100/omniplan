@@ -201,7 +201,7 @@ export function ColumnPanel({
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">
             <div className="flex items-center justify-between mb-2">
                 <p className="text-sm text-muted-foreground">Select and reorder columns:</p>
                 <Button variant="outline" size="sm" onClick={handleOpenNew}>
@@ -212,7 +212,7 @@ export function ColumnPanel({
 
             <Separator className="mb-2" />
 
-            <div className="flex-1 overflow-y-auto border rounded-md">
+            <div className="flex-1 overflow-y-auto border rounded-md min-h-0">
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}

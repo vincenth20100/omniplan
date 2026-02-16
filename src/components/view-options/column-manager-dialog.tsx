@@ -42,7 +42,7 @@ export function ColumnManagerDialog({
                     <SheetHeader>
                         <SheetTitle>Manage Columns</SheetTitle>
                     </SheetHeader>
-                    <div className="flex-1 overflow-hidden">
+                    <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
                         <ColumnPanel
                             visibleColumns={visibleColumns}
                             columns={columns}
@@ -61,7 +61,7 @@ export function ColumnManagerDialog({
                 <DialogHeader>
                     <DialogTitle>Manage Columns</DialogTitle>
                 </DialogHeader>
-                <div className="flex-1 overflow-hidden p-1">
+                <div className="flex-1 overflow-hidden p-1 min-h-0 flex flex-col">
                     <ColumnPanel
                         visibleColumns={visibleColumns}
                         columns={columns}
