@@ -414,6 +414,12 @@ const TaskCellRenderer = React.memo(({
         case 'totalFloat': {
             return <div className="text-right pr-4">{task.totalFloat !== undefined ? formatDuration(task.totalFloat, 'd') : ''}</div>;
         }
+        case 'freeFloat': {
+            return <div className="text-right pr-4">{task.freeFloat !== undefined ? formatDuration(task.freeFloat, 'd') : ''}</div>;
+        }
+        case 'slack': {
+            return <div className="text-right pr-4">{task.slack !== undefined ? formatDuration(task.slack, 'd') : ''}</div>;
+        }
         case 'calendar': {
             if (task.isSummary) return null;
 
@@ -687,6 +693,10 @@ export function TaskTable({
                 return task.isCritical ? '*' : '';
             case 'totalFloat':
                 return task.totalFloat !== undefined ? `${task.totalFloat}d` : '';
+            case 'freeFloat':
+                return task.freeFloat !== undefined ? `${task.freeFloat}d` : '';
+            case 'slack':
+                return task.slack !== undefined ? `${task.slack}d` : '';
             case 'lastComment': {
                 const lastNote = task.notes && task.notes.length > 0 ? task.notes[task.notes.length - 1] : null;
                 return lastNote ? lastNote.content : '';
