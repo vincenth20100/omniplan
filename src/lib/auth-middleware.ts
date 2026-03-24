@@ -35,7 +35,7 @@ export async function requireAuth(req: NextRequest | Request): Promise<AppUser> 
 
   // Local admin token — no PocketBase call needed
   if (token === LOCAL_TOKEN) {
-    return { id: 'local-admin', email: process.env.ADMIN_USERNAME ?? 'admin', name: 'Admin', token: LOCAL_TOKEN, avatarUrl: null };
+    return { id: 'local-admin', email: process.env.ADMIN_USERNAME ?? 'admin@local', name: 'Admin', token: LOCAL_TOKEN, avatarUrl: null };
   }
 
   const pb = new PocketBase(process.env.POCKETBASE_URL ?? 'http://localhost:8090');

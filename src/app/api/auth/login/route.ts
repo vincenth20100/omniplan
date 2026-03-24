@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import PocketBase from 'pocketbase';
 
 // Local admin credentials — override via env vars
-const LOCAL_USERNAME = process.env.ADMIN_USERNAME ?? 'admin';
+const LOCAL_USERNAME = process.env.ADMIN_USERNAME ?? 'admin@local';
 const LOCAL_PASSWORD = process.env.ADMIN_PASSWORD ?? 'psswd';
 const LOCAL_TOKEN    = 'local|admin-static-token';
 
