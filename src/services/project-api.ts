@@ -1,5 +1,7 @@
 'use client';
 
+import { apiPath } from '@/lib/api-path';
+
 function getAuthToken(): string {
   if (typeof window === 'undefined') return '';
   try {
@@ -18,7 +20,7 @@ function authHeaders(): HeadersInit {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(apiPath(path), {
     ...init,
     headers: { ...authHeaders(), ...(init?.headers ?? {}) },
   });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { apiPath } from '@/lib/api-path';
 import { projectApi } from '@/services/project-api';
 import { getPocketBase } from '@/lib/pocketbase';
 
@@ -12,7 +13,7 @@ export function useProjectSync(
     if (!projectId) return;
 
     const token = getPocketBase().authStore.token;
-    const es = new EventSource(`/api/events/${projectId}?token=${encodeURIComponent(token)}`);
+    const es = new EventSource(apiPath(`/api/events/${projectId}?token=${encodeURIComponent(token)}`));
 
     es.onmessage = (event) => {
       try {

@@ -1,5 +1,6 @@
 'use client';
 
+import { apiPath } from '@/lib/api-path';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,7 @@ export default function ConverterPage() {
             const formData = new FormData();
             formData.append('file', file);
 
-            const res = await fetch('/api/import', {
+            const res = await fetch(apiPath('/api/import'), {
                 method: 'POST',
                 body: formData,
                 headers: { Authorization: `Bearer ${token}` },

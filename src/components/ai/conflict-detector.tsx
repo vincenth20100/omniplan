@@ -1,5 +1,6 @@
 'use client';
 
+import { apiPath } from '@/lib/api-path';
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Bot, Loader2 } from 'lucide-react';
@@ -42,7 +43,7 @@ export function ConflictDetector({ projectState, projectId, dispatch, disabled }
         ? JSON.parse(localStorage.getItem('pocketbase_auth') ?? '{}')?.token ?? ''
         : '';
 
-      const result = await fetch('/api/ai/conflicts', {
+      const result = await fetch(apiPath('/api/ai/conflicts'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

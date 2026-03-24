@@ -1,5 +1,6 @@
 'use client';
 
+import { apiPath } from '@/lib/api-path';
 import React, {
   createContext,
   useCallback,
@@ -53,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     setUserError(null);
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(apiPath('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
