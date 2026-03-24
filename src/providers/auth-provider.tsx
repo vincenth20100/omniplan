@@ -9,7 +9,6 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import { getPocketBase } from '@/lib/pocketbase';
 import type { AppUser } from '@/types/auth';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
@@ -34,87 +33,47 @@ const AuthContext = createContext<AuthContextState | undefined>(undefined);
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const pb = getPocketBase();
-
   const [user, setUser] = useState<AppUser | null>(null);
   const [isUserLoading, setIsUserLoading] = useState(true);
   const [userError, setUserError] = useState<Error | null>(null);
 
-  // Convert PocketBase authStore model → AppUser
-  const toAppUser = useCallback((): AppUser | null => {
-    const model = pb.authStore.model;
-    const token = pb.authStore.token;
-    if (!model || !token) return null;
-
-    const avatarRaw: string | undefined = model.avatar;
-    let avatarUrl: string | null = null;
-    if (avatarRaw) {
-      // PocketBase file URL pattern: /api/files/<collection>/<id>/<filename>
-      avatarUrl = `${pb.baseUrl}/api/files/${model.collectionId}/${model.id}/${avatarRaw}`;
-    }
-
-    return {
-      id: model.id as string,
-      email: (model.email as string) ?? '',
-      name: (model.name as string) ?? (model.username as string) ?? '',
-      avatarUrl,
-      token,
-    };
-  }, [pb]);
-
-  // Initialise auth state from existing token in localStorage (if any)
+  // Initialise auth state from localStorage on mount
   useEffect(() => {
     try {
-      if (pb.authStore.isValid) {
-        setUser(toAppUser());
-      } else {
-        setUser(null);
-      }
-    } catch (err) {
-      setUserError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsUserLoading(false);
-    }
-
-    // Subscribe to authStore changes for future sign-in / sign-out events
-    const unsubscribe = pb.authStore.onChange(() => {
-      try {
-        if (pb.authStore.isValid) {
-          setUser(toAppUser());
-        } else {
-          setUser(null);
+      const raw = localStorage.getItem('pocketbase_auth');
+      if (raw) {
+        const { token, model } = JSON.parse(raw);
+        if (token && model) {
+          setUser({ id: model.id, email: model.email, name: model.name, avatarUrl: model.avatarUrl ?? null, token });
         }
-        setUserError(null);
-      } catch (err) {
-        setUserError(err instanceof Error ? err : new Error(String(err)));
-        setUser(null);
       }
+    } catch {}
+    setIsUserLoading(false);
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    setUserError(null);
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
     });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [pb, toAppUser]);
-
-  const login = useCallback(
-    async (email: string, password: string) => {
-      setUserError(null);
-      try {
-        await pb.collection('users').authWithPassword(email, password);
-        // authStore.onChange fires automatically; setUser handled there
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        setUserError(error);
-        throw error;
-      }
-    },
-    [pb],
-  );
+    if (!res.ok) {
+      const err = await res.json();
+      const error = new Error(err.error ?? 'Login failed');
+      setUserError(error);
+      throw error;
+    }
+    const { token, user: userData } = await res.json();
+    // Store in localStorage in PocketBase SDK format so getAuthToken() in project-api.ts works
+    localStorage.setItem('pocketbase_auth', JSON.stringify({ token, model: userData }));
+    setUser({ ...userData, token });
+  }, []);
 
   const logout = useCallback(async () => {
-    pb.authStore.clear();
-    // authStore.onChange fires automatically; setUser handled there
-  }, [pb]);
+    localStorage.removeItem('pocketbase_auth');
+    setUser(null);
+  }, []);
 
   const value = useMemo<AuthContextState>(
     () => ({ user, isUserLoading, userError, login, logout }),

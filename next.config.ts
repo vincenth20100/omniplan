@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const config: NextConfig = {
   output: 'standalone',
+  basePath: '/omniplan',
   experimental: {
     // Keep any existing experimental flags that are not Firebase-related
   },
