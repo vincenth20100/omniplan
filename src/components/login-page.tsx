@@ -8,30 +8,12 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg role="img" viewBox="0 0 24 24" {...props}>
-        <path
-        fill="currentColor"
-        d="M12.48 10.92v3.28h7.84c-.24 1.84-.85 3.18-1.73 4.1-1.05 1.05-2.86 2.25-4.82 2.25-3.64 0-6.55-3-6.55-6.6s2.91-6.6 6.55-6.6c1.98 0 3.36.79 4.34 1.73l2.4-2.38C17.44 3.4 15.22 2.25 12.48 2.25c-5.4 0-9.84 4.4-9.84 9.9s4.44 9.9 9.84 9.9c5.22 0 9.4-3.5 9.4-9.56 0-.64-.07-1.25-.16-1.84H12.48z"
-        />
-    </svg>
-);
-
 export function LoginPage() {
     const { login } = useAuth();
     const { toast } = useToast();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-
-    // TODO (T5): Google OAuth via PocketBase — replace with pb.collection('users').authWithOAuth2()
-    const handleGoogleSignIn = async () => {
-        toast({
-            variant: "destructive",
-            title: "Google Sign-In Not Yet Available",
-            description: "Google OAuth is being migrated to PocketBase.",
-        });
-    };
 
     const handleEmailAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -87,21 +69,6 @@ export function LoginPage() {
                     </Button>
                 </form>
 
-                <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-card px-2 text-muted-foreground">
-                            Or continue with
-                        </span>
-                    </div>
-                </div>
-
-                <Button variant="outline" onClick={handleGoogleSignIn} className="w-full">
-                    <GoogleIcon className="mr-2 h-4 w-4" />
-                    Sign In with Google
-                </Button>
             </div>
         </div>
     );
