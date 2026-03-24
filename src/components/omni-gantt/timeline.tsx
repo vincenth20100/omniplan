@@ -18,6 +18,8 @@ import { useVirtualization } from '@/hooks/use-virtualization';
 
 const VIEW_PADDING_DAYS = 30;
 
+const EMPTY_ARRAY: any[] = [];
+
 const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensity, selectedTaskIds, dispatch, index, viewStartDate, scale }: {
     task: Task,
     ganttSettings: GanttSettings,
@@ -383,7 +385,6 @@ export function Timeline({
                               dispatch={dispatch}
                               row={index}
                               isSelected={selectedTaskIds.includes(task.id)}
-                              onSelect={(e) => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
                               uiDensity={uiDensity}
                               showProgress={ganttSettings.showProgress}
                               showTaskLabels={ganttSettings.showTaskLabels}
@@ -394,8 +395,8 @@ export function Timeline({
                               projectColors={projectColors}
                               projectTextColors={projectTextColors}
                               projectCriticalPathColors={projectCriticalPathColors}
-                              tooltipFields={ganttSettings.showGanttTooltip !== false ? ganttSettings.tooltipFields : []}
-                              tooltipConfig={ganttSettings.showGanttTooltip !== false ? ganttSettings.tooltipConfig : []}
+                              tooltipFields={ganttSettings.showGanttTooltip !== false ? ganttSettings.tooltipFields : EMPTY_ARRAY}
+                              tooltipConfig={ganttSettings.showGanttTooltip !== false ? ganttSettings.tooltipConfig : EMPTY_ARRAY}
                               columns={columns}
                               resources={resources}
                               assignments={assignments}

@@ -10,14 +10,13 @@ import { TaskTooltip } from './task-tooltip';
 
 type DragMode = 'move' | 'resize-end' | null;
 
-export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, onSelect, uiDensity, showProgress, showTaskLabels, taskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {}, tooltipFields = [], tooltipConfig, columns, resources, assignments, links, tasks }: {
+export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row, isSelected, uiDensity, showProgress, showTaskLabels, taskLabels, highlightCriticalPath, defaultCalendar, dateFormat, projectColors = {}, projectTextColors = {}, projectCriticalPathColors = {}, tooltipFields = [], tooltipConfig, columns, resources, assignments, links, tasks }: {
     task: Task;
     ganttStartDate: Date;
     scale: number;
     dispatch: any;
     row: number;
     isSelected: boolean;
-    onSelect: (event: React.MouseEvent) => void;
     uiDensity: UiDensity;
     showProgress: boolean;
     showTaskLabels: boolean;
@@ -46,11 +45,17 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     const isSummary = task.isSummary;
     const { rowHeight, barHeight, summaryBarHeight } = DENSITY_SETTINGS[uiDensity];
 
+    const handleSelect = React.useCallback((e: React.MouseEvent | React.TouchEvent) => {
+        const ctrlKey = 'ctrlKey' in e ? e.ctrlKey : false;
+        const shiftKey = 'shiftKey' in e ? e.shiftKey : false;
+        dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: task.id, ctrlKey, shiftKey } });
+    }, [dispatch, task.id]);
+
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, mode: DragMode) => {
         if (isSummary || !mode) return;
         e.preventDefault();
         e.stopPropagation();
-        onSelect(e);
+        handleSelect(e);
 
         dragStartInfo.current = {
             startX: e.clientX,
@@ -139,7 +144,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
                     width: `${milestoneSize}px`,
                     height: `${milestoneSize}px`,
                 }}
-                onClick={onSelect}
+                onClick={handleSelect}
             >
                 <svg width={milestoneSize} height={milestoneSize} viewBox="0 0 24 24" className={cn(
                     "drop-shadow-md",
@@ -208,7 +213,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
             }}
             onMouseDown={(e) => handleMouseDown(e, 'move')}
             onTouchStart={(e) => handleTouchStart(e, 'move')}
-            onClick={onSelect}
+            onClick={handleSelect}
         >
             {!isSummary && showProgress && ( 
                 <div 
