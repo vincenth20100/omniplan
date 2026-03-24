@@ -1,12 +1,9 @@
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
 
-const nextConfig: NextConfig = {
-  /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
+const config: NextConfig = {
+  output: 'standalone',
+  experimental: {
+    // Keep any existing experimental flags that are not Firebase-related
   },
   images: {
     remotePatterns: [
@@ -32,4 +29,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default config;

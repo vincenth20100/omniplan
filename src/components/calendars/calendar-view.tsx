@@ -246,8 +246,9 @@ export function CalendarView({
               modifiersClassNames={modifiersClassNames}
               onDayClick={handleDayClick}
               components={{
-                  IconLeft: () => <ChevronLeft className="h-4 w-4" />,
-                  IconRight: () => <ChevronRight className="h-4 w-4" />,
+                  Chevron: ({ orientation }) => orientation === 'left'
+                      ? <ChevronLeft className="h-4 w-4" />
+                      : <ChevronRight className="h-4 w-4" />,
               }}
           />
           <Button variant="ghost" size="icon" onClick={handleNextMonth} className="self-center">
@@ -289,7 +290,7 @@ export function CalendarView({
                       <TableCell>
                         <EditableDateCell
                             value={exception.start}
-                            onSave={(newValue) => handleUpdateException(exception.id, { start: newValue })}
+                            onSave={(newValue) => newValue && handleUpdateException(exception.id, { start: newValue })}
                             calendar={null}
                             dateFormat="MMM d, yyyy"
                         />
@@ -297,7 +298,7 @@ export function CalendarView({
                       <TableCell>
                          <EditableDateCell
                             value={exception.finish}
-                            onSave={(newValue) => handleUpdateException(exception.id, { finish: newValue })}
+                            onSave={(newValue) => newValue && handleUpdateException(exception.id, { finish: newValue })}
                             calendar={null}
                             dateFormat="MMM d, yyyy"
                         />

@@ -1,19 +1,17 @@
 'use client';
 
 import { useReducer, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember, StylePreset, Baseline, Snapshot, PersistentHistoryEntry } from '@/lib/types';
+import type { ProjectState, Task, Link, ColumnSpec, UiDensity, LinkType, Resource, Assignment, Calendar, Exception, View, Note, Filter, GanttSettings, HistoryEntry, Representation, Project, ProjectMember, StylePreset, Baseline, Snapshot, PersistentHistoryEntry, SelectionMode } from '@/lib/types';
 import { calculateSchedule } from '@/lib/scheduler';
 import { calendarService } from '@/lib/calendar';
 import { format } from 'date-fns';
 import { parseDuration, formatDuration } from '@/lib/duration';
-import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, doc, writeBatch, query, orderBy, setDoc, onSnapshot, arrayUnion, arrayRemove, collectionGroup, where, limit, serverTimestamp, addDoc, deleteDoc } from 'firebase/firestore';
-import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import type { User } from 'firebase/auth';
+import type { AppUser as User } from '@/types/auth';
 import { useToast } from "@/hooks/use-toast";
 import { useIsAdmin } from './use-is-admin';
 import { ALL_COLUMNS, initialColumns, initialVisibleColumns } from '@/lib/columns';
 import { THEME_PRESETS } from '@/lib/theme-config';
+import { projectApi } from '@/services/project-api';
 
 
 const defaultViews: View[] = [
@@ -171,7 +169,11 @@ type Action =
   | { type: 'CLEAR_NOTIFICATIONS' }
   | { type: 'FIND_AND_REPLACE', payload: { find: string; replace: string } }
   | { type: 'SET_REPRESENTATION', payload: Representation }
-  | { type: 'SORT_TASKS', payload: { columnId: string } };
+  | { type: 'SORT_TASKS', payload: { columnId: string } }
+  | { type: 'LOAD_PROJECT_DATA', payload: { tasks: any[]; links: any[]; resources: any[]; assignments: any[] } }
+  | { type: 'SYNC_TASKS', payload: any[] }
+  | { type: 'SYNC_LINKS', payload: any[] }
+  | { type: 'UPDATE_SELECTION', payload: { mode: SelectionMode; taskId: string | null } };
 
 const sanitizeForFirestore = (obj: any): any => {
     if (obj === undefined) return null;
@@ -274,277 +276,16 @@ const sanitizeRestoredTask = (task: any): Task => {
     return sanitized as Task;
 }
 
-function useSubprojectData(subprojectIds: string[] | undefined, firestore: any) {
-    const [data, setData] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string, textColor?: string, criticalPathColor?: string }[] }>({ subprojects: [] });
-
-    const cacheRef = useRef<Record<string, { tasks: Task[], links: Link[], projectName: string, initials?: string, color?: string, textColor?: string, criticalPathColor?: string }>>({});
-    const unsubsRef = useRef<Record<string, { meta: () => void, tasks: () => void, links: () => void }>>({});
-
-    // Keep track of current IDs to ensure order in updateData
-    const subprojectIdsRef = useRef(subprojectIds);
-    subprojectIdsRef.current = subprojectIds;
-
-    const updateData = useCallback(() => {
-        const ids = subprojectIdsRef.current || [];
-        const allSubprojects = ids.map(id => {
-             const cached = cacheRef.current[id];
-             if (!cached) return null;
-             return { projectId: id, ...cached };
-        }).filter((item): item is { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string, textColor?: string, criticalPathColor?: string } => item !== null);
-
-        setData({ subprojects: allSubprojects });
-    }, []);
-
-    useEffect(() => {
-        if (!firestore) return;
-
-        const currentIds = subprojectIds || [];
-        const activeIds = Object.keys(unsubsRef.current);
-
-        const added = currentIds.filter(id => !activeIds.includes(id));
-        const removed = activeIds.filter(id => !currentIds.includes(id));
-
-        // Remove listeners for removed projects
-        removed.forEach(id => {
-            if (unsubsRef.current[id]) {
-                unsubsRef.current[id].meta();
-                unsubsRef.current[id].tasks();
-                unsubsRef.current[id].links();
-                delete unsubsRef.current[id];
-            }
-            delete cacheRef.current[id];
-        });
-
-        // Add listeners for new projects
-        added.forEach(pId => {
-            cacheRef.current[pId] = { tasks: [], links: [], projectName: 'Loading...' };
-
-            const projectUnsub = onSnapshot(doc(firestore, 'projects', pId), (snap) => {
-                const data = snap.data();
-                if (data) {
-                    cacheRef.current[pId].projectName = data.name;
-                    cacheRef.current[pId].initials = data.initials || data.name.substring(0, 2).toUpperCase();
-                    cacheRef.current[pId].color = data.color;
-                    cacheRef.current[pId].textColor = data.textColor;
-                    cacheRef.current[pId].criticalPathColor = data.criticalPathColor;
-                    updateData();
-                }
-            }, (error) => {
-                console.error(`Error fetching metadata for subproject ${pId}:`, error);
-            });
-
-            const tasksUnsub = onSnapshot(collection(firestore, 'projects', pId, 'tasks'), (snap) => {
-                const tasks = snap.docs.map(d => {
-                     const data = d.data();
-                     const safeToDate = (value: any): Date | null => {
-                        if (!value) return null;
-                        if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
-                            return value.toDate();
-                        }
-                        const d = new Date(value);
-                        return !isNaN(d.getTime()) ? d : null;
-                    }
-
-                     return {
-                         ...data,
-                         id: d.id,
-                         projectId: pId,
-                         start: safeToDate(data.start) || new Date(),
-                         finish: safeToDate(data.finish) || new Date(),
-                         constraintDate: safeToDate(data.constraintDate),
-                         deadline: safeToDate(data.deadline),
-                         notes: data.notes ? data.notes.map((n: any) => ({ ...n, timestamp: safeToDate(n.timestamp) || new Date() })) : undefined,
-                     } as Task;
-                });
-
-                tasks.sort((a, b) => (a.order || 0) - (b.order || 0));
-
-                cacheRef.current[pId].tasks = tasks;
-                updateData();
-            }, (error) => {
-                console.error(`Error fetching tasks for subproject ${pId}:`, error);
-            });
-
-            const linksUnsub = onSnapshot(collection(firestore, 'projects', pId, 'links'), (snap) => {
-                cacheRef.current[pId].links = snap.docs.map(d => ({ ...d.data(), id: d.id, sourceProjectId: pId } as Link));
-                updateData();
-            }, (error) => {
-                console.error(`Error fetching links for subproject ${pId}:`, error);
-            });
-
-            unsubsRef.current[pId] = { meta: projectUnsub, tasks: tasksUnsub, links: linksUnsub };
-        });
-
-        // If ids changed (added or removed), trigger update to reflect new list (even if data hasn't arrived yet)
-        if (added.length > 0 || removed.length > 0) {
-            updateData();
-        }
-
-    }, [JSON.stringify(subprojectIds), firestore, updateData]);
-
-    // Cleanup all on unmount
-    useEffect(() => {
-        return () => {
-             Object.values(unsubsRef.current).forEach(group => {
-                group.meta();
-                group.tasks();
-                group.links();
-            });
-            unsubsRef.current = {};
-        }
-    }, []);
+function useSubprojectData(_subprojectIds: string[] | undefined, _firestore: any) {
+    // TODO(T5): implement via API
+    const [data] = useState<{ subprojects: { tasks: Task[], links: Link[], projectName: string, projectId: string, initials?: string, color?: string, textColor?: string, criticalPathColor?: string }[] }>({ subprojects: [] });
 
     return data;
 }
 
-function useExternalData(projectId: string | null, firestore: any, localLinks: Link[] | null) {
-    const [externalLinks, setExternalLinks] = useState<Link[]>([]);
-    const [externalTasks, setExternalTasks] = useState<Task[]>([]);
-    const warnedRef = useRef(false);
-
-    useEffect(() => {
-        if (!projectId || !firestore) {
-            setExternalLinks([]);
-            return;
-        }
-
-        const q1 = query(collectionGroup(firestore, 'links'), where('targetProjectId', '==', projectId));
-        const q2 = query(collectionGroup(firestore, 'links'), where('sourceProjectId', '==', projectId));
-
-        let links1: Link[] = [];
-        let links2: Link[] = [];
-
-        const updateLinks = () => {
-            const allLinks = [...links1, ...links2];
-            // Filter out links that are purely internal to this project
-            const filtered = allLinks.filter(l =>
-                (l.sourceProjectId && l.sourceProjectId !== projectId) ||
-                (l.targetProjectId && l.targetProjectId !== projectId)
-            );
-
-            // Deduplicate based on ID
-            const uniqueLinks = Array.from(new Map(filtered.map(l => [l.id, l])).values());
-            setExternalLinks(uniqueLinks);
-        };
-
-        const handleError = (e: any) => {
-            if (warnedRef.current) return;
-
-            if (e.code === 'permission-denied') {
-                 console.debug("External links query skipped due to permissions (expected for cross-project links without access).");
-                 warnedRef.current = true;
-            } else if (e.code === 'failed-precondition') {
-                 console.warn("External links query failed (likely missing index).", e.message);
-                 warnedRef.current = true;
-            } else {
-                 console.warn("External links query failed:", e);
-            }
-        };
-
-        const unsub1 = onSnapshot(q1, (snap) => {
-            links1 = snap.docs.map(d => ({ ...d.data(), id: d.id } as Link));
-            updateLinks();
-        }, handleError);
-
-        const unsub2 = onSnapshot(q2, (snap) => {
-            links2 = snap.docs.map(d => ({ ...d.data(), id: d.id } as Link));
-            updateLinks();
-        }, handleError);
-
-        return () => {
-            unsub1();
-            unsub2();
-        };
-    }, [projectId, firestore]);
-
-    useEffect(() => {
-        if ((externalLinks.length === 0 && (!localLinks || localLinks.length === 0)) || !firestore) {
-            setExternalTasks([]);
-            return;
-        }
-
-        const tasksToLoad = new Set<string>(); // "projectId:taskId"
-        const linksToConsider = [...externalLinks, ...(localLinks || [])];
-
-        linksToConsider.forEach(l => {
-             if (l.sourceProjectId && l.sourceProjectId !== projectId) {
-                 tasksToLoad.add(`${l.sourceProjectId}:${l.source}`);
-             }
-             if (l.targetProjectId && l.targetProjectId !== projectId) {
-                 tasksToLoad.add(`${l.targetProjectId}:${l.target}`);
-             }
-        });
-
-        if (tasksToLoad.size === 0) {
-            setExternalTasks([]);
-            return;
-        }
-
-        const unsubs: (() => void)[] = [];
-        const loadedTasks: Record<string, Task> = {};
-        const loadedProjects: Record<string, string | undefined> = {};
-
-        const updateTasksState = () => {
-             const tasks = Object.values(loadedTasks).map(t => ({
-                 ...t,
-                 projectInitials: t.projectId ? loadedProjects[t.projectId] : undefined,
-                 isGhost: true,
-             }));
-             setExternalTasks(tasks);
-        };
-
-        tasksToLoad.forEach(ref => {
-            const [pid, tid] = ref.split(':');
-
-            // Load Project Initials
-            if (loadedProjects[pid] === undefined) {
-                 const projUnsub = onSnapshot(doc(firestore, 'projects', pid), (snap) => {
-                     if (snap.exists()) {
-                         const data = snap.data();
-                         loadedProjects[pid] = data.initials || data.name.substring(0, 2).toUpperCase();
-                         updateTasksState();
-                     }
-                 });
-                 unsubs.push(projUnsub);
-            }
-
-            const unsub = onSnapshot(doc(firestore, 'projects', pid, 'tasks', tid), (snap) => {
-                if (snap.exists()) {
-                     const data = snap.data();
-                     const safeToDate = (value: any): Date | null => {
-                        if (!value) return null;
-                        if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
-                            return value.toDate();
-                        }
-                        const d = new Date(value);
-                        return !isNaN(d.getTime()) ? d : null;
-                    };
-
-                     const task = {
-                         ...data,
-                         id: snap.id,
-                         projectId: pid,
-                         start: safeToDate(data.start) || new Date(),
-                         finish: safeToDate(data.finish) || new Date(),
-                         constraintDate: safeToDate(data.constraintDate),
-                         deadline: safeToDate(data.deadline),
-                         notes: data.notes ? data.notes.map((n: any) => ({ ...n, timestamp: safeToDate(n.timestamp) || new Date() })) : undefined,
-                         // Mark as external/ghost if needed
-                         isGhost: true,
-                         wbs: data.wbs,
-                     } as Task;
-
-                     loadedTasks[tid] = task;
-                     updateTasksState();
-                }
-            }, (e) => console.warn(`Failed to load external task ${tid}`, e));
-            unsubs.push(unsub);
-        });
-
-        return () => unsubs.forEach(u => u());
-    }, [externalLinks, localLinks, firestore, projectId]);
-
-    return { links: externalLinks, tasks: externalTasks };
+function useExternalData(_projectId: string | null, _firestore: any, _localLinks: Link[] | null) {
+    // TODO(T5): implement via API
+    return { links: [] as Link[], tasks: [] as Task[] };
 }
 
 function updateHierarchyAndSort(tasks: Task[]): Task[] {
@@ -2172,6 +1913,36 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         }
         return { ...state, sortColumn: columnId, sortDirection: 'asc' };
     }
+    case 'LOAD_PROJECT_DATA': {
+      const { tasks, links, resources, assignments } = action.payload;
+      const scheduledTasks = runScheduler(tasks, links, state.columns, state.calendars, state.defaultCalendarId, assignments, resources);
+      return {
+        ...state,
+        tasks: scheduledTasks,
+        links,
+        resources,
+        assignments,
+      };
+    }
+    case 'SYNC_TASKS': {
+      const tasks = action.payload;
+      const scheduledTasks = runScheduler(tasks, state.links, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
+      return { ...state, tasks: scheduledTasks };
+    }
+    case 'SYNC_LINKS': {
+      const links = action.payload;
+      const scheduledTasks = runScheduler(state.tasks, links, state.columns, state.calendars, state.defaultCalendarId, state.assignments, state.resources);
+      return { ...state, links, tasks: scheduledTasks };
+    }
+    case 'UPDATE_SELECTION': {
+      const { mode, taskId } = action.payload;
+      return {
+        ...state,
+        selectionMode: mode,
+        selectedTaskIds: taskId ? [taskId] : [],
+        selectionAnchor: taskId,
+      };
+    }
     default:
       return state;
   }
@@ -2195,11 +1966,14 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
         const { past, present, future } = state;
         
         const nonHistoricActions: Action['type'][] = [
-            'SET_PROJECT_DATA', 
+            'SET_PROJECT_DATA',
             'SET_PERSISTED_STATE',
+            'LOAD_PROJECT_DATA',
+            'SYNC_TASKS',
+            'SYNC_LINKS',
             'SET_ROW_SELECTION',
             'SET_CELL_SELECTION',
-            'START_EDITING_CELL', 
+            'START_EDITING_CELL',
             'STOP_EDITING_CELL',
             'CLEAR_NOTIFICATIONS',
             'TOGGLE_GROUP',
@@ -2287,1019 +2061,270 @@ const undoable = (reducer: (state: ProjectState, action: Action) => ProjectState
     };
 };
 
+
 export function useProject(user: User, projectId: string | null) {
   const [historyState, internalDispatch] = useReducer(undoable(projectReducer), historyInitialState);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [viewingSnapshotId, setViewingSnapshotId] = useState<string | null>(null);
   const [previewState, setPreviewState] = useState<ProjectState | null>(null);
-  const firestore = useFirestore();
+  const [isLoaded, setIsLoaded] = useState(false);
   const { toast } = useToast();
   const historyStateRef = useRef(historyState);
+  const { isAdmin } = useIsAdmin(user);
+
+  // Track whether initial load has completed (to avoid overwriting local edits)
+  const initialLoadDoneRef = useRef(false);
+
+  // Pending task updates map for debounced writes
+  const pendingTaskUpdates = useRef<Map<string, any>>(new Map());
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
       historyStateRef.current = historyState;
   }, [historyState]);
 
-
-  const { isAdmin, isLoading: isCheckingAdmin } = useIsAdmin(user);
-
-  const { data: member, isLoading: isMemberLoading } = useDoc<ProjectMember>(
-      useMemoFirebase(() => (projectId && user) ? doc(firestore, 'projects', projectId, 'members', user.uid) : null, [firestore, projectId, user]),
-      { includeMetadataChanges: true, suppressGlobalError: true }
-  );
-  
-  const projectDocRef = useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]);
-  const { data: projectData } = useDoc<Project>(projectDocRef);
-
-  const linksCollection = useCollection<Link>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'links') : null, [firestore, projectId, member]), { suppressGlobalError: true });
-
-  const subprojectsData = useSubprojectData(projectData?.subprojectIds, firestore);
-  const externalData = useExternalData(projectId, firestore, linksCollection.data);
-  
-  // Effect to migrate legacy projects by creating member documents if they don't exist
+  // ─── Load project data on mount ──────────────────────────────────────────────
   useEffect(() => {
-    const performMigration = async () => {
-      if (firestore && user && projectData && !isMemberLoading && !member) {
-        if (projectData.memberIds && projectData.memberIds.includes(user.uid)) {
-          console.log(`Migrating user ${user.uid} to members subcollection for project ${projectData.id}`);
-          const memberDocRef = doc(firestore, 'projects', projectData.id, 'members', user.uid);
-          
-          const role = projectData.ownerId === user.uid ? 'owner' : 'viewer';
+    if (!projectId) return;
+    let cancelled = false;
+    initialLoadDoneRef.current = false;
+    setIsLoaded(false);
 
-          const newMemberData: Omit<ProjectMember, 'permissions'> = {
-              userId: user.uid,
-              role: role,
-              displayName: user.displayName || user.email || '',
-              photoURL: user.photoURL || '',
-          };
+    Promise.all([
+      projectApi.listTasks(projectId),
+      projectApi.listLinks(projectId),
+      projectApi.listResources(projectId),
+      projectApi.listAssignments(projectId),
+    ]).then(([tasks, links, resources, assignments]) => {
+      if (cancelled) return;
+      internalDispatch({
+        type: 'LOAD_PROJECT_DATA',
+        payload: { tasks, links, resources, assignments },
+      });
+      initialLoadDoneRef.current = true;
+      setIsLoaded(true);
+    }).catch(err => {
+      console.error('Failed to load project data:', err);
+      setIsLoaded(true); // Allow UI to render even on error
+    });
 
-          try {
-            // Use a blocking setDoc here to ensure the document exists on the backend
-            // before other data-fetching hooks that depend on it are triggered.
-            await setDoc(memberDocRef, newMemberData, { merge: false });
-          } catch (e) {
-             console.error("Failed to migrate user to members subcollection:", e);
-             // We can optionally toast an error here if migration is critical for app function
-          }
-        }
-      }
-    }
-    
-    performMigration();
-  }, [firestore, user, projectData, isMemberLoading, member]);
+    return () => { cancelled = true; };
+  }, [projectId]);
 
-  const isEditorOrOwner = useMemo(() => {
-    if (isMemberLoading || isCheckingAdmin) {
-      return false; // Default to non-editor while loading to be safe
-    }
-    return isAdmin || member?.role === 'editor' || member?.role === 'owner';
-  }, [isMemberLoading, isCheckingAdmin, member, isAdmin]);
-  
+  // ─── Debounced task update flush ─────────────────────────────────────────────
+  const schedulePersist = useCallback((taskId: string, data: any) => {
+    if (!projectId) return;
+    pendingTaskUpdates.current.set(taskId, data);
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = setTimeout(() => {
+      pendingTaskUpdates.current.forEach((updates, id) => {
+        projectApi.updateTask(projectId, id, updates).catch(console.error);
+      });
+      pendingTaskUpdates.current.clear();
+    }, 500);
+  }, [projectId]);
+
+  const isEditorOrOwner = useMemo(() => isAdmin, [isAdmin]);
+
+  // ─── Dispatch wrapper — intercepts mutations for API persistence ──────────────
   const dispatch = useCallback((action: Action) => {
-    // These actions should bypass the batching logic and directly manipulate the history state.
     if (action.type === 'UNDO' || action.type === 'REDO' || action.type === 'JUMP_TO_HISTORY') {
         internalDispatch(action);
         return;
     }
 
-    const localActions: Action['type'][] = [
-        'SET_ROW_SELECTION',
-        'SET_CELL_SELECTION',
-        'SET_REPRESENTATION',
-        'SORT_TASKS',
-        'MOVE_SELECTION',
-        'SET_MULTI_SELECT_MODE',
-        'START_EDITING_CELL',
-        'STOP_EDITING_CELL',
-        'TOGGLE_GROUP',
-        'CLEAR_NOTIFICATIONS'
-    ];
+    // Apply reducer locally first
+    internalDispatch(action);
 
-    if (localActions.includes(action.type)) {
-        internalDispatch(action);
-        return;
-    }
+    // Skip persistence if no project is loaded yet
+    if (!projectId || !initialLoadDoneRef.current) return;
 
-    if (!user || !projectId) {
-        internalDispatch(action);
-        return;
-    }
-
-    if (viewingSnapshotId) {
-        const viewActions: Action['type'][] = [
-            'SET_VIEW', 'SET_GROUPING', 'SET_FILTERS', 'UPDATE_GANTT_SETTINGS',
-            'SET_UI_DENSITY', 'SET_COLUMNS', 'TOGGLE_TASK_COLLAPSE',
-            'COLLAPSE_ALL', 'EXPAND_ALL', 'SET_REPRESENTATION', 'SORT_TASKS',
-            'SET_ROW_SELECTION', 'SET_CELL_SELECTION'
-        ];
-        if (!viewActions.includes(action.type)) {
-             toast({ title: "Read Only", description: "You are viewing a snapshot. Exit preview to make changes." });
-             return;
-        }
-        if (previewState) {
-             const newPreviewState = projectReducer(previewState, action);
-             setPreviewState(newPreviewState);
-             return;
-        }
-    }
-
-    let finalAction = action;
-
-    if (action.type === 'ADD_TASK') {
-        finalAction = {
-            ...action,
-            payload: {
-                ...(action.payload || { id: crypto.randomUUID() }),
-                projectId
-            }
-        };
-    } else if (action.type === 'ADD_TASKS_FROM_PASTE') {
-         finalAction = {
-             ...action,
-             payload: {
-                 ...action.payload,
-                 projectId
-             }
-         };
-    } else if (action.type === 'ADD_NOTE_TO_TASK') {
-         finalAction = {
-            ...action,
-            payload: {
-                ...action.payload,
-                userId: user.uid,
-                author: user.displayName || user.email || 'User'
-            }
-        };
-    }
-    
-    // This is the new centralized permission guard.
-    const isEditAction = (act: Action): boolean => {
-        const dataWriteActions: Action['type'][] = [
-            'UPDATE_TASK', 'ADD_NOTE_TO_TASK', 'UPDATE_NOTE', 'DELETE_NOTE', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
-            'UPDATE_LINK', 'ADD_TASK', 'REMOVE_TASK', 'LINK_TASKS', 'ADD_LINK', 'REMOVE_LINK',
-            'UPDATE_RELATIONSHIPS', 'INDENT_TASK', 'OUTDENT_TASK', 'REORDER_TASKS', 'NEST_TASKS',
-            'ADD_RESOURCE', 'REMOVE_RESOURCE', 'REORDER_RESOURCE', 'ADD_CALENDAR', 'REMOVE_CALENDAR',
-            'ADD_TASKS_FROM_PASTE', 'FIND_AND_REPLACE', 'ADD_BASELINE', 'DELETE_BASELINE',
-            'ADD_ASSIGNMENT', 'UPDATE_ASSIGNMENT', 'REMOVE_ASSIGNMENT',
-          ];
-    
-          const sharedSettingsActions: Action['type'][] = [
-            'SAVE_VIEW_AS', 'UPDATE_CURRENT_VIEW', 'SET_GROUPING', 'SET_FILTERS',
-            'SET_COLUMNS', 'ADD_COLUMN', 'UPDATE_COLUMN', 'REMOVE_COLUMN',
-            'RESIZE_COLUMN', 'REORDER_COLUMNS', 'DELETE_VIEW',
-            'SET_STYLE_PRESETS',
-          ];
-          return dataWriteActions.includes(act.type) || sharedSettingsActions.includes(act.type);
-    }
-
-
-    if (isEditAction(finalAction)) {
-        let allowed = isEditorOrOwner;
-
-        if (!allowed && (finalAction.type === 'UPDATE_NOTE' || finalAction.type === 'DELETE_NOTE')) {
-             const task = historyStateRef.current.present.tasks.find(t => t.id === finalAction.payload.taskId);
-             const note = task?.notes?.find(n => n.id === finalAction.payload.noteId);
-             if (note?.userId === user.uid) {
-                 allowed = true;
-             }
-        }
-
-        if (!allowed) {
-             toast({
-                variant: 'destructive',
-                title: 'Permission Denied',
-                description: 'You do not have permission to perform this action.',
-            });
-            return;
-        }
-    }
-
-    const optimisticActions: Action['type'][] = [
-      'ADD_NOTE_TO_TASK', 'UPDATE_NOTE', 'DELETE_NOTE', 'UPDATE_TASK', 'UPDATE_RESOURCE', 'UPDATE_CALENDAR',
-      'ADD_TASK',
-    ];
-    
-    const userSettingsActions: Action['type'][] = [
-        'UPDATE_GANTT_SETTINGS', 'SET_UI_DENSITY', 'SET_VIEW',
-        'SET_ACTIVE_STYLE_PRESET', 'TOGGLE_TASK_COLLAPSE', 'COLLAPSE_ALL', 'EXPAND_ALL',
-    ];
-
-    if (userSettingsActions.includes(finalAction.type)) {
-        internalDispatch(finalAction);
-        const newState = projectReducer(historyStateRef.current.present, finalAction);
-        const userPrefsDocRef = doc(firestore, 'user_preferences', `${user.uid}_${projectId}`);
-
-        const prefsToUpdate: Partial<typeof defaultUserPreferences> = {};
-        if (finalAction.type === 'UPDATE_GANTT_SETTINGS') {
-             prefsToUpdate.ganttSettings = newState.ganttSettings;
-             prefsToUpdate.activeStylePresetId = newState.activeStylePresetId;
-        }
-        if (finalAction.type === 'SET_UI_DENSITY') {
-            prefsToUpdate.uiDensity = newState.uiDensity;
-        }
-         if (finalAction.type === 'SET_VIEW') {
-            prefsToUpdate.currentViewId = newState.currentViewId;
-        }
-        if (finalAction.type === 'SET_ACTIVE_STYLE_PRESET') {
-            prefsToUpdate.activeStylePresetId = newState.activeStylePresetId;
-            prefsToUpdate.ganttSettings = newState.ganttSettings;
-        }
-
-        if (['TOGGLE_TASK_COLLAPSE', 'COLLAPSE_ALL', 'EXPAND_ALL'].includes(finalAction.type)) {
-            prefsToUpdate.collapsedTaskIds = newState.tasks
-                .filter(t => t.isCollapsed)
-                .map(t => t.id);
-        }
-
-        setDocumentNonBlocking(userPrefsDocRef, prefsToUpdate, { merge: true });
-
-    } else if (optimisticActions.includes(finalAction.type)) {
-        internalDispatch(finalAction);
-        
-        const newState = projectReducer(historyStateRef.current.present, finalAction);
-        const batch = writeBatch(firestore);
-
-        if (finalAction.type === 'ADD_TASK') {
-            const taskId = finalAction.payload?.id;
-            if (taskId) {
-                const newTask = newState.tasks.find(t => t.id === taskId);
-                if (newTask) {
-                    const targetProjectId = newTask.projectId || projectId;
-                    batch.set(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), toFirestoreTask(newTask));
-                }
-            }
-        }
-
-        if (finalAction.type === 'UPDATE_TASK') {
-            const taskId = finalAction.payload.id;
-            const updatedTask = newState.tasks.find(t => t.id === taskId);
-            const targetProjectId = updatedTask?.projectId || projectId;
-
-            if (updatedTask) {
-                const { ...updateData } = toFirestoreTask(updatedTask);
-                batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), updateData);
-            }
-        }
-
-        if (finalAction.type === 'ADD_NOTE_TO_TASK') {
-             const taskId = finalAction.payload.taskId;
-             const updatedTask = newState.tasks.find(t => t.id === taskId);
-             const targetProjectId = updatedTask?.projectId || projectId;
-
-             if (updatedTask && updatedTask.notes && updatedTask.notes.length > 0) {
-                 const newNote = updatedTask.notes[updatedTask.notes.length - 1];
-                 const noteToSave = sanitizeForFirestore(newNote);
-
-                 batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), {
-                     notes: arrayUnion(noteToSave)
-                 });
-             }
-        }
-
-        if (finalAction.type === 'UPDATE_NOTE' || finalAction.type === 'DELETE_NOTE') {
-             const taskId = finalAction.payload.taskId;
-             const updatedTask = newState.tasks.find(t => t.id === taskId);
-             const targetProjectId = updatedTask?.projectId || projectId;
-
-             if (updatedTask) {
-                 const notesToSave = (updatedTask.notes || []).map(n => sanitizeForFirestore(n));
-                 batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', taskId), {
-                     notes: notesToSave
-                 });
-             }
-        }
-        
-        if (finalAction.type === 'UPDATE_RESOURCE') {
-            const { id, ...updateData } = finalAction.payload as { id: string };
-            const cleanUpdateData: Record<string, any> = { ...updateData };
-            for (const key in cleanUpdateData) {
-                if (cleanUpdateData[key] === undefined) {
-                    cleanUpdateData[key] = null;
-                }
-            }
-            batch.update(doc(firestore, 'projects', projectId, 'resources', id), cleanUpdateData);
-        }
-        if (finalAction.type === 'UPDATE_CALENDAR') {
-            const { id, ...updateData } = finalAction.payload as { id: string };
-            batch.update(doc(firestore, 'projects', projectId, 'calendars', id), updateData);
-        }
-
-        batch.commit().then(() => {
-            if (isEditAction(finalAction)) {
-                 const { description, details } = getHistoryDetails(finalAction, historyStateRef.current.present);
-                 addDoc(collection(firestore, 'projects', projectId, 'history'), {
-                     actionType: finalAction.type,
-                     payloadDescription: description ?? null,
-                     details: details ?? null,
-                     timestamp: serverTimestamp(),
-                     userId: user.uid,
-                     userName: user.displayName || user.email || 'Unknown User'
-                 }).catch(err => {
-                     console.error("Failed to save history log:", err);
-                     toast({
-                         variant: 'destructive',
-                         title: "History Log Error",
-                         description: "Failed to record this action in the project history."
-                     });
-                 });
-            }
-        }).catch(e => {
-            console.error(`Optimistic action ${finalAction.type} failed to commit.`, e);
-            toast({
-              variant: 'destructive',
-              title: 'Error Saving Changes',
-              description: `Your action (${finalAction.type}) could not be saved. The UI will revert.`,
-            });
-            // Revert state if commit fails - may need more robust history implementation
-            internalDispatch({ type: 'UNDO' });
-        });
-
-    } else { 
+    // ── Task mutations ──
+    if (action.type === 'UPDATE_TASK') {
+      const { id, ...updates } = action.payload;
+      schedulePersist(id, updates);
+    } else if (action.type === 'ADD_TASK') {
+      // The reducer generates a new task — we need the state after the dispatch.
+      // We schedule an API create call; use a microtask so the reducer has applied.
+      const newId = action.payload?.id || null;
+      Promise.resolve().then(() => {
         const currentState = historyStateRef.current.present;
-        const newState = projectReducer(currentState, finalAction);
-        const batch = writeBatch(firestore);
-
-        // ... existing batch logic for tasks, links ...
-
-        // Optimizations: Create Maps for O(1) lookups to avoid O(N^2) complexity
-        const currentLinksMap = new Map(currentState.links.map(l => [l.id, l]));
-        const newLinksMap = new Map(newState.links.map(l => [l.id, l]));
-
-        newState.links.forEach(newLink => {
-            const oldLink = currentLinksMap.get(newLink.id);
-            const { isDriving, ...linkData } = newLink;
-
-            const effectiveTargetProjectId = newLink.targetProjectId || projectId;
-            const effectiveSourceProjectId = newLink.sourceProjectId || projectId;
-
-            // Prefer storing in the current project if it is involved in the link.
-            // This ensures we can write the link even if the other project is read-only.
-            const linkProjectId = (effectiveTargetProjectId === projectId || effectiveSourceProjectId === projectId)
-                ? projectId
-                : effectiveSourceProjectId;
-
-            // Defensive coding: Ensure sourceProjectId and targetProjectId are defined
-            if (linkData.sourceProjectId === undefined) linkData.sourceProjectId = projectId;
-            if (linkData.targetProjectId === undefined) linkData.targetProjectId = projectId;
-
-            if (!oldLink) {
-                batch.set(doc(firestore, 'projects', linkProjectId, 'links', newLink.id), linkData);
-            } else {
-                const { isDriving: oldIsDriving, ...oldLinkData } = oldLink;
-                if (JSON.stringify(oldLinkData) !== JSON.stringify(linkData)) {
-                    const oldLinkProjectId = oldLink.sourceProjectId || projectId;
-                    if (oldLinkProjectId !== linkProjectId) {
-                        batch.delete(doc(firestore, 'projects', oldLinkProjectId, 'links', oldLink.id));
-                        batch.set(doc(firestore, 'projects', linkProjectId, 'links', newLink.id), linkData);
-                    } else {
-                        batch.update(doc(firestore, 'projects', linkProjectId, 'links', newLink.id), linkData);
-                    }
-                }
-            }
-        });
-        currentState.links.forEach(oldLink => {
-            if (!newLinksMap.has(oldLink.id)) {
-                const linkProjectId = oldLink.sourceProjectId || projectId;
-                batch.delete(doc(firestore, 'projects', linkProjectId, 'links', oldLink.id));
-            }
-        });
-
-        const currentResourcesMap = new Map(currentState.resources.map(r => [r.id, r]));
-        const newResourcesMap = new Map(newState.resources.map(r => [r.id, r]));
-
-        newState.resources.forEach(newResource => {
-            const oldResource = currentResourcesMap.get(newResource.id);
-            if (!oldResource) {
-                batch.set(doc(firestore, 'projects', projectId, 'resources', newResource.id), toFirestoreResource(newResource));
-            } else {
-                if (JSON.stringify(oldResource) !== JSON.stringify(newResource)) {
-                    batch.update(doc(firestore, 'projects', projectId, 'resources', newResource.id), toFirestoreResource(newResource));
-                }
-            }
-        });
-        currentState.resources.forEach(oldResource => {
-            if (!newResourcesMap.has(oldResource.id)) {
-                batch.delete(doc(firestore, 'projects', projectId, 'resources', oldResource.id));
-            }
-        });
-
-        const currentAssignmentsMap = new Map(currentState.assignments.map(a => [a.id, a]));
-        const newAssignmentsMap = new Map(newState.assignments.map(a => [a.id, a]));
-
-        newState.assignments.forEach(newAssignment => {
-            const oldAssignment = currentAssignmentsMap.get(newAssignment.id);
-            const { resource, ...assignmentData } = newAssignment as any;
-            if (!oldAssignment) {
-                batch.set(doc(firestore, 'projects', projectId, 'assignments', newAssignment.id), assignmentData);
-            } else {
-                const { resource: oldResource, ...oldAssignmentData } = oldAssignment as any;
-                if (JSON.stringify(oldAssignmentData) !== JSON.stringify(assignmentData)) {
-                    batch.update(doc(firestore, 'projects', projectId, 'assignments', newAssignment.id), assignmentData as any);
-                }
-            }
-        });
-        currentState.assignments.forEach(oldAssignment => {
-            if (!newAssignmentsMap.has(oldAssignment.id)) {
-                batch.delete(doc(firestore, 'projects', projectId, 'assignments', oldAssignment.id));
-            }
-        });
-
-        if (action.type === 'ADD_BASELINE') {
-            const newBaseline = newState.baselines.find(b => !currentState.baselines.some(cb => cb.id === b.id));
-            if (newBaseline) {
-                batch.set(doc(firestore, 'projects', projectId, 'baselines', newBaseline.id), {
-                    ...newBaseline,
-                    createdAt: newBaseline.createdAt,
-                    tasks: newBaseline.tasks.map(t => toFirestoreTask(t))
-                });
-            }
+        const newTask = newId
+          ? currentState.tasks.find(t => t.id === newId)
+          : currentState.tasks[currentState.tasks.length - 1];
+        if (newTask) {
+          projectApi.createTask(projectId, newTask).catch(console.error);
         }
-
-        if (action.type === 'DELETE_BASELINE') {
-            const deletedBaseline = currentState.baselines.find(b => !newState.baselines.some(nb => nb.id === b.id));
-            if (deletedBaseline) {
-                batch.delete(doc(firestore, 'projects', projectId, 'baselines', deletedBaseline.id));
+      });
+    } else if (action.type === 'REMOVE_TASK') {
+      // Capture tasks to remove before dispatch has wiped them from state
+      const currentState = historyStateRef.current.present;
+      const idsToRemove = new Set<string>();
+      const taskIdsInSelection = (() => {
+        const s = currentState;
+        const ids = new Set(s.selectedTaskIds);
+        if (s.selectionMode === 'cell' && s.anchorCell && s.focusCell) {
+          const visibleTasks = currentState.tasks.filter(task => {
+            if (!task.parentId) return true;
+            const taskMap = new Map(s.tasks.map(t => [t.id, t]));
+            let p = task.parentId ? taskMap.get(task.parentId) : undefined;
+            while (p) {
+              if (p.isCollapsed) return false;
+              p = p.parentId ? taskMap.get(p.parentId) : undefined;
             }
-        }
-
-        const currentTasksMap = new Map(currentState.tasks.map(t => [t.id, t]));
-        const newTasksMap = new Map(newState.tasks.map(t => [t.id, t]));
-
-        newState.tasks.forEach(newTask => {
-            if (newTask.id.startsWith('subproject-')) return;
-
-            const oldTask = currentTasksMap.get(newTask.id);
-            const targetProjectId = newTask.projectId || projectId;
-
-            if (!oldTask) {
-                batch.set(doc(firestore, 'projects', targetProjectId, 'tasks', newTask.id), toFirestoreTask(newTask));
-            } else {
-                 if (JSON.stringify(toFirestoreTask(oldTask)) !== JSON.stringify(toFirestoreTask(newTask))) {
-                     const { id, ...updateData } = toFirestoreTask(newTask);
-                     batch.update(doc(firestore, 'projects', targetProjectId, 'tasks', newTask.id), updateData);
-                 }
-            }
-        });
-        currentState.tasks.forEach(oldTask => {
-            if (!newTasksMap.has(oldTask.id)) {
-                const targetProjectId = oldTask.projectId || projectId;
-                batch.delete(doc(firestore, 'projects', targetProjectId, 'tasks', oldTask.id));
-            }
-        });
-        
-        if (isEditAction(finalAction)) {
-            const sharedSettingsDocRef = doc(firestore, 'projects', projectId, 'settings', 'app_settings');
-             const settingsToUpdate: Partial<typeof defaultAppSettings> = {
-                columns: newState.columns,
-                visibleColumns: newState.visibleColumns,
-                grouping: newState.grouping,
-                filters: newState.filters,
-                stylePresets: newState.stylePresets,
-            };
-
-            const hasSettingsChanged =
-                newState.columns !== currentState.columns ||
-                newState.visibleColumns !== currentState.visibleColumns ||
-                newState.grouping !== currentState.grouping ||
-                newState.filters !== currentState.filters ||
-                newState.stylePresets !== currentState.stylePresets;
-
-            if (hasSettingsChanged) {
-                batch.set(sharedSettingsDocRef, settingsToUpdate, { merge: true });
-            }
-            
-            if (finalAction.type === 'SAVE_VIEW_AS') {
-                 const newView = newState.views.find(v => v.id === newState.currentViewId);
-                 if (newView) batch.set(doc(firestore, 'projects', projectId, 'views', newView.id), newView);
-            } else if (finalAction.type === 'UPDATE_CURRENT_VIEW' && newState.currentViewId) {
-                const updatedView = newState.views.find(v => v.id === newState.currentViewId);
-                if (updatedView) {
-                    const { id, ...viewData } = updatedView;
-                    batch.update(doc(firestore, 'projects', projectId, 'views', id), viewData);
-                }
-            } else if (finalAction.type === 'DELETE_VIEW') {
-                 batch.delete(doc(firestore, 'projects', projectId, 'views', (finalAction.payload as any).viewId));
-            }
-        }
-
-        // Update Project Metrics
-        const nonGhostTasks = newState.tasks.filter(t => !t.isGhost);
-        const taskCount = nonGhostTasks.length;
-
-        let startDate: Date | null = null;
-        let finishDate: Date | null = null;
-
-        if (taskCount > 0) {
-            const startTimes = nonGhostTasks.map(t => t.start ? t.start.getTime() : Infinity);
-            const finishTimes = nonGhostTasks.map(t => t.finish ? t.finish.getTime() : -Infinity);
-
-            const minStart = Math.min(...startTimes);
-            const maxFinish = Math.max(...finishTimes);
-
-            if (minStart !== Infinity) startDate = new Date(minStart);
-            if (maxFinish !== -Infinity) finishDate = new Date(maxFinish);
-        }
-
-        let duration = 0;
-        if (startDate && finishDate) {
-            const diffTime = Math.abs(finishDate.getTime() - startDate.getTime());
-            duration = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
-
-        const linkedProjectIds = new Set<string>();
-        newState.links.forEach(l => {
-            if (l.sourceProjectId && l.sourceProjectId !== projectId) linkedProjectIds.add(l.sourceProjectId);
-            if (l.targetProjectId && l.targetProjectId !== projectId) linkedProjectIds.add(l.targetProjectId);
-        });
-
-        if (projectId) {
-            batch.update(doc(firestore, 'projects', projectId), {
-                taskCount,
-                startDate: startDate,
-                finishDate: finishDate,
-                duration,
-                lastModified: new Date(),
-                lastModifiedBy: user.uid,
-                linkedProjectIds: Array.from(linkedProjectIds)
-            });
-        }
-
-        batch.commit().then(() => {
-            internalDispatch({ type: '_APPLY_STATE_CHANGE', payload: { newState, originalAction: finalAction } });
-
-            if (isEditAction(finalAction)) {
-                 const { description, details } = getHistoryDetails(finalAction, historyStateRef.current.present);
-                 addDoc(collection(firestore, 'projects', projectId, 'history'), {
-                     actionType: finalAction.type,
-                     payloadDescription: description ?? null,
-                     details: details ?? null,
-                     timestamp: serverTimestamp(),
-                     userId: user.uid,
-                     userName: user.displayName || user.email || 'Unknown User'
-                 }).catch(err => {
-                     console.error("Failed to save history log:", err);
-                     toast({
-                         variant: 'destructive',
-                         title: "History Log Error",
-                         description: "Failed to record this action in the project history."
-                     });
-                 });
-            }
-        }).catch(e => {
-            console.error(`Action ${finalAction.type} failed to commit.`, e);
-            toast({
-              variant: 'destructive',
-              title: 'Error Saving Changes',
-              description: `Your action (${finalAction.type}) could not be saved. Please try again.`,
-            });
-        });
-    }
-  }, [user, projectId, firestore, toast, isEditorOrOwner]);
-  
-  const collections = {
-    tasks: useCollection<Task>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'tasks') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-    links: linksCollection,
-    resources: useCollection<Resource>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'resources') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-    assignments: useCollection<Assignment>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'assignments') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-    calendars: useCollection<Calendar>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'calendars') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-    views: useCollection<View>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'views') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-    sharedSettings: useDoc<typeof defaultAppSettings>(useMemoFirebase(() => (projectId && member) ? doc(firestore, 'projects', projectId, 'settings', 'app_settings') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-    userPreferences: useDoc<typeof defaultUserPreferences>(useMemoFirebase(() => (projectId && user) ? doc(firestore, 'user_preferences', `${user.uid}_${projectId}`) : null, [firestore, user, projectId])),
-    baselines: useCollection<Baseline>(useMemoFirebase(() => (projectId && member) ? collection(firestore, 'projects', projectId, 'baselines') : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-    history: useCollection<PersistentHistoryEntry>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'history'), orderBy('timestamp', 'desc'), limit(90)) : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-    snapshots: useCollection<Snapshot>(useMemoFirebase(() => (projectId && member) ? query(collection(firestore, 'projects', projectId, 'snapshots'), orderBy('createdAt', 'desc')) : null, [firestore, projectId, member]), { suppressGlobalError: true }),
-  };
-  
-  // Effect 1: Data Synchronization from Firestore
-  useEffect(() => {
-    // On project change, reset loaded state until all collections are confirmed loaded
-    setIsLoaded(false);
-  }, [projectId]);
-
-  useEffect(() => {
-    const allCollectionsLoading = collections.tasks.isLoading || collections.links.isLoading || collections.resources.isLoading || collections.assignments.isLoading || collections.calendars.isLoading || collections.baselines.isLoading;
-    const allLoading = allCollectionsLoading || isMemberLoading || isCheckingAdmin;
-
-    if (!projectId || allLoading || !member) {
-        return;
-    };
-
-    const projectColors: Record<string, string> = {};
-    const projectTextColors: Record<string, string> = {};
-    const projectCriticalPathColors: Record<string, string> = {};
-
-    const safeToDate = (value: any): Date | null => {
-        if (!value) return null;
-        if (typeof value === 'object' && value !== null && typeof value.toDate === 'function') {
-            return value.toDate();
-        }
-        const d = new Date(value);
-        return !isNaN(d.getTime()) ? d : null;
-    }
-
-    const mainTasks = (collections.tasks.data || []).map(t => ({
-        ...t,
-        projectId: projectId,
-        projectName: projectData?.name || 'Current Project',
-        start: safeToDate(t.start) || new Date(),
-        finish: safeToDate(t.finish) || new Date(),
-        constraintDate: safeToDate(t.constraintDate),
-        deadline: safeToDate(t.deadline),
-        notes: t.notes ? t.notes.map((n: any) => ({ ...n, timestamp: safeToDate(n.timestamp) || new Date() })) : undefined,
-        isCollapsed: (collections.userPreferences.data?.collapsedTaskIds || []).includes(t.id),
-    })).sort((a, b) => (a.order || 0) - (b.order || 0));
-
-    // Process subprojects
-    const subprojectTasks: Task[] = [];
-    const subprojectLinks: Link[] = [];
-    // Note: We ignore expandedSubprojectIds from app_settings and use userPreferences.collapsedTaskIds
-    const collapsedTaskIds = collections.userPreferences.data?.collapsedTaskIds || [];
-
-    subprojectsData.subprojects.forEach(sub => {
-        const syntheticRootId = `subproject-${sub.projectId}`;
-
-        // Add synthetic summary task
-        const rootTask: Task = {
-            id: syntheticRootId,
-            name: `[Project] ${sub.projectName}`,
-            start: new Date(), // Will be calculated
-            finish: new Date(), // Will be calculated
-            duration: 0,
-            percentComplete: 0,
-            status: 'Active',
-            isSummary: true,
-            isCollapsed: collapsedTaskIds.includes(syntheticRootId),
-            level: 0,
-            projectId: projectId, // Belongs to parent container
-            projectName: projectData?.name || 'Current Project',
-        };
-        subprojectTasks.push(rootTask);
-
-        // Add subproject tasks reparented
-        const tasks = sub.tasks.map(t => {
-            const isRootInSub = !t.parentId;
-            return {
-                ...t,
-                projectId: sub.projectId, // Explicitly set projectId to ensure data integrity
-                projectName: sub.projectName,
-                projectInitials: sub.initials,
-                parentId: isRootInSub ? syntheticRootId : t.parentId,
-                isCollapsed: collapsedTaskIds.includes(t.id),
-            };
-        });
-        subprojectTasks.push(...tasks);
-        subprojectLinks.push(...sub.links);
-    });
-
-    // Process external data
-    // We append external tasks. They are not part of hierarchy unless linked,
-    // but the scheduler needs them. We should probably not show them in the grid
-    // if they have no parent and are not part of this project,
-    // but `getVisibleTasks` defaults to showing root tasks.
-    // For now, they will appear at the bottom or top of the grid.
-    const externalTasksFiltered = externalData.tasks
-        .filter(t => !subprojectTasks.some(st => st.id === t.id) && !mainTasks.some(mt => mt.id === t.id))
-        .map(t => ({ ...t, isCollapsed: (collections.userPreferences.data?.collapsedTaskIds || []).includes(t.id) }));
-    const externalLinksFiltered = externalData.links.filter(l => !subprojectLinks.some(sl => sl.id === l.id) && !(collections.links.data || []).some(ml => ml.id === l.id));
-
-    const allTasks = [...mainTasks, ...subprojectTasks, ...externalTasksFiltered];
-
-    // Deduplicate links for display and schedule
-    const rawLinks = [...(collections.links.data || []), ...subprojectLinks, ...externalLinksFiltered];
-    const uniqueLinksMap = new Map<string, Link>();
-    const duplicatesToDelete: { id: string, projectId: string }[] = [];
-
-    rawLinks.forEach(link => {
-        const key = `${link.source}-${link.target}`;
-        if (uniqueLinksMap.has(key)) {
-             // Duplicate found.
-             // Determine if it resides in a collection we can write to for cleanup.
-             let linkProjectId: string | null = null;
-
-             if (collections.links.data?.some(l => l.id === link.id)) {
-                 linkProjectId = projectId;
-             } else {
-                 const sub = subprojectsData.subprojects.find(s => s.links.some(l => l.id === link.id));
-                 if (sub) {
-                      linkProjectId = sub.projectId;
-                 }
-             }
-
-             // Only auto-delete duplicates if they belong to the current project to avoid affecting subprojects
-             if (linkProjectId === projectId) {
-                 duplicatesToDelete.push({ id: link.id, projectId: linkProjectId });
-             }
-        } else {
-             uniqueLinksMap.set(key, link);
-        }
-    });
-
-    const allLinks = Array.from(uniqueLinksMap.values());
-
-    // Auto-cleanup duplicates if permissions allow
-    if (duplicatesToDelete.length > 0 && isEditorOrOwner) {
-         // Use setTimeout to avoid side-effects during render/synchronous execution
-         setTimeout(() => {
-             const batch = writeBatch(firestore);
-             let count = 0;
-             duplicatesToDelete.forEach(d => {
-                 const ref = doc(firestore, 'projects', d.projectId, 'links', d.id);
-                 batch.delete(ref);
-                 count++;
-             });
-             if (count > 0) {
-                batch.commit().then(() => {
-                    console.log(`Auto-cleaned ${count} duplicate links.`);
-                }).catch(e => {
-                    console.error("Failed to auto-clean duplicate links:", e);
-                });
-             }
-         }, 2000);
-    }
-
-    if (projectId) {
-        projectColors[projectId] = projectData?.color || '#ef4444';
-        if (projectData?.textColor) projectTextColors[projectId] = projectData.textColor;
-        if (projectData?.criticalPathColor) projectCriticalPathColors[projectId] = projectData.criticalPathColor;
-    }
-    subprojectsData.subprojects.forEach(sub => {
-        if (sub.color) projectColors[sub.projectId] = sub.color;
-        if (sub.textColor) projectTextColors[sub.projectId] = sub.textColor;
-        if (sub.criticalPathColor) projectCriticalPathColors[sub.projectId] = sub.criticalPathColor;
-    });
-
-    internalDispatch({
-        type: 'SET_PROJECT_DATA',
-        payload: {
-            tasks: allTasks,
-            links: allLinks,
-            resources: collections.resources.data || [],
-            assignments: collections.assignments.data || [],
-            calendars: (collections.calendars.data || []).map(c => ({
-                ...c, 
-                exceptions: (c.exceptions || []).map(e => ({
-                    ...e, 
-                    start: safeToDate(e.start) || new Date(),
-                    finish: safeToDate(e.finish) || new Date()
-                }))
-            })),
-            baselines: (collections.baselines.data || []).map(b => ({
-                ...b,
-                createdAt: safeToDate(b.createdAt) || new Date(),
-                tasks: (b.tasks || []).map(t => ({
-                    ...t,
-                    start: safeToDate(t.start) || new Date(),
-                    finish: safeToDate(t.finish) || new Date(),
-                    constraintDate: safeToDate(t.constraintDate),
-                    deadline: safeToDate(t.deadline),
-                }))
-            })),
-            projectColors,
-            projectTextColors,
-            projectCriticalPathColors,
-        }
-    });
-
-    if (!isLoaded) {
-        setIsLoaded(true);
-    }
-  }, [
-    projectId, isMemberLoading, isCheckingAdmin,
-    collections.tasks.data, collections.tasks.isLoading,
-    subprojectsData.subprojects,
-    externalData.tasks, externalData.links,
-    collections.links.data, collections.links.isLoading,
-    collections.resources.data, collections.resources.isLoading,
-    collections.assignments.data, collections.assignments.isLoading,
-    collections.calendars.data, collections.calendars.isLoading,
-    collections.baselines.data, collections.baselines.isLoading,
-    collections.sharedSettings.data, collections.sharedSettings.isLoading,
-  ]);
-
-  // Effect 2: Sync Settings Data
-  useEffect(() => {
-    if (!isLoaded || collections.views.isLoading || collections.sharedSettings.isLoading || collections.userPreferences.isLoading) return;
-    
-    const sharedSettings = collections.sharedSettings.data ? { ...defaultAppSettings, ...collections.sharedSettings.data } : defaultAppSettings;
-    let userPreferences = collections.userPreferences.data ? { ...defaultUserPreferences, ...collections.userPreferences.data } : null;
-
-    if (userPreferences?.ganttSettings?.dateFormat) {
-        try {
-            format(new Date(), userPreferences.ganttSettings.dateFormat);
-        } catch (e) {
-            console.warn(`Invalid date format string "${userPreferences.ganttSettings.dateFormat}" found in user preferences. Resetting to default.`);
-            userPreferences.ganttSettings.dateFormat = defaultUserPreferences.ganttSettings.dateFormat;
-        }
-    }
-    
-    internalDispatch({
-      type: 'SET_PERSISTED_STATE',
-      payload: {
-        views: collections.views.data || [],
-        sharedSettings: sharedSettings,
-        userPreferences: userPreferences,
-        member: member,
-      }
-    });
-  }, [
-    isLoaded,
-    collections.views.isLoading, collections.sharedSettings.isLoading, collections.userPreferences.isLoading, 
-    member, 
-    collections.views.data, collections.sharedSettings.data, collections.userPreferences.data
-  ]);
-
-  const failedLinkRepairs = useRef<Set<string>>(new Set());
-
-  // Effect to repair links with missing project IDs
-  useEffect(() => {
-      if (!isLoaded || !projectId || !isEditorOrOwner) return;
-
-      const currentLinks = historyState.present.links;
-      const currentTasks = historyState.present.tasks;
-
-      const linksToRepair = currentLinks.filter(l =>
-          (!l.sourceProjectId || !l.targetProjectId) &&
-          currentTasks.some(t => t.id === l.source) &&
-          currentTasks.some(t => t.id === l.target) &&
-          !failedLinkRepairs.current.has(l.id)
-      );
-
-      if (linksToRepair.length === 0) return;
-
-      const batch = writeBatch(firestore);
-      let updateCount = 0;
-      const linksBeingRepaired: string[] = [];
-
-      linksToRepair.forEach(link => {
-          const sourceTask = currentTasks.find(t => t.id === link.source);
-          const targetTask = currentTasks.find(t => t.id === link.target);
-
-          if (sourceTask && targetTask) {
-              let linkProjectId = projectId;
-              let found = false;
-
-              if (collections.links.data?.some(l => l.id === link.id)) {
-                  linkProjectId = projectId;
-                  found = true;
-              } else {
-                  const sub = subprojectsData.subprojects.find(s => s.links.some(l => l.id === link.id));
-                  if (sub) {
-                      linkProjectId = sub.projectId;
-                      found = true;
-                  }
-              }
-
-              if (!found) {
-                   console.warn(`Could not find home project for link ${link.id} during repair. Skipping.`);
-                   failedLinkRepairs.current.add(link.id);
-                   return;
-              }
-
-              const linkRef = doc(firestore, 'projects', linkProjectId, 'links', link.id);
-              // Only update if the link actually belongs to this project (it should, based on how loaded)
-              // But safe to just try update
-              batch.update(linkRef, {
-                  sourceProjectId: sourceTask.projectId,
-                  targetProjectId: targetTask.projectId
-              });
-              updateCount++;
-              linksBeingRepaired.push(link.id);
+            return true;
+          });
+          const r1 = visibleTasks.findIndex(t => t.id === s.anchorCell!.taskId);
+          const r2 = visibleTasks.findIndex(t => t.id === s.focusCell!.taskId);
+          if (r1 !== -1 && r2 !== -1) {
+            const rowStart = Math.min(r1, r2);
+            const rowEnd = Math.max(r1, r2);
+            for (let i = rowStart; i <= rowEnd; i++) ids.add(visibleTasks[i].id);
           }
+        }
+        return ids;
+      })();
+
+      const findChildren = (parentId: string) => {
+        currentState.tasks.forEach(t => {
+          if (t.parentId === parentId) {
+            idsToRemove.add(t.id);
+            findChildren(t.id);
+          }
+        });
+      };
+      taskIdsInSelection.forEach(id => {
+        idsToRemove.add(id);
+        findChildren(id);
       });
 
-      if (updateCount > 0) {
-          console.log(`Repairing ${updateCount} links with missing project IDs...`);
-          batch.commit().catch(e => {
-              console.error("Failed to repair links:", e);
-              // Add failed links to ignore list to prevent infinite loop
-              linksBeingRepaired.forEach(id => failedLinkRepairs.current.add(id));
-          });
-      }
-  }, [isLoaded, projectId, isEditorOrOwner, historyState.present.links, historyState.present.tasks, firestore, collections.links.data, subprojectsData]);
+      idsToRemove.forEach(id => {
+        projectApi.deleteTask(projectId, id).catch(console.error);
+      });
+    }
 
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-        if (event.ctrlKey || event.metaKey) {
-            if (event.key === 'z') {
-                event.preventDefault();
-                internalDispatch({ type: 'UNDO' });
-            } else if (event.key === 'y') {
-                 event.preventDefault();
-                internalDispatch({ type: 'REDO' });
-            }
+    // ── Link mutations ──
+    else if (action.type === 'ADD_LINK') {
+      Promise.resolve().then(() => {
+        const currentState = historyStateRef.current.present;
+        const link = currentState.links.find(
+          l => l.source === action.payload.source && l.target === action.payload.target
+        );
+        if (link) {
+          projectApi.createLink(projectId, {
+            sourceTaskId: link.source,
+            targetTaskId: link.target,
+            linkType: link.type,
+            lag: link.lag,
+            sourceProjectId: link.sourceProjectId,
+            targetProjectId: link.targetProjectId,
+          }).catch(console.error);
         }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-        window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+      });
+    } else if (action.type === 'LINK_TASKS') {
+      Promise.resolve().then(() => {
+        const prevLinks = historyStateRef.current.present.links;
+        const currentState = historyStateRef.current.present;
+        const newLinks = currentState.links.filter(
+          l => !prevLinks.some(pl => pl.id === l.id)
+        );
+        newLinks.forEach(link => {
+          projectApi.createLink(projectId, {
+            sourceTaskId: link.source,
+            targetTaskId: link.target,
+            linkType: link.type,
+            lag: link.lag,
+            sourceProjectId: link.sourceProjectId,
+            targetProjectId: link.targetProjectId,
+          }).catch(console.error);
+        });
+      });
+    } else if (action.type === 'REMOVE_LINK') {
+      projectApi.deleteLink(projectId, action.payload.linkId).catch(console.error);
+    }
 
-  const saveSnapshot = useCallback(async (name: string) => {
-      if (!projectId || !isEditorOrOwner || !user) return;
+    // ── Resource mutations ──
+    else if (action.type === 'ADD_RESOURCE') {
+      Promise.resolve().then(() => {
+        const currentState = historyStateRef.current.present;
+        const newId = action.payload?.id;
+        const resource = newId
+          ? currentState.resources.find(r => r.id === newId)
+          : currentState.resources[currentState.resources.length - 1];
+        if (resource) {
+          projectApi.createResource(projectId, resource).catch(console.error);
+        }
+      });
+    } else if (action.type === 'UPDATE_RESOURCE') {
+      const { id, ...updates } = action.payload;
+      projectApi.updateResource(projectId, { id, ...updates }).catch(console.error);
+    } else if (action.type === 'REMOVE_RESOURCE') {
+      projectApi.deleteResource(projectId, { id: action.payload.resourceId }).catch(console.error);
+    }
 
-      const currentState = historyStateRef.current.present;
+    // ── Assignment mutations ──
+    else if (action.type === 'ADD_ASSIGNMENT') {
+      Promise.resolve().then(() => {
+        const currentState = historyStateRef.current.present;
+        const assignment = currentState.assignments.find(
+          a => a.taskId === action.payload.taskId && a.resourceId === action.payload.resourceId
+        );
+        if (assignment) {
+          projectApi.createAssignment(projectId, {
+            taskId: assignment.taskId,
+            resourceId: assignment.resourceId,
+            units: assignment.units,
+          }).catch(console.error);
+        }
+      });
+    } else if (action.type === 'REMOVE_ASSIGNMENT') {
+      projectApi.deleteAssignment(projectId, { id: action.payload.id }).catch(console.error);
+    }
+  }, [projectId, schedulePersist]);
 
-      const stateToSave = {
-          tasks: currentState.tasks.map(t => toFirestoreTask(t, { keepViewOptions: true })),
-          links: currentState.links,
-          resources: currentState.resources.map(r => toFirestoreResource(r)),
-          assignments: currentState.assignments,
-          calendars: currentState.calendars,
-          baselines: currentState.baselines,
-          projectColors: currentState.projectColors,
-          columns: currentState.columns,
-          visibleColumns: currentState.visibleColumns,
-          grouping: currentState.grouping,
-          groupingState: currentState.groupingState,
-          filters: currentState.filters,
-          views: currentState.views,
-          currentViewId: currentState.currentViewId,
-          ganttSettings: currentState.ganttSettings,
-          stylePresets: currentState.stylePresets,
-          activeStylePresetId: currentState.activeStylePresetId,
-          uiDensity: currentState.uiDensity,
-      };
+  const saveSnapshot = useCallback(async (_name: string) => {
+    // TODO(T5): implement via API
+    toast({ variant: 'destructive', title: 'Not implemented', description: 'Snapshots not yet available.' });
+  }, [toast]);
 
-      try {
-          await addDoc(collection(firestore, 'projects', projectId, 'snapshots'), {
-              name,
-              createdAt: serverTimestamp(),
-              createdBy: user.uid,
-              data: JSON.stringify(stateToSave)
-          });
-          toast({ title: "Snapshot Saved", description: `Snapshot "${name}" has been saved.` });
-      } catch (e) {
-          console.error("Error saving snapshot:", e);
-          toast({ variant: "destructive", title: "Error", description: "Failed to save snapshot." });
-      }
-  }, [projectId, isEditorOrOwner, user, firestore, toast]);
+  const restoreSnapshot = useCallback((_snapshot: Snapshot) => {
+    // TODO(T5): implement via API
+    toast({ variant: 'destructive', title: 'Not implemented', description: 'Snapshots not yet available.' });
+  }, [toast]);
 
-  const restoreSnapshot = useCallback(async (snapshot: Snapshot) => {
-      if (!isEditorOrOwner) return;
-      try {
-          const parsedState = JSON.parse(snapshot.data, (key, value) => {
-              if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-                  return new Date(value);
-              }
-              return value;
-          });
-
-          if (parsedState.tasks) {
-              parsedState.tasks = parsedState.tasks.map(sanitizeRestoredTask);
-          }
-
-          dispatch({ type: 'LOAD_PROJECT', payload: parsedState });
-          toast({ title: "Snapshot Restored", description: `Project restored to "${snapshot.name}".` });
-      } catch (e) {
-          console.error("Error restoring snapshot:", e);
-          toast({ variant: "destructive", title: "Error", description: "Failed to restore snapshot." });
-      }
-  }, [dispatch, isEditorOrOwner, toast]);
-
-  const deleteSnapshot = useCallback(async (snapshotId: string) => {
-      if (!projectId || !isEditorOrOwner) return;
-      try {
-          await deleteDoc(doc(firestore, 'projects', projectId, 'snapshots', snapshotId));
-          toast({ title: "Snapshot Deleted" });
-      } catch (e) {
-           console.error("Error deleting snapshot:", e);
-           toast({ variant: "destructive", title: "Error", description: "Failed to delete snapshot." });
-      }
-  }, [projectId, isEditorOrOwner, firestore, toast]);
+  const deleteSnapshot = useCallback(async (_snapshotId: string) => {
+    // TODO(T5): implement via API
+    toast({ variant: 'destructive', title: 'Not implemented', description: 'Snapshots not yet available.' });
+  }, [toast]);
 
   const previewSnapshot = useCallback((snapshot: Snapshot) => {
-      try {
-          const parsedState = JSON.parse(snapshot.data, (key, value) => {
-              if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-                  return new Date(value);
-              }
-              return value;
-          });
-
-          if (parsedState.tasks) {
-              parsedState.tasks = parsedState.tasks.map(sanitizeRestoredTask);
-          }
-
-          setPreviewState(parsedState);
-          setViewingSnapshotId(snapshot.id);
-      } catch (e) {
-          console.error("Error parsing snapshot for preview:", e);
-          toast({ variant: "destructive", title: "Error", description: "Failed to preview snapshot." });
+    try {
+      const parsedState = JSON.parse(snapshot.data, (key, value) => {
+        if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+          return new Date(value);
+        }
+        return value;
+      });
+      if (parsedState.tasks) {
+        parsedState.tasks = parsedState.tasks.map(sanitizeRestoredTask);
       }
+      setPreviewState(parsedState);
+      setViewingSnapshotId(snapshot.id);
+    } catch (e) {
+      console.error("Error parsing snapshot for preview:", e);
+      toast({ variant: "destructive", title: "Error", description: "Failed to preview snapshot." });
+    }
   }, [toast]);
 
   const exitPreview = useCallback(() => {
-      setViewingSnapshotId(null);
-      setPreviewState(null);
+    setViewingSnapshotId(null);
+    setPreviewState(null);
   }, []);
 
-  return { 
+  return {
     state: viewingSnapshotId && previewState ? previewState : historyState.present,
     dispatch,
-    isLoaded: isLoaded && projectId && !isCheckingAdmin && !isMemberLoading,
-    isEditorOrOwner: isEditorOrOwner,
+    isLoaded,
+    isEditorOrOwner,
     canUndo: historyState.past.length > 0,
     canRedo: historyState.future.length > 0,
     history: {
@@ -3308,10 +2333,10 @@ export function useProject(user: User, projectId: string | null) {
             payloadDescription: getPayloadDescription(h.action, historyState.present.tasks),
             timestamp: new Date()
         })),
-        index: historyState.past.length -1
+        index: historyState.past.length - 1
     },
-    persistentHistory: collections.history.data || [],
-    snapshots: collections.snapshots.data || [],
+    persistentHistory: [] as PersistentHistoryEntry[],
+    snapshots: [] as Snapshot[],
     saveSnapshot,
     restoreSnapshot,
     deleteSnapshot,

@@ -25,10 +25,8 @@ import { format } from "date-fns";
 
 // ─────────────────────────────────────────────────────────
 // CONFIG
+// (Client-side direct HF Space fetch removed — import now goes through /api/import)
 // ─────────────────────────────────────────────────────────
-const API_BASE =
-  process.env.NEXT_PUBLIC_OMNIPLAN_API_URL ??
-  "https://vincentheloin-omniplan-converter.hf.space";
 
 export const SERVER_EXTENSIONS = new Set([
   ".mpp", ".mpt", ".mpx",
@@ -44,7 +42,7 @@ export const SERVER_EXTENSIONS = new Set([
 // ─────────────────────────────────────────────────────────
 // HF /analyze response shape
 // ─────────────────────────────────────────────────────────
-interface HFAnalyzeResponse {
+export interface HFAnalyzeResponse {
   project_info: Record<string, string>;
   tasks: Record<string, string>[];
   resources: Record<string, string>[];
@@ -92,23 +90,13 @@ export async function analyzeProjectFile(
 }
 
 // ─────────────────────────────────────────────────────────
-// SERVER CALL
+// SERVER CALL (removed — file import is handled by /api/import route)
 // ─────────────────────────────────────────────────────────
 
 async function analyzeViaServer(file: File): Promise<ImportedProjectData> {
-  const fd = new FormData();
-  fd.append("file", file);
-
-  const res = await fetch(`${API_BASE}/analyze`, { method: "POST", body: fd });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Analysis failed" }));
-    throw new Error(err.error || `Server Error ${res.status}`);
-  }
-
-  const raw: HFAnalyzeResponse = await res.json();
-  if (raw.error) throw new Error(raw.error);
-
-  return mapAnalyzeResponse(raw, file.name);
+  throw new Error(
+    `Direct converter fetch is disabled. Use POST /api/import instead. (file: ${file.name})`
+  );
 }
 
 // ─────────────────────────────────────────────────────────
@@ -222,7 +210,7 @@ function sourceLabel(filename: string): string {
 // FULL JSON → ImportedProjectData MAPPER
 // ─────────────────────────────────────────────────────────
 
-function mapAnalyzeResponse(
+export function mapAnalyzeResponse(
   raw: HFAnalyzeResponse,
   filename: string
 ): ImportedProjectData {
@@ -433,7 +421,7 @@ function mapAnalyzeResponse(
   // Compute parent hierarchy
   const stack: Task[] = [];
   tasks.forEach((task) => {
-    while (stack.length > 0 && stack[stack.length - 1].level >= task.level) stack.pop();
+    while (stack.length > 0 && (stack[stack.length - 1].level ?? 0) >= (task.level ?? 0)) stack.pop();
     if (stack.length > 0) task.parentId = stack[stack.length - 1].id;
     stack.push(task);
   });

@@ -1,6 +1,6 @@
 'use client';
 import { ProjectPage as ProjectPageComponent } from '@/components/project-page';
-import { useUser } from '@/firebase';
+import { useUser } from '@/providers/auth-provider';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -16,7 +16,7 @@ export default function ProjectPage() {
             router.replace('/');
         }
     }, [isUserLoading, user, router]);
-    
+
     // Show a loading/authenticating message while checking the user's status.
     if (isUserLoading || !user) {
         return (
@@ -25,7 +25,7 @@ export default function ProjectPage() {
             </div>
         );
     }
-    
+
     if (!projectId) {
         // Handle cases where projectId is not available in the URL, though unlikely.
          return (
@@ -34,7 +34,7 @@ export default function ProjectPage() {
             </div>
         );
     }
-    
+
     // Once authenticated and projectId is available, render the main project page.
     return <ProjectPageComponent user={user} projectId={projectId} />;
 }

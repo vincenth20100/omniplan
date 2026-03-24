@@ -2,15 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { User } from 'firebase/auth';
-import { useFirestore, useAuth } from '@/firebase';
-import { collection, doc, getDoc, getDocs, writeBatch, deleteDoc, updateDoc, arrayRemove, query, arrayUnion } from 'firebase/firestore';
+import type { AppUser } from '@/types/auth';
 import type { Project } from '@/lib/types';
-import { fetchProjectsByIds } from '@/lib/firestore-helpers';
-import { initialTasks, initialLinks, initialResources, initialAssignments, initialCalendars } from '@/lib/mock-data';
 import { ALL_COLUMNS } from '@/lib/columns';
-import { removeUndefined } from '@/lib/utils';
-import { signOut } from 'firebase/auth';
+import { useAuth } from '@/providers/auth-provider';
+import { projectApi } from '@/services/project-api';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -42,9 +38,8 @@ import { ImportedProjectData } from '@/lib/import-utils';
 import { Upload } from 'lucide-react';
 import { useIsAdmin } from '@/hooks/use-is-admin';
 
-export function ProjectSelectionPage({ user }: { user: User }) {
-    const firestore = useFirestore();
-    const auth = useAuth();
+export function ProjectSelectionPage({ user }: { user: AppUser }) {
+    const { logout } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
     const [projects, setProjects] = useState<ProjectWithMetadata[]>([]);
@@ -52,8 +47,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     const [isCreating, setIsCreating] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
-    const [isCloning, setIsCloning] = useState<string | null>(null);
-    const [isDeleting, setIsDeleting] = useState<string | null>(null);
+    const [isCloning] = useState<string | null>(null);
     const [projectToDelete, setProjectToDelete] = useState<ProjectWithMetadata | null>(null);
     const { isAdmin, isLoading: isCheckingAdmin } = useIsAdmin(user);
     const [isUserAdminOpen, setIsUserAdminOpen] = useState(false);
@@ -61,42 +55,29 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState<ProjectWithMetadata | null>(null);
 
-    const handleSignOut = () => {
-        signOut(auth);
-    }
-
-    // Sync user profile to users collection
+    // Load projects from API on mount
     useEffect(() => {
-        if (user && firestore) {
-            const syncUser = async () => {
-                const userRef = doc(firestore, 'users', user.uid);
-                // Try update first
-                try {
-                     await updateDoc(userRef, {
-                        displayName: user.displayName,
-                        email: user.email,
-                        photoURL: user.photoURL,
-                        lastLogin: new Date(),
-                    });
-                } catch (e: any) {
-                    // If document doesn't exist, create it with set (using batch for consistency with other parts or just setDoc)
-                    if (e.code === 'not-found') {
-                         const batch = writeBatch(firestore);
-                         batch.set(userRef, {
-                            id: user.uid,
-                            projectIds: [],
-                            displayName: user.displayName,
-                            email: user.email,
-                            photoURL: user.photoURL,
-                            lastLogin: new Date(),
-                         });
-                         await batch.commit();
-                    }
-                }
-            };
-            syncUser();
-        }
-    }, [user, firestore]);
+        let cancelled = false;
+        setIsLoading(true);
+        projectApi.listProjects()
+            .then((rows) => {
+                if (cancelled) return;
+                setProjects(rows as ProjectWithMetadata[]);
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                console.error('Failed to load projects:', err);
+                toast({ variant: 'destructive', title: 'Error', description: 'Failed to load projects.' });
+            })
+            .finally(() => {
+                if (!cancelled) setIsLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [toast]);
+
+    const handleSignOut = () => {
+        logout();
+    }
 
     const handleOpenSettings = (project: ProjectWithMetadata) => {
         setSelectedProject(project);
@@ -104,454 +85,56 @@ export function ProjectSelectionPage({ user }: { user: User }) {
     };
 
     const handleArchiveProject = async (project: ProjectWithMetadata) => {
-        if (!firestore) return;
         try {
-            const newStatus = project.status === 'Archived' ? 'Active' : 'Archived';
-            await updateDoc(doc(firestore, 'projects', project.id), { status: newStatus });
-
-            setProjects(prev => prev.map(p => p.id === project.id ? { ...p, status: newStatus } : p));
-             toast({
-                title: `Project ${newStatus === 'Archived' ? 'Archived' : 'Restored'}`,
-                description: `"${project.name}" has been ${newStatus === 'Archived' ? 'archived' : 'restored'}.`,
-            });
-        } catch (error) {
-            console.error("Error updating project status:", error);
-             toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not update project status."
-            });
+            await projectApi.updateProject(project.id, { status: 'archived' });
+            setProjects(prev => prev.filter(p => p.id !== project.id));
+            toast({ title: 'Project archived', description: `"${project.name}" has been archived.` });
+        } catch (err) {
+            console.error('Failed to archive project:', err);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to archive project.' });
         }
     }
 
-    useEffect(() => {
-        const fetchProjects = async () => {
-            if (!firestore || !user || isCheckingAdmin) return;
-            setIsLoading(true);
-
-            try {
-                let fetchedProjects: ProjectWithMetadata[] = [];
-                let adminFetchFailed = false;
-
-                if (isAdmin) {
-                    try {
-                        const projectsQuery = query(collection(firestore, 'projects'));
-                        const querySnapshot = await getDocs(projectsQuery);
-                        fetchedProjects = querySnapshot.docs.map(snap => {
-                            const data = snap.data() as Project;
-                            return {
-                                ...data,
-                                id: snap.id,
-                                createdAt: data.createdAt ? (data.createdAt as any).toDate() : new Date(),
-                                startDate: data.startDate ? (data.startDate as any).toDate() : undefined,
-                                finishDate: data.finishDate ? (data.finishDate as any).toDate() : undefined,
-                                lastModified: data.lastModified ? (data.lastModified as any).toDate() : undefined,
-                            } as ProjectWithMetadata;
-                        });
-                    } catch (error) {
-                        console.warn("Admin fetch failed, falling back to user fetch:", error instanceof Error ? error.message : error);
-                        adminFetchFailed = true;
-                    }
-                }
-
-                if (!isAdmin || adminFetchFailed) {
-                    const userDocRef = doc(firestore, 'users', user.uid);
-                    const userDoc = await getDoc(userDocRef);
-
-                    if (userDoc.exists()) {
-                        const projectIds = userDoc.data().projectIds || [];
-                        if (projectIds.length > 0) {
-                            const projects = await fetchProjectsByIds(firestore, projectIds);
-                            fetchedProjects = projects.map(p => ({
-                                ...p,
-                                createdAt: p.createdAt ? (p.createdAt as any).toDate() : new Date(),
-                                startDate: p.startDate ? (p.startDate as any).toDate() : undefined,
-                                finishDate: p.finishDate ? (p.finishDate as any).toDate() : undefined,
-                                lastModified: p.lastModified ? (p.lastModified as any).toDate() : undefined,
-                            } as ProjectWithMetadata));
-                        }
-                    }
-                }
-                setProjects(fetchedProjects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-            } catch (error) {
-                console.error("Error fetching projects:", error);
-                toast({
-                    variant: "destructive",
-                    title: "Error fetching projects",
-                    description: "Could not load your projects. Please check your connection and permissions."
-                });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchProjects();
-    }, [firestore, user, isAdmin, isCheckingAdmin, toast]);
-
     const handleCreateProject = async () => {
-        if (!firestore) return;
         setIsCreating(true);
         try {
-            const newProjectId = `proj-${Date.now()}`;
-            const batch = writeBatch(firestore);
-
-            const projectDocRef = doc(firestore, 'projects', newProjectId);
-            batch.set(projectDocRef, {
-                id: newProjectId,
-                name: 'My New Project',
-                ownerId: user.uid,
-                createdAt: new Date(),
-                memberIds: [user.uid],
-                initials: 'MN',
-                status: 'Active',
-                taskCount: initialTasks.length,
-                lastModified: new Date(),
-            });
-
-            const memberDocRef = doc(firestore, 'projects', newProjectId, 'members', user.uid);
-            batch.set(memberDocRef, {
-                userId: user.uid,
-                role: 'owner',
-                displayName: user.displayName || 'User',
-                photoURL: user.photoURL || '',
-            });
-
-            const userDocRef = doc(firestore, 'users', user.uid);
-            batch.set(userDocRef, { id: user.uid, projectIds: arrayUnion(newProjectId) }, { merge: true });
-            
-            initialTasks.forEach((task, index) => {
-                const docRef = doc(firestore, 'projects', newProjectId, 'tasks', task.id);
-                batch.set(docRef, { ...task, order: index });
-            });
-            initialLinks.forEach(link => {
-                const docRef = doc(firestore, 'projects', newProjectId, 'links', link.id);
-                batch.set(docRef, link);
-            });
-            initialResources.forEach(resource => {
-                const docRef = doc(firestore, 'projects', newProjectId, 'resources', resource.id);
-                batch.set(docRef, resource);
-            });
-            initialAssignments.forEach(assignment => {
-                const docRef = doc(firestore, 'projects', newProjectId, 'assignments', assignment.id);
-                batch.set(docRef, assignment);
-            });
-            initialCalendars.forEach(calendar => {
-                const docRef = doc(firestore, 'projects', newProjectId, 'calendars', calendar.id);
-                batch.set(docRef, calendar);
-            });
-
-            await batch.commit();
-            router.push(`/${newProjectId}`);
-        } catch (error) {
-            console.error("Error creating project:", error);
-            toast({
-                variant: 'destructive',
-                title: "Error Creating Project",
-                description: "There was an issue creating your new project. Please try again.",
-            });
+            const name = `New Project ${new Date().toLocaleDateString()}`;
+            const created = await projectApi.createProject({ name });
+            setProjects(prev => [...prev, created as ProjectWithMetadata]);
+            router.push(`/${created.id}`);
+        } catch (err) {
+            console.error('Failed to create project:', err);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to create project.' });
+        } finally {
             setIsCreating(false);
         }
     };
 
-    const handleImportProject = async (data: ImportedProjectData) => {
-        if (!firestore) return;
+    const handleImportProject = async (_data: ImportedProjectData) => {
+        // TODO(T5): implement full import via API
         setIsImporting(true);
-        try {
-            const newProjectId = `proj-${Date.now()}`;
-            const batch = writeBatch(firestore);
-
-            const projectDocRef = doc(firestore, 'projects', newProjectId);
-            batch.set(projectDocRef, {
-                id: newProjectId,
-                name: data.name,
-                ownerId: user.uid,
-                createdAt: new Date(),
-                memberIds: [user.uid],
-                initials: data.name.substring(0, 2).toUpperCase(),
-                status: 'Active',
-                taskCount: data.tasks.length,
-                lastModified: new Date(),
-                // Try to infer start/finish from tasks
-                startDate: data.tasks.length > 0 ? new Date(Math.min(...data.tasks.map(t => t.start.getTime()))) : new Date(),
-                finishDate: data.tasks.length > 0 ? new Date(Math.max(...data.tasks.map(t => t.finish.getTime()))) : new Date(),
-            });
-
-            const memberDocRef = doc(firestore, 'projects', newProjectId, 'members', user.uid);
-            batch.set(memberDocRef, {
-                userId: user.uid,
-                role: 'owner',
-                displayName: user.displayName || 'User',
-                photoURL: user.photoURL || '',
-            });
-
-            const userDocRef = doc(firestore, 'users', user.uid);
-            batch.set(userDocRef, { id: user.uid, projectIds: arrayUnion(newProjectId) }, { merge: true });
-
-            await batch.commit(); // Commit project structure first
-
-            // Batch writes for subcollections
-            const allWriteOps: { path: string, data: any }[] = [];
-
-            data.tasks.forEach((task, index) => {
-                allWriteOps.push({
-                     path: `projects/${newProjectId}/tasks/${task.id}`,
-                     data: removeUndefined({ ...task, order: index }) // Add order if needed
-                });
-            });
-             data.links.forEach(link => {
-                allWriteOps.push({
-                     path: `projects/${newProjectId}/links/${link.id}`,
-                     data: removeUndefined(link)
-                });
-            });
-            data.resources.forEach(resource => {
-                allWriteOps.push({
-                     path: `projects/${newProjectId}/resources/${resource.id}`,
-                     data: removeUndefined(resource)
-                });
-            });
-            data.assignments.forEach(assignment => {
-                allWriteOps.push({
-                     path: `projects/${newProjectId}/assignments/${assignment.id}`,
-                     data: removeUndefined(assignment)
-                });
-            });
-             // Add default calendar if not present
-             if (data.calendars.length === 0) {
-                 initialCalendars.forEach(cal => {
-                     allWriteOps.push({
-                         path: `projects/${newProjectId}/calendars/${cal.id}`,
-                         data: removeUndefined(cal)
-                     });
-                 });
-             } else {
-                 data.calendars.forEach(cal => {
-                    allWriteOps.push({
-                        path: `projects/${newProjectId}/calendars/${cal.id}`,
-                        data: removeUndefined(cal)
-                    });
-                 });
-             }
-
-
-            const BATCH_SIZE = 490;
-            for (let i = 0; i < allWriteOps.length; i += BATCH_SIZE) {
-                const chunk = allWriteOps.slice(i, i + BATCH_SIZE);
-                const dataBatch = writeBatch(firestore);
-                chunk.forEach(op => {
-                    const docRef = doc(firestore, op.path);
-                    dataBatch.set(docRef, op.data);
-                });
-                await dataBatch.commit();
-            }
-
-            router.push(`/${newProjectId}`);
-        } catch (error) {
-            console.error("Error importing project:", error);
-            toast({
-                variant: 'destructive',
-                title: "Error Importing Project",
-                description: "There was an issue importing your project. Please try again.",
-            });
-            setIsImporting(false);
-        }
+        toast({ variant: "destructive", title: "Not implemented", description: "Import not yet available." });
+        setIsImporting(false);
     };
-    
-    const handleCloneProject = async (sourceProjectId: string) => {
-        if (!firestore) return;
-        setIsCloning(sourceProjectId);
 
-        try {
-            const sourceProjectDoc = await getDoc(doc(firestore, 'projects', sourceProjectId));
-            if (!sourceProjectDoc.exists()) throw new Error("Source project not found");
-
-            const newProjectId = `proj-${Date.now()}`;
-            
-            // --- Initial Project and User Setup (First Batch) ---
-            const initialBatch = writeBatch(firestore);
-            
-            // 1. Create the new project document
-            const sourceData = sourceProjectDoc.data() as Project;
-            initialBatch.set(doc(firestore, 'projects', newProjectId), {
-                id: newProjectId,
-                name: `${sourceData.name} (Clone)`,
-                ownerId: user.uid,
-                createdAt: new Date(),
-                memberIds: [user.uid],
-                initials: sourceData.initials || sourceData.name.substring(0, 2).toUpperCase(),
-                status: 'Active',
-                taskCount: sourceData.taskCount,
-                startDate: sourceData.startDate,
-                finishDate: sourceData.finishDate,
-                duration: sourceData.duration,
-                lastModified: new Date(),
-            });
-
-            // 2. Create the owner's member document for the new project
-            initialBatch.set(doc(firestore, 'projects', newProjectId, 'members', user.uid), {
-                userId: user.uid,
-                role: 'owner',
-                displayName: user.displayName || 'User',
-                photoURL: user.photoURL || '',
-            });
-
-            // 3. Add the new project to the user's project list
-            initialBatch.update(doc(firestore, 'users', user.uid), { projectIds: arrayUnion(newProjectId) });
-            
-            await initialBatch.commit();
-            
-            // --- Batch Copy Subcollections ---
-            const subcollections = ['tasks', 'links', 'resources', 'assignments', 'calendars', 'views', 'settings'];
-            const allWriteOps: { collectionPath: string, docId: string, data: any }[] = [];
-
-            const subcollectionPromises = subcollections.map(async (sub) => {
-                const sourceCol = await getDocs(collection(firestore, 'projects', sourceProjectId, sub));
-                return { sub, sourceCol };
-            });
-
-            const results = await Promise.all(subcollectionPromises);
-
-            results.forEach(({ sub, sourceCol }) => {
-                sourceCol.forEach(docSnap => {
-                    allWriteOps.push({
-                        collectionPath: `projects/${newProjectId}/${sub}`,
-                        docId: docSnap.id,
-                        data: docSnap.data(),
-                    });
-                });
-            });
-
-            const chunkSize = 490; // Firestore batch limit is 500, being safe
-            for (let i = 0; i < allWriteOps.length; i += chunkSize) {
-                const chunk = allWriteOps.slice(i, i + chunkSize);
-                const dataBatch = writeBatch(firestore);
-                chunk.forEach(op => {
-                    const docRef = doc(firestore, op.collectionPath, op.docId);
-                    dataBatch.set(docRef, op.data);
-                });
-                await dataBatch.commit();
-            }
-
-            toast({
-                title: "Project Cloned",
-                description: "Your project has been successfully cloned.",
-            });
-            
-            const newProjectDoc = await getDoc(doc(firestore, 'projects', newProjectId));
-            const newProject = newProjectDoc.data() as Project;
-            setProjects(prev => [{
-                ...newProject,
-                id: newProjectId,
-                createdAt: newProject.createdAt ? (newProject.createdAt as any).toDate() : new Date(),
-                startDate: newProject.startDate ? (newProject.startDate as any).toDate() : undefined,
-                finishDate: newProject.finishDate ? (newProject.finishDate as any).toDate() : undefined,
-                lastModified: newProject.lastModified ? (newProject.lastModified as any).toDate() : undefined,
-            } as ProjectWithMetadata, ...prev].sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
-
-        } catch (error) {
-             console.error("Error cloning project:", error);
-            toast({
-                variant: 'destructive',
-                title: "Error Cloning Project",
-                description: (error as Error).message || "There was an issue cloning the project.",
-            });
-        } finally {
-            setIsCloning(null);
-        }
+    const handleCloneProject = async (_sourceProjectId: string) => {
+        // TODO(T5): implement clone via API
+        toast({ variant: "destructive", title: "Not implemented", description: "Clone not yet available." });
     }
 
     const handleDeleteProject = async () => {
-        if (!projectToDelete || !firestore) return;
-        setIsDeleting(projectToDelete.id);
-
+        if (!projectToDelete) return;
         try {
-            if (projectToDelete.ownerId !== user.uid && !isAdmin) {
-                throw new Error("You do not have permission to delete this project.");
-            }
-
-            const subcollections = ['tasks', 'links', 'resources', 'assignments', 'calendars', 'views', 'settings', 'members'];
-
-            // Fetch all subcollections in parallel
-            const subColSnapshots = await Promise.all(
-                subcollections.map(sub =>
-                    getDocs(query(collection(firestore, 'projects', projectToDelete.id, sub)))
-                )
-            );
-
-            // Aggregate all documents to delete
-            const allDocsToDelete: any[] = [];
-            let currentUserMemberDocRef: any = null;
-
-            subColSnapshots.forEach(snapshot => {
-                snapshot.forEach(docSnap => {
-                    // Check if this is the current user's member document
-                    // We need to preserve this until the end so the user retains permissions to delete everything else
-                    if (docSnap.ref.path.includes('/members/') && docSnap.id === user.uid) {
-                        currentUserMemberDocRef = docSnap.ref;
-                    } else {
-                        allDocsToDelete.push(docSnap.ref);
-                    }
-                });
-            });
-
-            // Batch delete (chunking by 500)
-            const BATCH_SIZE = 500;
-            const batchPromises = [];
-
-            for (let i = 0; i < allDocsToDelete.length; i += BATCH_SIZE) {
-                const batch = writeBatch(firestore);
-                const chunk = allDocsToDelete.slice(i, i + BATCH_SIZE);
-                chunk.forEach(ref => batch.delete(ref));
-                batchPromises.push(batch.commit());
-            }
-
-            await Promise.all(batchPromises);
-
-            // Remove project ID from all members' user docs
-            if (projectToDelete.memberIds && projectToDelete.memberIds.length > 0) {
-                const memberUpdatePromises = projectToDelete.memberIds.map(async (memberId) => {
-                    // Only attempt to update if we have permission (self or admin)
-                    // We catch errors to prevent one failure from stopping the whole process
-                    if (memberId !== user.uid && !isAdmin) return;
-
-                    try {
-                        const userDocRef = doc(firestore, 'users', memberId);
-                        await updateDoc(userDocRef, { projectIds: arrayRemove(projectToDelete.id) });
-                    } catch (error) {
-                        console.warn(`Failed to remove project from user ${memberId}`, error);
-                    }
-                });
-                await Promise.all(memberUpdatePromises);
-            }
-
-            // Finally, delete the current user's member document
-            if (currentUserMemberDocRef) {
-                await deleteDoc(currentUserMemberDocRef);
-            }
-
-            // Delete the project document (relies on member doc or ownerId)
-            await deleteDoc(doc(firestore, 'projects', projectToDelete.id));
-            
-            toast({
-                title: "Project Deleted",
-                description: `"${projectToDelete.name}" has been deleted.`,
-            });
-
+            await projectApi.deleteProject(projectToDelete.id);
             setProjects(prev => prev.filter(p => p.id !== projectToDelete.id));
-
-        } catch (error) {
-             console.error("Error deleting project:", error);
-            toast({
-                variant: 'destructive',
-                title: "Error Deleting Project",
-                description: (error as Error).message || "Could not delete the project. Please try again.",
-            });
+            toast({ title: 'Project deleted', description: `"${projectToDelete.name}" has been deleted.` });
+        } catch (err) {
+            console.error('Failed to delete project:', err);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete project.' });
         } finally {
-            setIsDeleting(null);
             setProjectToDelete(null);
         }
     }
-
 
     if (isLoading || isCheckingAdmin) {
         return (
@@ -560,7 +143,7 @@ export function ProjectSelectionPage({ user }: { user: User }) {
             </div>
         );
     }
-    
+
     return (
         <div className="container mx-auto p-4 md:p-8">
             <header className="flex justify-between items-center mb-8">
@@ -592,15 +175,15 @@ export function ProjectSelectionPage({ user }: { user: User }) {
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                                 <Avatar className="h-10 w-10">
-                                    <AvatarImage src={user.photoURL || undefined} alt={user.displayName || 'User'} />
-                                    <AvatarFallback>{user.displayName?.charAt(0) || 'U'}</AvatarFallback>
+                                    <AvatarImage src={user.avatarUrl || undefined} alt={user.name || 'User'} />
+                                    <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
                                 </Avatar>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="w-56" align="end" forceMount>
                             <DropdownMenuLabel className="font-normal">
                                 <div className="flex flex-col space-y-1">
-                                    <p className="text-sm font-medium leading-none">{user.displayName}</p>
+                                    <p className="text-sm font-medium leading-none">{user.name}</p>
                                     <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                                 </div>
                             </DropdownMenuLabel>

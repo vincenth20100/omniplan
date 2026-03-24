@@ -1,5 +1,6 @@
 'use client';
 import type { ProjectState, Task } from '@/lib/types';
+import type { AppUser as User } from '@/types/auth';
 import { KanbanColumn } from './kanban-column';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { TaskDetailsPanel } from '@/components/details/task-details-panel';

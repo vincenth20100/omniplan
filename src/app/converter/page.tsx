@@ -1,16 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
-import { Loader2, FileType, CheckCircle, Download, FileSpreadsheet } from "lucide-react";
-import { convertProjectFile } from "@/lib/omniplan-utils";
+import { Loader2, Upload, CheckCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/providers/auth-provider";
 
 export default function ConverterPage() {
+    const router = useRouter();
+    const { user } = useAuth();
+
     const [file, setFile] = useState<File | null>(null);
-    const [loading, setLoading] = useState<string | null>(null); // 'json', 'xml', 'xlsx' or null
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
@@ -22,32 +26,39 @@ export default function ConverterPage() {
         }
     };
 
-    const handleConvert = async (format: 'json' | 'xml' | 'xlsx') => {
+    const handleImport = async () => {
         if (!file) return;
-        setLoading(format);
+        setLoading(true);
         setError(null);
         setSuccess(null);
 
         try {
-            const blob = await convertProjectFile(file, format);
+            const token = user?.token ?? '';
 
-            // Trigger download
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const ext = format === 'xlsx' ? 'xlsx' : format; // json->json, xml->xml
-            a.download = `${file.name.replace(/\.[^/.]+$/, "")}.${ext}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
+            const formData = new FormData();
+            formData.append('file', file);
 
-            setSuccess(`Successfully converted to ${format.toUpperCase()}`);
+            const res = await fetch('/api/import', {
+                method: 'POST',
+                body: formData,
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({ error: 'Import failed' }));
+                throw new Error(body.error ?? `Server error ${res.status}`);
+            }
+
+            const { projectId } = await res.json();
+            setSuccess(`Project imported successfully (id: ${projectId})`);
+
+            // Redirect to the newly created project
+            router.push(`/${projectId}`);
         } catch (err) {
             console.error(err);
-            setError((err as Error).message || "Conversion failed");
+            setError((err as Error).message || 'Import failed');
         } finally {
-            setLoading(null);
+            setLoading(false);
         }
     };
 
@@ -55,9 +66,9 @@ export default function ConverterPage() {
         <div className="container max-w-2xl mx-auto py-10 px-4">
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-2xl">Project File Converter</CardTitle>
+                    <CardTitle className="text-2xl">Import Project File</CardTitle>
                     <CardDescription>
-                        Upload a Microsoft Project (.mpp) file and convert it to XML, JSON, or Excel.
+                        Upload a project file (.mpp, .xer, .xml, .xlsx, etc.) to import it into OmniPlan.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -65,11 +76,11 @@ export default function ConverterPage() {
                         <Input
                             id="file"
                             type="file"
-                            accept=".mpp"
+                            accept=".mpp,.mpt,.mpx,.xer,.pmxml,.xml,.xlsx,.csv,.pp,.pod,.planner,.gan,.sdef,.fts"
                             onChange={handleFileChange}
                         />
                         <p className="text-sm text-muted-foreground mt-2">
-                            {file ? `Selected: ${file.name}` : "Select a .mpp file to begin"}
+                            {file ? `Selected: ${file.name}` : "Select a project file to begin"}
                         </p>
                     </div>
 
@@ -88,30 +99,16 @@ export default function ConverterPage() {
                         </Alert>
                     )}
                 </CardContent>
-                <CardFooter className="flex flex-wrap gap-4 justify-end">
-                    <Button
-                        variant="outline"
-                        disabled={!file || !!loading}
-                        onClick={() => handleConvert('xml')}
-                    >
-                        {loading === 'xml' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileType className="mr-2 h-4 w-4" />}
-                        Export to XML
-                    </Button>
-                    <Button
-                        variant="outline"
-                        disabled={!file || !!loading}
-                        onClick={() => handleConvert('xlsx')}
-                    >
-                         {loading === 'xlsx' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
-                        Export to Excel
-                    </Button>
+                <CardFooter className="flex justify-end">
                     <Button
                         variant="default"
-                        disabled={!file || !!loading}
-                        onClick={() => handleConvert('json')}
+                        disabled={!file || loading}
+                        onClick={handleImport}
                     >
-                        {loading === 'json' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                        Export to JSON
+                        {loading
+                            ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            : <Upload className="mr-2 h-4 w-4" />}
+                        Import Project
                     </Button>
                 </CardFooter>
             </Card>

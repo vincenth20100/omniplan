@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { Task, UiDensity, Calendar, ProjectState } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
-import type { User } from 'firebase/auth';
+import type { AppUser as User } from '@/types/auth';
 import { X, Columns, Columns3, RectangleHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

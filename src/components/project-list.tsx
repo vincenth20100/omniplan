@@ -30,7 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Copy, Trash2, Loader2, Settings, MoreHorizontal, FolderArchive, ArrowUpRight } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import type { Project } from '@/lib/types';
-import type { User } from 'firebase/auth';
+import type { AppUser as User } from '@/types/auth';
 
 export type ProjectWithMetadata = Project & {
     createdAt: Date;
@@ -76,14 +76,14 @@ export function ProjectList({
 
         return filtered.reduce((acc, project) => {
             let key = 'Other';
-            if (groupBy === 'owner') key = project.ownerId === user.uid ? 'My Projects' : 'Shared with me';
+            if (groupBy === 'owner') key = project.ownerId === user.id ? 'My Projects' : 'Shared with me';
             if (groupBy === 'status') key = project.status || 'Active';
 
             if (!acc[key]) acc[key] = [];
             acc[key].push(project);
             return acc;
         }, {} as Record<string, ProjectWithMetadata[]>);
-    }, [projects, groupBy, user.uid, showArchived]);
+    }, [projects, groupBy, user.id, showArchived]);
 
     const sortedGroups = Object.keys(groupedProjects).sort();
 
@@ -161,9 +161,9 @@ export function ProjectList({
                                         <TableCell onClick={() => onOpen(project.id)}>
                                                 <div className="flex items-center gap-2">
                                                 <Avatar className="h-6 w-6">
-                                                    <AvatarFallback className="text-[10px]">{project.ownerId === user.uid ? 'You' : 'U'}</AvatarFallback>
+                                                    <AvatarFallback className="text-[10px]">{project.ownerId === user.id ? 'You' : 'U'}</AvatarFallback>
                                                 </Avatar>
-                                                <span className="text-sm">{project.ownerId === user.uid ? 'You' : 'User'}</span>
+                                                <span className="text-sm">{project.ownerId === user.id ? 'You' : 'User'}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell onClick={() => onOpen(project.id)}>
@@ -211,7 +211,7 @@ export function ProjectList({
                                                             <FolderArchive className="mr-2 h-4 w-4" />
                                                             {project.status === 'Archived' ? 'Restore' : 'Archive'}
                                                         </DropdownMenuItem>
-                                                        {(isAdmin || project.ownerId === user.uid) && (
+                                                        {(isAdmin || project.ownerId === user.id) && (
                                                             <DropdownMenuItem onClick={() => onSettings(project)}>
                                                                 <Settings className="mr-2 h-4 w-4" />
                                                                 Settings

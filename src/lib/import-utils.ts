@@ -174,7 +174,7 @@ export function parseProjectXML(xmlContent: string): ImportedProjectData {
     // 4. Hierarchy
     const stack: Task[] = [];
     tasks.forEach(task => {
-        while (stack.length > 0 && stack[stack.length - 1].level >= task.level) stack.pop();
+        while (stack.length > 0 && (stack[stack.length - 1].level ?? 0) >= (task.level ?? 0)) stack.pop();
         if (stack.length > 0) task.parentId = stack[stack.length - 1].id;
         stack.push(task);
     });

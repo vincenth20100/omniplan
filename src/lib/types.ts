@@ -98,6 +98,11 @@ export interface Task {
   projectName?: string; // Computed property for display
   projectInitials?: string;
   isGhost?: boolean;
+
+  // Import-only fields (OmniPlan / MPX conversion)
+  isMilestone?: boolean;
+  activityId?: string;
+  customText?: Record<string, string>;
 }
 
 export interface Link {

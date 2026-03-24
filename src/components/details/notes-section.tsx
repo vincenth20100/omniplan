@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Paperclip, Send, Pencil, Trash2, X, Check } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Label } from '@/components/ui/label';
-import type { User } from 'firebase/auth';
+import type { AppUser as User } from '@/types/auth';
 
 export function NotesSection({ task, dispatch, user }: { task: Task; dispatch: any, user: User }) {
   const [newNote, setNewNote] = useState('');
@@ -80,7 +80,7 @@ export function NotesSection({ task, dispatch, user }: { task: Task; dispatch: a
         <div className="flex-grow overflow-y-auto pr-2 space-y-4">
           {displayNotes.map((note, index) => {
             const isLatest = index === 0;
-            const isOwner = note.userId === user.uid;
+            const isOwner = note.userId === user.id;
             const canEdit = isLatest && isOwner;
             const isEditing = editingNoteId === note.id;
 

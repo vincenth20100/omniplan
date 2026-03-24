@@ -8,7 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import type { ProjectState, HistoryEntry } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
 import { useSidebar, SidebarTrigger } from "@/components/ui/sidebar";
-import type { User } from 'firebase/auth';
+import type { AppUser as User } from '@/types/auth';
 import { useThemeContext } from '@/components/theme/theme-context';
 
 export type SidebarView = 'main' | 'resources' | 'calendars' | 'filters' | 'grouping' | 'gantt-settings' | 'history' | 'shortcuts' | 'find-replace' | 'print' | 'columns' | 'manage-views' | 'subprojects';

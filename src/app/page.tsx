@@ -1,5 +1,5 @@
 'use client';
-import { useUser } from '@/firebase';
+import { useUser } from '@/providers/auth-provider';
 import { LoginPage } from '@/components/login-page';
 import { ProjectSelectionPage } from '@/components/project-selection-page';
 

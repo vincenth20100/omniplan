@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Bot, Loader2 } from 'lucide-react';
-import { findConflicts } from '@/app/actions';
 import type { ProjectState, Task, Link } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -32,17 +31,29 @@ const toSerializable = (tasks: Task[]): SerializableTask[] => {
     }))
 }
 
-export function ConflictDetector({ projectState, dispatch, disabled }: { projectState: ProjectState, dispatch: any, disabled?: boolean }) {
+export function ConflictDetector({ projectState, projectId, dispatch, disabled }: { projectState: ProjectState, projectId?: string, dispatch: any, disabled?: boolean }) {
   const [isPending, startTransition] = useTransition();
   const [conflicts, setConflicts] = useState<{ taskId: string; conflictDescription: string; }[]>([]);
   const { toast } = useToast();
 
   const handleDetectConflicts = async () => {
     startTransition(async () => {
-      const result = await findConflicts({
-        tasks: toSerializable(projectState.tasks),
-        links: projectState.links,
-      });
+      const token = typeof window !== 'undefined'
+        ? JSON.parse(localStorage.getItem('pocketbase_auth') ?? '{}')?.token ?? ''
+        : '';
+
+      const result = await fetch('/api/ai/conflicts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          projectId,
+          tasks: toSerializable(projectState.tasks),
+          links: projectState.links,
+        }),
+      }).then(r => r.json());
 
       if (result.success && result.data) {
         if (result.data.length > 0) {

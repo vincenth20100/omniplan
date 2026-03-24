@@ -1,11 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import type { User } from 'firebase/auth';
-import { useFirestore } from '@/firebase';
-import { collection, doc, getDocs, updateDoc, arrayUnion, arrayRemove, query, getDoc } from 'firebase/firestore';
+import { useState } from 'react';
+import type { AppUser } from '@/types/auth';
 import type { Project } from '@/lib/types';
-import { fetchProjectsByIds } from '@/lib/firestore-helpers';
 import { Button } from '@/components/ui/button';
 import {
   Tabs,
@@ -18,101 +15,32 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, Edit2, Check, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useIsAdmin } from '@/hooks/use-is-admin';
 
 interface SubprojectManagerContentProps {
-    user: User;
+    user: AppUser;
     currentProjectId: string;
     existingSubprojectIds?: string[];
     onClose?: () => void;
 }
 
-export function SubprojectManagerContent({ user, currentProjectId, existingSubprojectIds, onClose }: SubprojectManagerContentProps) {
-    const firestore = useFirestore();
+export function SubprojectManagerContent({ user: _user, currentProjectId: _currentProjectId, existingSubprojectIds, onClose }: SubprojectManagerContentProps) {
     const { toast } = useToast();
-    const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
-    const [linkedProjects, setLinkedProjects] = useState<Project[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const { isAdmin, isLoading: isCheckingAdmin } = useIsAdmin(user);
+    // TODO(T5): implement via API
+    const availableProjects: Project[] = [];
+    const linkedProjects: Project[] = [];
+    const isLoading = false;
+    const isSaving = false;
 
-    // State for "Add Project" flow
     const [selectedProjectToAdd, setSelectedProjectToAdd] = useState<Project | null>(null);
     const [initialsToAdd, setInitialsToAdd] = useState('');
     const [colorToAdd, setColorToAdd] = useState('');
     const [textColorToAdd, setTextColorToAdd] = useState('');
     const [criticalPathColorToAdd, setCriticalPathColorToAdd] = useState('');
-
-    // State for "Edit Project" flow
     const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
     const [editInitials, setEditInitials] = useState('');
     const [editColor, setEditColor] = useState('');
     const [editTextColor, setEditTextColor] = useState('');
     const [editCriticalPathColor, setEditCriticalPathColor] = useState('');
-
-    // Initial fetch
-    useEffect(() => {
-        const fetchData = async () => {
-            if (!firestore || !user || isCheckingAdmin) return;
-            setIsLoading(true);
-
-            try {
-                // 1. Fetch Available Projects (to add)
-                let fetchedProjects: Project[] = [];
-                let fetchUserProjects = !isAdmin;
-
-                if (isAdmin) {
-                    try {
-                        const projectsQuery = query(collection(firestore, 'projects'));
-                        const querySnapshot = await getDocs(projectsQuery);
-                        fetchedProjects = querySnapshot.docs.map(snap => ({ ...snap.data(), id: snap.id } as Project));
-                    } catch (error) {
-                        console.warn("Admin fetch failed, falling back to user fetch:", error instanceof Error ? error.message : error);
-                        fetchUserProjects = true;
-                    }
-                }
-
-                if (fetchUserProjects) {
-                    const userDocRef = doc(firestore, 'users', user.uid);
-                    const userDoc = await getDoc(userDocRef);
-
-                    if (userDoc.exists()) {
-                        const projectIds = userDoc.data().projectIds || [];
-                        if (projectIds.length > 0) {
-                            fetchedProjects = await fetchProjectsByIds(firestore, projectIds);
-                        }
-                    }
-                }
-
-                // Filter out current project and already added subprojects
-                const available = fetchedProjects.filter(p =>
-                    p.id !== currentProjectId &&
-                    !existingSubprojectIds?.includes(p.id)
-                );
-                setAvailableProjects(available.sort((a, b) => a.name.localeCompare(b.name)));
-
-                // 2. Fetch Linked Projects (to manage)
-                if (existingSubprojectIds && existingSubprojectIds.length > 0) {
-                    const linked = await fetchProjectsByIds(firestore, existingSubprojectIds);
-                    setLinkedProjects(linked.sort((a, b) => a.name.localeCompare(b.name)));
-                } else {
-                    setLinkedProjects([]);
-                }
-
-            } catch (error) {
-                console.error("Error fetching projects:", error);
-                toast({
-                    variant: "destructive",
-                    title: "Error fetching projects",
-                    description: "Could not load project lists."
-                });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [firestore, user, isAdmin, isCheckingAdmin, currentProjectId, existingSubprojectIds, toast]);
 
     const handleSelectProject = (project: Project) => {
         setSelectedProjectToAdd(project);
@@ -123,57 +51,13 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
     };
 
     const handleConfirmInsert = async () => {
-        if (!firestore || !selectedProjectToAdd) return;
-        if (!initialsToAdd.trim()) {
-            toast({ variant: 'destructive', title: 'Initials Required', description: 'Please define initials.' });
-            return;
-        }
-
-        setIsSaving(true);
-        try {
-            const hasChanges =
-                selectedProjectToAdd.initials !== initialsToAdd.trim() ||
-                selectedProjectToAdd.color !== colorToAdd ||
-                selectedProjectToAdd.textColor !== textColorToAdd ||
-                selectedProjectToAdd.criticalPathColor !== criticalPathColorToAdd;
-
-            if (hasChanges) {
-                await updateDoc(doc(firestore, 'projects', selectedProjectToAdd.id), {
-                    initials: initialsToAdd.trim(),
-                    color: colorToAdd,
-                    textColor: textColorToAdd,
-                    criticalPathColor: criticalPathColorToAdd
-                });
-            }
-            await updateDoc(doc(firestore, 'projects', currentProjectId), {
-                subprojectIds: arrayUnion(selectedProjectToAdd.id)
-            });
-            toast({ title: "Project Inserted", description: "The project has been added as a subproject." });
-
-            if (onClose) onClose();
-        } catch (error) {
-             console.error("Error inserting project:", error);
-            toast({ variant: 'destructive', title: "Error Inserting Project", description: "Could not insert the project." });
-        } finally {
-            setIsSaving(false);
-        }
+        // TODO(T5): implement via API
+        toast({ variant: 'destructive', title: 'Not implemented', description: 'Subproject insertion not yet available.' });
     };
 
-    const handleUnlink = async (projectId: string) => {
-        if (!firestore) return;
-        setIsSaving(true);
-        try {
-            await updateDoc(doc(firestore, 'projects', currentProjectId), {
-                subprojectIds: arrayRemove(projectId)
-            });
-            setLinkedProjects(prev => prev.filter(p => p.id !== projectId));
-            toast({ title: "Project Unlinked", description: "The subproject has been removed." });
-        } catch (error) {
-            console.error("Error unlinking:", error);
-            toast({ variant: 'destructive', title: "Error", description: "Could not unlink project." });
-        } finally {
-            setIsSaving(false);
-        }
+    const handleUnlink = async (_projectId: string) => {
+        // TODO(T5): implement via API
+        toast({ variant: 'destructive', title: 'Not implemented', description: 'Subproject unlinking not yet available.' });
     };
 
     const startEditing = (project: Project) => {
@@ -188,31 +72,10 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
         setEditingProjectId(null);
     };
 
-    const saveEditing = async (projectId: string) => {
-        if (!firestore) return;
-        setIsSaving(true);
-        try {
-            await updateDoc(doc(firestore, 'projects', projectId), {
-                initials: editInitials.trim(),
-                color: editColor,
-                textColor: editTextColor,
-                criticalPathColor: editCriticalPathColor,
-            });
-            setLinkedProjects(prev => prev.map(p => p.id === projectId ? {
-                ...p,
-                initials: editInitials.trim(),
-                color: editColor,
-                textColor: editTextColor,
-                criticalPathColor: editCriticalPathColor
-            } : p));
-            setEditingProjectId(null);
-            toast({ title: "Updated", description: "Project settings updated." });
-        } catch (error) {
-            console.error("Error updating:", error);
-            toast({ variant: 'destructive', title: "Error", description: "Could not update project." });
-        } finally {
-            setIsSaving(false);
-        }
+    const saveEditing = async (_projectId: string) => {
+        // TODO(T5): implement via API
+        toast({ variant: 'destructive', title: 'Not implemented', description: 'Subproject editing not yet available.' });
+        setEditingProjectId(null);
     };
 
     const renderAddTab = () => (
@@ -239,52 +102,22 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
                         <div className="space-y-1">
                             <Label className="text-xs">Project Color</Label>
                             <div className="flex gap-2">
-                                <Input
-                                    type="color"
-                                    value={colorToAdd}
-                                    onChange={(e) => setColorToAdd(e.target.value)}
-                                    className="h-8 w-12 p-1"
-                                />
-                                <Input
-                                    value={colorToAdd}
-                                    onChange={(e) => setColorToAdd(e.target.value)}
-                                    className="h-8 flex-1 text-xs"
-                                    placeholder="#RRGGBB"
-                                />
+                                <Input type="color" value={colorToAdd} onChange={(e) => setColorToAdd(e.target.value)} className="h-8 w-12 p-1" />
+                                <Input value={colorToAdd} onChange={(e) => setColorToAdd(e.target.value)} className="h-8 flex-1 text-xs" placeholder="#RRGGBB" />
                             </div>
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs">Text Color</Label>
                             <div className="flex gap-2">
-                                <Input
-                                    type="color"
-                                    value={textColorToAdd}
-                                    onChange={(e) => setTextColorToAdd(e.target.value)}
-                                    className="h-8 w-12 p-1"
-                                />
-                                <Input
-                                    value={textColorToAdd}
-                                    onChange={(e) => setTextColorToAdd(e.target.value)}
-                                    className="h-8 flex-1 text-xs"
-                                    placeholder="Optional"
-                                />
+                                <Input type="color" value={textColorToAdd} onChange={(e) => setTextColorToAdd(e.target.value)} className="h-8 w-12 p-1" />
+                                <Input value={textColorToAdd} onChange={(e) => setTextColorToAdd(e.target.value)} className="h-8 flex-1 text-xs" placeholder="Optional" />
                             </div>
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs">Critical Path Color</Label>
                             <div className="flex gap-2">
-                                <Input
-                                    type="color"
-                                    value={criticalPathColorToAdd}
-                                    onChange={(e) => setCriticalPathColorToAdd(e.target.value)}
-                                    className="h-8 w-12 p-1"
-                                />
-                                <Input
-                                    value={criticalPathColorToAdd}
-                                    onChange={(e) => setCriticalPathColorToAdd(e.target.value)}
-                                    className="h-8 flex-1 text-xs"
-                                    placeholder="Optional"
-                                />
+                                <Input type="color" value={criticalPathColorToAdd} onChange={(e) => setCriticalPathColorToAdd(e.target.value)} className="h-8 w-12 p-1" />
+                                <Input value={criticalPathColorToAdd} onChange={(e) => setCriticalPathColorToAdd(e.target.value)} className="h-8 flex-1 text-xs" placeholder="Optional" />
                             </div>
                         </div>
                     </div>
@@ -343,62 +176,27 @@ export function SubprojectManagerContent({ user, currentProjectId, existingSubpr
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1">
                                             <Label className="text-xs">Initials</Label>
-                                            <Input
-                                                value={editInitials}
-                                                onChange={(e) => setEditInitials(e.target.value.toUpperCase())}
-                                                maxLength={5}
-                                                className="h-8"
-                                            />
+                                            <Input value={editInitials} onChange={(e) => setEditInitials(e.target.value.toUpperCase())} maxLength={5} className="h-8" />
                                         </div>
                                         <div className="space-y-1">
                                             <Label className="text-xs">Project Color</Label>
                                             <div className="flex gap-2">
-                                                <Input
-                                                    type="color"
-                                                    value={editColor}
-                                                    onChange={(e) => setEditColor(e.target.value)}
-                                                    className="h-8 w-12 p-1"
-                                                />
-                                                <Input
-                                                    value={editColor}
-                                                    onChange={(e) => setEditColor(e.target.value)}
-                                                    className="h-8 flex-1 text-xs"
-                                                    placeholder="#RRGGBB"
-                                                />
+                                                <Input type="color" value={editColor} onChange={(e) => setEditColor(e.target.value)} className="h-8 w-12 p-1" />
+                                                <Input value={editColor} onChange={(e) => setEditColor(e.target.value)} className="h-8 flex-1 text-xs" placeholder="#RRGGBB" />
                                             </div>
                                         </div>
                                         <div className="space-y-1">
                                             <Label className="text-xs">Text Color</Label>
                                             <div className="flex gap-2">
-                                                <Input
-                                                    type="color"
-                                                    value={editTextColor}
-                                                    onChange={(e) => setEditTextColor(e.target.value)}
-                                                    className="h-8 w-12 p-1"
-                                                />
-                                                <Input
-                                                    value={editTextColor}
-                                                    onChange={(e) => setEditTextColor(e.target.value)}
-                                                    className="h-8 flex-1 text-xs"
-                                                    placeholder="Default"
-                                                />
+                                                <Input type="color" value={editTextColor} onChange={(e) => setEditTextColor(e.target.value)} className="h-8 w-12 p-1" />
+                                                <Input value={editTextColor} onChange={(e) => setEditTextColor(e.target.value)} className="h-8 flex-1 text-xs" placeholder="Default" />
                                             </div>
                                         </div>
                                         <div className="space-y-1">
                                             <Label className="text-xs">Critical Path Color</Label>
                                             <div className="flex gap-2">
-                                                <Input
-                                                    type="color"
-                                                    value={editCriticalPathColor}
-                                                    onChange={(e) => setEditCriticalPathColor(e.target.value)}
-                                                    className="h-8 w-12 p-1"
-                                                />
-                                                <Input
-                                                    value={editCriticalPathColor}
-                                                    onChange={(e) => setEditCriticalPathColor(e.target.value)}
-                                                    className="h-8 flex-1 text-xs"
-                                                    placeholder="Default"
-                                                />
+                                                <Input type="color" value={editCriticalPathColor} onChange={(e) => setEditCriticalPathColor(e.target.value)} className="h-8 w-12 p-1" />
+                                                <Input value={editCriticalPathColor} onChange={(e) => setEditCriticalPathColor(e.target.value)} className="h-8 flex-1 text-xs" placeholder="Default" />
                                             </div>
                                         </div>
                                     </div>

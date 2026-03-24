@@ -1,6 +1,6 @@
 'use client';
 
-import type { User } from 'firebase/auth';
+import type { AppUser as User } from '@/types/auth';
 import {
   Dialog,
   DialogContent,

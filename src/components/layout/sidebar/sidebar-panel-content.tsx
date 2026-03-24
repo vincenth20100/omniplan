@@ -11,7 +11,7 @@ import { GanttSettingsContent } from "@/components/gantt-settings/gantt-settings
 import { HistoryList } from "@/components/history/history-list";
 import { SubprojectManagerContent } from "@/components/subproject-manager-content";
 import type { ProjectState, HistoryEntry } from "@/lib/types";
-import type { User } from 'firebase/auth';
+import type { AppUser as User } from '@/types/auth';
 import type { SidebarView } from './project-sidebar';
 
 export function SidebarPanelContent({

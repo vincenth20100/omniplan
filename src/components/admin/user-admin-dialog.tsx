@@ -22,12 +22,11 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore } from "@/firebase";
-import { collection, query, getDocs, doc, updateDoc, deleteDoc, where, collectionGroup, orderBy, limit, addDoc } from "firebase/firestore";
+// TODO(T5): implement via API
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, Search, Trash2, Ban, CheckCircle, Mail, Send, X } from "lucide-react";
 import { PersistentLogList } from "@/components/history/persistent-log-list";
-import { useUser } from "@/firebase";
+import { useUser } from "@/providers/auth-provider";
 import type { PersistentHistoryEntry } from "@/lib/types";
 
 interface UserDoc {
@@ -54,7 +53,8 @@ interface UserAdminDialogProps {
 }
 
 export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
-    const firestore = useFirestore();
+    // TODO(T5): implement via API
+    const firestore = null;
     const { user: currentUser } = useUser();
     const { toast } = useToast();
     const isMobile = useIsMobile();
@@ -74,76 +74,23 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
     const [activityLogs, setActivityLogs] = useState<PersistentHistoryEntry[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
 
-    // Fetch users and invitations when dialog opens
+    // TODO(T5): implement via API — fetch users and invitations
     useEffect(() => {
-        if (open && firestore) {
-            const fetchUsers = async () => {
-                setLoading(true);
-                try {
-                    const q = query(collection(firestore, 'users'));
-                    const snapshot = await getDocs(q);
-                    const fetchedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserDoc));
-                    setUsers(fetchedUsers);
-                } catch (error) {
-                    console.error("Error fetching users:", error instanceof Error ? error.message : error);
-                    toast({
-                        variant: "destructive",
-                        title: "Error",
-                        description: `Could not fetch users list. ${error?.code ? `[${error.code}] ` : ''}${error?.message || 'Unknown error'}`
-                    });
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            const fetchInvitations = async () => {
-                setLoadingInvitations(true);
-                try {
-                    const q = query(collection(firestore, 'invitations'));
-                    const snapshot = await getDocs(q);
-                    const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invitation));
-                    setInvitations(fetched);
-                } catch (error) {
-                    console.error("Error fetching invitations:", error);
-                    // Silent fail if permission denied (non-admin view?) but we are in admin dialog
-                } finally {
-                    setLoadingInvitations(false);
-                }
-            };
-
-            fetchUsers();
-            fetchInvitations();
+        if (open) {
+            setLoading(false);
+            setLoadingInvitations(false);
         }
-    }, [open, firestore, toast]);
+    }, [open]);
 
-    // Fetch logs when user is selected
+    // TODO(T5): implement via API — fetch logs when user is selected
     useEffect(() => {
-        if (selectedUser && firestore) {
-            const fetchLogs = async () => {
-                setLoadingLogs(true);
-                try {
-                    // Collection Group Query
-                    const q = query(
-                        collectionGroup(firestore, 'history'),
-                        where('userId', '==', selectedUser.id),
-                        orderBy('timestamp', 'desc'),
-                        limit(50)
-                    );
-                    const snapshot = await getDocs(q);
-                    const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PersistentHistoryEntry));
-                    setActivityLogs(logs);
-                } catch (error) {
-                    console.error("Error fetching user activity:", error);
-                    // Don't toast error here as it might be common if no logs or permissions weirdness (though we are admin)
-                } finally {
-                    setLoadingLogs(false);
-                }
-            };
-            fetchLogs();
+        if (selectedUser) {
+            setLoadingLogs(false);
+            setActivityLogs([]);
         } else {
             setActivityLogs([]);
         }
-    }, [selectedUser, firestore]);
+    }, [selectedUser]);
 
     const filteredUsers = users.filter(u =>
         (u.displayName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
@@ -152,68 +99,24 @@ export function UserAdminDialog({ open, onOpenChange }: UserAdminDialogProps) {
     );
 
     const handlePauseUser = async () => {
-        if (!selectedUser || !firestore) return;
-        const newStatus = selectedUser.status === 'paused' ? 'active' : 'paused';
-        try {
-            await updateDoc(doc(firestore, 'users', selectedUser.id), { status: newStatus });
-            setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, status: newStatus } : u));
-            setSelectedUser(prev => prev ? { ...prev, status: newStatus } : null);
-            toast({ title: `User ${newStatus === 'paused' ? 'paused' : 'activated'}` });
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not update user status.' });
-        }
+        // TODO(T5): implement via API
+        toast({ variant: 'destructive', title: 'Not implemented', description: 'User pause not yet available.' });
     };
 
     const handleDeleteUser = async () => {
-        if (!selectedUser || !firestore) return;
-        if (!confirm(`Are you sure you want to delete ${selectedUser.displayName || 'this user'}? This cannot be undone.`)) return;
-
-        try {
-            await deleteDoc(doc(firestore, 'users', selectedUser.id));
-            setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
-            setSelectedUser(null);
-            toast({ title: 'User deleted' });
-        } catch (error) {
-            console.error(error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not delete user.' });
-        }
+        // TODO(T5): implement via API
+        toast({ variant: 'destructive', title: 'Not implemented', description: 'User deletion not yet available.' });
     };
 
     const handleInviteUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!inviteEmail || !firestore || !currentUser) return;
-
-        setSendingInvite(true);
-        try {
-            const newInvite = {
-                email: inviteEmail.trim().toLowerCase(),
-                sentAt: new Date(),
-                invitedBy: currentUser.uid,
-                // Global invitation, no projectId
-            };
-            const docRef = await addDoc(collection(firestore, 'invitations'), newInvite);
-            setInvitations(prev => [{ id: docRef.id, ...newInvite }, ...prev]);
-            setInviteEmail('');
-            toast({ title: 'Invitation sent', description: `Invite sent to ${newInvite.email}` });
-        } catch (error) {
-            console.error("Error sending invite:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not send invitation.' });
-        } finally {
-            setSendingInvite(false);
-        }
+        // TODO(T5): implement via API
+        toast({ variant: 'destructive', title: 'Not implemented', description: 'Invitation not yet available.' });
     };
 
-    const handleDeleteInvitation = async (id: string) => {
-        if (!firestore) return;
-        if (!confirm("Revoke this invitation?")) return;
-        try {
-            await deleteDoc(doc(firestore, 'invitations', id));
-            setInvitations(prev => prev.filter(i => i.id !== id));
-            toast({ title: 'Invitation revoked' });
-        } catch (error) {
-            console.error(error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not revoke invitation.' });
-        }
+    const handleDeleteInvitation = async (_id: string) => {
+        // TODO(T5): implement via API
+        toast({ variant: 'destructive', title: 'Not implemented', description: 'Invitation revocation not yet available.' });
     };
 
     const userManagementContent = (

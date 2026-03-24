@@ -1,9 +1,7 @@
 'use client';
 
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/firebase";
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-import { FirebaseError } from "firebase/app";
+import { useAuth } from "@/providers/auth-provider";
 import { GanttChartSquare, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -20,45 +18,21 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export function LoginPage() {
-    const auth = useAuth();
+    const { login } = useAuth();
     const { toast } = useToast();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [isSignUp, setIsSignUp] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
+    // TODO (T5): Google OAuth via PocketBase — replace with pb.collection('users').authWithOAuth2()
     const handleGoogleSignIn = async () => {
-        const provider = new GoogleAuthProvider();
-        try {
-            await signInWithPopup(auth, provider);
-        } catch (error) {
-            console.error("Error signing in with Google: ", error);
-            if (error instanceof FirebaseError) {
-                // Don't show toast for user-cancelled popups
-                if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-                    return;
-                }
-                
-                let description = error.message;
-                if (error.code === 'auth/operation-not-allowed') {
-                    description = "Google Sign-In is not enabled. Please enable it in your Firebase project's Authentication settings and ensure your domain is authorized.";
-                }
-                
-                toast({
-                    variant: "destructive",
-                    title: "Google Sign-In Failed",
-                    description: description,
-                });
-            } else {
-                 toast({
-                    variant: "destructive",
-                    title: "An unexpected error occurred",
-                    description: "Please try again.",
-                });
-            }
-        }
+        toast({
+            variant: "destructive",
+            title: "Google Sign-In Not Yet Available",
+            description: "Google OAuth is being migrated to PocketBase.",
+        });
     };
-    
+
     const handleEmailAuth = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!email || !password) {
@@ -71,41 +45,17 @@ export function LoginPage() {
         }
         setIsLoading(true);
         try {
-            if (isSignUp) {
-                await createUserWithEmailAndPassword(auth, email, password);
-                toast({
-                    title: "Account Created",
-                    description: "You have been successfully signed up.",
-                });
-            } else {
-                await signInWithEmailAndPassword(auth, email, password);
-            }
+            await login(email, password);
         } catch (error) {
-            if (error instanceof FirebaseError) {
-                let description = "An unknown error occurred.";
-                switch(error.code) {
-                    case 'auth/user-not-found':
-                        description = "No account found with this email. Please sign up first.";
-                        break;
-                    case 'auth/wrong-password':
-                        description = "Incorrect password. Please try again.";
-                        break;
-                    case 'auth/email-already-in-use':
-                        description = "This email is already in use. Please sign in.";
-                        break;
-                    case 'auth/weak-password':
-                         description = "The password is too weak. It must be at least 6 characters long.";
-                         break;
-                    default:
-                        description = error.message;
-                }
-
-                toast({
-                    variant: "destructive",
-                    title: isSignUp ? "Sign Up Failed" : "Sign In Failed",
-                    description: description,
-                });
+            let description = "An unknown error occurred.";
+            if (error instanceof Error) {
+                description = error.message;
             }
+            toast({
+                variant: "destructive",
+                title: "Sign In Failed",
+                description,
+            });
         } finally {
             setIsLoading(false);
         }
@@ -120,9 +70,9 @@ export function LoginPage() {
             </div>
             <div className="w-full max-w-sm p-8 space-y-6 bg-card rounded-lg shadow-md">
                 <h2 className="text-xl font-semibold text-center text-card-foreground">
-                    {isSignUp ? 'Create an Account' : 'Sign In'}
+                    Sign In
                 </h2>
-                
+
                 <form onSubmit={handleEmailAuth} className="space-y-4">
                     <div>
                         <Label htmlFor="email">Email</Label>
@@ -133,7 +83,7 @@ export function LoginPage() {
                         <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
                     </div>
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? <Loader2 className="animate-spin" /> : (isSignUp ? 'Sign Up' : 'Sign In')}
+                        {isLoading ? <Loader2 className="animate-spin" /> : 'Sign In'}
                     </Button>
                 </form>
 
@@ -152,13 +102,6 @@ export function LoginPage() {
                     <GoogleIcon className="mr-2 h-4 w-4" />
                     Sign In with Google
                 </Button>
-                
-                <p className="px-8 text-center text-sm text-muted-foreground">
-                    {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-                    <Button variant="link" className="p-0" onClick={() => setIsSignUp(!isSignUp)}>
-                        {isSignUp ? 'Sign In' : 'Sign Up'}
-                    </Button>
-                </p>
             </div>
         </div>
     );

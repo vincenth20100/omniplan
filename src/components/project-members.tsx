@@ -1,16 +1,13 @@
 'use client';
-import { useCollection, useMemoFirebase } from '@/firebase';
-import { collection, type Firestore } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import type { ProjectMember } from '@/lib/types';
-import type { User } from 'firebase/auth';
-    
-export function ProjectMembers({ projectId, firestore, user }: { projectId: string, firestore: Firestore, user: User }) {
-    const membersQuery = useMemoFirebase(() => projectId ? collection(firestore, 'projects', projectId, 'members') : null, [firestore, projectId]);
-    const { data: members } = useCollection<ProjectMember>(membersQuery);
+import type { AppUser } from '@/types/auth';
 
-    const otherMembers = members?.filter(m => m.userId !== user.uid);
+export function ProjectMembers({ projectId, user }: { projectId: string, user: AppUser }) {
+    // TODO(T5): implement via API
+    const members: ProjectMember[] = [];
+    const otherMembers = members?.filter(m => m.userId !== user.id);
 
     if (!otherMembers || otherMembers.length === 0) {
         return null;

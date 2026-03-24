@@ -1,0 +1,53 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://omniplan:${DB_PASSWORD}@postgres:5432/omniplan
+      POCKETBASE_URL: http://pocketbase:8090
+      POCKETBASE_ADMIN_TOKEN: ${POCKETBASE_ADMIN_TOKEN}
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY}
+      CONVERTER_URL: http://localhost:7860
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - omniplan-net
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: omniplan
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: omniplan
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omniplan"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - omniplan-net
+
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    restart: unless-stopped
+    volumes:
+      - pocketbase_data:/pb/pb_data
+    ports:
+      - "8090:8090"
+    networks:
+      - omniplan-net
+
+volumes:
+  postgres_data:
+  pocketbase_data:
+
+networks:
+  omniplan-net:
+    driver: bridge

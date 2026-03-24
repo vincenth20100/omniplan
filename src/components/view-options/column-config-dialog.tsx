@@ -71,7 +71,7 @@ export function ColumnConfigDialog({
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="type" className="text-right">Type</Label>
-                        <Select value={type} onValueChange={(v: ColumnSpec['type']) => v && setType(v)}>
+                        <Select value={type} onValueChange={(v: string) => v && setType(v as ColumnSpec['type'])}>
                             <SelectTrigger className="col-span-3">
                                 <SelectValue placeholder="Select a type" />
                             </SelectTrigger>

@@ -28,13 +28,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import type { Project, ProjectState, ProjectMember, ColumnSpec, Invitation, Baseline } from "@/lib/types";
 import { useState, useEffect, useMemo } from 'react';
-import { collection, doc, writeBatch, updateDoc, arrayUnion, arrayRemove, addDoc, query, where, deleteDoc, getDocs } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, Plus } from "lucide-react";
-import { useAuth } from "@/firebase";
+import { useAuth } from "@/providers/auth-provider";
 import { format } from "date-fns";
 
 type EditableMember = ProjectMember & {
@@ -61,17 +59,15 @@ export function ProjectSettingsDialog({
     dispatch?: any,
     initialOpenSection?: 'members' | 'baselines',
 }) {
-    const firestore = useFirestore();
-    const { currentUser } = useAuth();
+    const { user: currentUser } = useAuth();
     const { toast } = useToast();
 
-    // Fetch confirmed members
-    const membersQuery = useMemoFirebase(() => project ? collection(firestore, 'projects', project.id, 'members') : null, [firestore, project.id]);
-    const { data: fetchedMembers, isLoading: membersLoading } = useCollection<ProjectMember>(membersQuery);
-    
-    // Fetch pending invitations for this project
-    const invitationsQuery = useMemoFirebase(() => project ? query(collection(firestore, "invitations"), where("projectId", "==", project.id)) : null, [firestore, project.id]);
-    const { data: fetchedInvitations, isLoading: invitationsLoading } = useCollection<Invitation>(invitationsQuery);
+    // TODO(T5): implement via API
+    const fetchedMembers: ProjectMember[] | undefined = [];
+    const membersLoading = false;
+    const fetchedInvitations: Invitation[] | undefined = [];
+    const invitationsLoading = false;
+    const availableProjectsData: Project[] = [];
 
     const [name, setName] = useState(project.name);
     const [initials, setInitials] = useState(project.initials || '');
@@ -92,24 +88,9 @@ export function ProjectSettingsDialog({
     const [baselineToDelete, setBaselineToDelete] = useState<Baseline | null>(null);
     const [accordionValue, setAccordionValue] = useState<string[]>([]);
 
-    const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
+    const [availableProjects, setAvailableProjects] = useState<Project[]>(availableProjectsData);
     const [subprojectIds, setSubprojectIds] = useState<string[]>(project.subprojectIds || []);
     const [selectedSubprojectToAdd, setSelectedSubprojectToAdd] = useState<string>('');
-
-    useEffect(() => {
-        if (!firestore || !currentUser) return;
-        const fetchProjects = async () => {
-            try {
-                const q = query(collection(firestore, 'projects'), where('memberIds', 'array-contains', currentUser.uid));
-                const snap = await getDocs(q);
-                const projs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Project));
-                setAvailableProjects(projs.filter(p => p.id !== project.id));
-            } catch (e) {
-                console.error("Failed to fetch available projects", e);
-            }
-        };
-        fetchProjects();
-    }, [firestore, currentUser, project.id]);
 
     const originalMembers = useMemo(() => {
         return fetchedMembers?.map(m => ({
@@ -157,13 +138,9 @@ export function ProjectSettingsDialog({
     };
 
     const handleSave = async () => {
-        if (!firestore) return;
+        // TODO(T5): implement via API
         setIsSaving(true);
         try {
-            const batch = writeBatch(firestore);
-            const projectDocRef = doc(firestore, 'projects', project.id);
-
-            // 1. Update Project Document
             const projectUpdates: Partial<Project> = {};
             if (name !== project.name) projectUpdates.name = name;
             if (initials !== (project.initials || '')) projectUpdates.initials = initials;
@@ -171,27 +148,9 @@ export function ProjectSettingsDialog({
             if (color !== (project.color || '#ef4444')) projectUpdates.color = color;
             if (textColor !== (project.textColor || '')) projectUpdates.textColor = textColor;
             if (criticalPathColor !== (project.criticalPathColor || '')) projectUpdates.criticalPathColor = criticalPathColor;
-
             if (JSON.stringify(subprojectIds) !== JSON.stringify(project.subprojectIds || [])) {
                 projectUpdates.subprojectIds = subprojectIds;
             }
-
-            if (Object.keys(projectUpdates).length > 0) {
-                batch.update(projectDocRef, projectUpdates);
-            }
-
-            // 2. Update Members
-            members.forEach(member => {
-                const originalMember = originalMembers.find(om => om.userId === member.userId);
-                if (!originalMember || JSON.stringify(member) !== JSON.stringify(originalMember)) {
-                     const memberDocRef = doc(firestore, 'projects', project.id, 'members', member.userId);
-                     const { originalRole, originalPermissions, ...memberData } = member;
-                     batch.update(memberDocRef, memberData);
-                }
-            });
-
-            await batch.commit();
-
             toast({ title: "Project settings saved!" });
             onProjectUpdate(projectUpdates);
             onOpenChange(false);
@@ -204,42 +163,13 @@ export function ProjectSettingsDialog({
     };
     
     const handleAddUser = async () => {
-        if (!inviteEmail.trim() || !currentUser) {
-            toast({ variant: 'destructive', title: "Error", description: "Please enter a valid email address." });
-            return;
-        }
-        setIsAddingUser(true);
-        try {
-            const invitationsRef = collection(firestore, 'invitations');
-            await addDoc(invitationsRef, {
-                email: inviteEmail,
-                projectId: project.id,
-                role: inviteRole,
-                invitedBy: currentUser.uid,
-            });
-            toast({ title: "Access Granted", description: `${inviteEmail} can now access the project upon signing in.` });
-            setInviteEmail('');
-            setInviteRole('viewer');
-        } catch (e) {
-            console.error("Error adding user:", e);
-            toast({ variant: 'destructive', title: "Error", description: "Could not add user. Please try again." });
-        } finally {
-            setIsAddingUser(false);
-        }
+        // TODO(T5): implement via API
+        toast({ variant: 'destructive', title: "Not implemented", description: "User invitation not yet available." });
     };
 
-    const handleRemoveInvitation = async (invitationId: string) => {
-        if (!firestore) return;
-        setIsRemovingInvitation(invitationId);
-        try {
-            await deleteDoc(doc(firestore, "invitations", invitationId));
-            toast({ title: "Invitation revoked" });
-        } catch (error) {
-            console.error("Error revoking invitation:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not revoke the invitation." });
-        } finally {
-            setIsRemovingInvitation(null);
-        }
+    const handleRemoveInvitation = async (_invitationId: string) => {
+        // TODO(T5): implement via API
+        toast({ variant: "destructive", title: "Not implemented", description: "Invitation revocation not yet available." });
     };
 
     const handleSaveBaseline = () => {
@@ -374,7 +304,7 @@ export function ProjectSettingsDialog({
                                                                     <Select
                                                                         value={member.role}
                                                                         onValueChange={(newRole: 'editor' | 'viewer') => handleMemberChange(member.userId, { role: newRole })}
-                                                                        disabled={member.role === 'owner' || project.ownerId !== currentUser?.uid}
+                                                                        disabled={member.role === 'owner' || project.ownerId !== currentUser?.id}
                                                                     >
                                                                         <SelectTrigger className="w-[120px] h-8">
                                                                             <SelectValue />
@@ -398,7 +328,7 @@ export function ProjectSettingsDialog({
                                                                                     id={`col-vis-${member.userId}-${col.id}`}
                                                                                     checked={!member.permissions?.hiddenColumns?.includes(col.id)}
                                                                                     onCheckedChange={(checked) => handleColumnVisibilityChange(member.userId, col.id, !!checked)}
-                                                                                    disabled={member.userId === currentUser?.uid}
+                                                                                    disabled={member.userId === currentUser?.id}
                                                                                 />
                                                                                 <label
                                                                                     htmlFor={`col-vis-${member.userId}-${col.id}`}

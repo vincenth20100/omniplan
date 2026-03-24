@@ -97,11 +97,11 @@ const TaskCellRenderer = React.memo(({
             const hasDrivingPredecessor = links.some(l => l.target === task.id && l.isDriving);
 
             if (hasDrivingPredecessor) {
-                return <ArrowRight className="h-4 w-4 text-muted-foreground" title="Scheduled by predecessor"/>
+                return <ArrowRight className="h-4 w-4 text-muted-foreground" aria-label="Scheduled by predecessor"/>
             }
     
             if (task.constraintType && task.constraintDate) {
-                return <CalendarIndicatorIcon className="h-4 w-4 text-blue-500" title="Scheduled by constraint"/>
+                return <CalendarIndicatorIcon className="h-4 w-4 text-blue-500" aria-label="Scheduled by constraint"/>
             }
             
             // 'asap' case
@@ -129,9 +129,9 @@ const TaskCellRenderer = React.memo(({
                             "w-5 flex-shrink-0"
                          )}></div>
                     )}
-                    {hasNotes && <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" title="Task has notes or additional information" />}
-                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive flex-shrink-0" title="Scheduling Conflict" />}
-                    {task.deadlineMissed && task.deadline && <Flag className="h-4 w-4 text-destructive flex-shrink-0" title={`Deadline missed. Deadline was ${format(task.deadline, dateFormat)}`} />}
+                    {hasNotes && <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0" aria-label="Task has notes or additional information" />}
+                    {task.schedulingConflict && <Flame className="h-4 w-4 text-destructive flex-shrink-0" aria-label="Scheduling Conflict" />}
+                    {task.deadlineMissed && task.deadline && <Flag className="h-4 w-4 text-destructive flex-shrink-0" aria-label={`Deadline missed. Deadline was ${format(task.deadline, dateFormat)}`} />}
                     <div className="flex-grow">
                             {task.isSummary && !isGrouped ? (
                             <span className="truncate">{task.name}</span>

@@ -3,7 +3,7 @@ import { Task, UiDensity } from '@/lib/types';
 import { NotesSection } from './notes-section';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
-import type { User } from 'firebase/auth';
+import type { AppUser as User } from '@/types/auth';
 
 interface TaskActivityLogPanelProps {
     task: Task;

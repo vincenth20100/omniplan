@@ -23,7 +23,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { GanttSettingsPanel } from '@/components/gantt-settings/gantt-settings-panel';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { HistoryPanel } from '@/components/history/history-panel';
-import type { User } from 'firebase/auth';
+import type { AppUser } from '@/types/auth';
 import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog';
 import { FindReplaceDialog } from './find-replace-dialog';
 import { useToast } from "@/hooks/use-toast";
@@ -32,8 +32,13 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import type { Representation, GanttSettings, Project } from '@/lib/types';
 import { ExportDialog } from './export-dialog';
 import { ProjectMembers } from './project-members';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+// TODO (T5): replace with PocketBase data hooks
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const useFirestore = () => null;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const useMemoFirebase = (_factory: () => unknown, _deps: unknown[]) => null;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function useDoc<T>(_ref: unknown): { data: T | null } { return { data: null }; }
 import { useRouter } from 'next/navigation';
 import { DetailedThemeEditor } from './gantt-settings/detailed-theme-editor';
 import { ProjectSettingsDialog } from './project-settings-dialog';
@@ -145,7 +150,7 @@ const ThemeManager = ({ theme, customStyles }: { theme: GanttSettings['theme'], 
 };
 
 
-function ProjectPageContent({ user, projectId }: { user: User, projectId: string }) {
+function ProjectPageContent({ user, projectId }: { user: AppUser, projectId: string }) {
   const router = useRouter();
   const { state, dispatch, isLoaded, isEditorOrOwner, canUndo, canRedo, history, persistentHistory, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, previewSnapshot, exitPreview, isPreviewMode } = useProject(user, projectId);
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false);
@@ -177,8 +182,8 @@ function ProjectPageContent({ user, projectId }: { user: User, projectId: string
   const { sidebarPosition } = layoutConfig;
   const isHorizontal = sidebarPosition === 'top' || sidebarPosition === 'bottom';
 
-  const projectDocRef = useMemoFirebase(() => projectId ? doc(firestore, 'projects', projectId) : null, [firestore, projectId]);
-  const { data: project } = useDoc<Project>(projectDocRef);
+  // TODO (T5): fetch project from PocketBase
+  const { data: project } = useDoc<Project>(null);
   
   const handleOpenSettings = (section: 'members' | 'baselines') => {
     setProjectSettingsSection(section);
@@ -483,7 +488,7 @@ function ProjectPageContent({ user, projectId }: { user: User, projectId: string
 
   const headerRightActions = (
     <>
-      <ProjectMembers projectId={projectId} firestore={firestore} user={user} />
+      <ProjectMembers projectId={projectId} user={user} />
       <Button variant="outline" size="icon" onClick={() => handleOpenSettings('members')} title="Project Settings" disabled={!project}>
         <Settings />
       </Button>
