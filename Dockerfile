@@ -1,8 +1,8 @@
-# Stage 1: Install Node dependencies
-FROM node:22-alpine AS node-deps
+# Stage 1: Install Node dependencies (using bun for lockfile compatibility)
+FROM oven/bun:1 AS node-deps
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
+COPY package.json bun.lock* ./
+RUN bun install --frozen-lockfile
 
 # Stage 2: Build Next.js
 FROM node:22-alpine AS builder
@@ -10,7 +10,7 @@ WORKDIR /app
 COPY --from=node-deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN npx next build
 
 # Stage 3: Production runner (Python base for converter, Node.js installed)
 FROM python:3.11-slim AS runner
