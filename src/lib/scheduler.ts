@@ -110,15 +110,27 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     const inDegree = new Map<string, number>();
     const taskCalendarMap = new Map<string, Calendar>();
     
+    // ⚡ Bolt: Pre-compute maps for O(1) lookups instead of O(n) array searches in loops
+    const resourceMap = new Map<string, Resource>(resources.map(r => [r.id, r]));
+    const calendarMap = new Map<string, Calendar>(calendars.map(c => [c.id, c]));
+
+    const taskAssignmentsMap = new Map<string, Assignment[]>();
+    for (const a of assignments) {
+        if (!taskAssignmentsMap.has(a.taskId)) {
+            taskAssignmentsMap.set(a.taskId, []);
+        }
+        taskAssignmentsMap.get(a.taskId)!.push(a);
+    }
+
     // Determine effective calendar for each task
     for (const task of tasks) {
         let effectiveCalendar = calendar; // Default to project calendar
         let conflictMsg: string | undefined = undefined;
 
         // Check for assigned resources
-        const taskAssignments = assignments.filter(a => a.taskId === task.id);
+        const taskAssignments = taskAssignmentsMap.get(task.id) || [];
         if (taskAssignments.length > 0) {
-            const assignedResources = taskAssignments.map(a => resources.find(r => r.id === a.resourceId)).filter(Boolean) as Resource[];
+            const assignedResources = taskAssignments.map(a => resourceMap.get(a.resourceId)).filter(Boolean) as Resource[];
 
             // Get unique calendar IDs from resources
             // If resource has no calendarId, it implies project default? Or undefined?
@@ -126,7 +138,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
             // Assuming fallback to project calendar if not specified.
             const resourceCalendars = assignedResources.map(r => {
                 if (r.calendarId) {
-                    return calendars.find(c => c.id === r.calendarId) || calendar;
+                    return calendarMap.get(r.calendarId) || calendar;
                 }
                 return calendar;
             });
@@ -158,7 +170,7 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
         } else {
             // No resources, check task specific calendar
             if (task.calendarId) {
-                effectiveCalendar = calendars.find(c => c.id === task.calendarId) || calendar;
+                effectiveCalendar = calendarMap.get(task.calendarId) || calendar;
             }
         }
 
@@ -650,8 +662,20 @@ export function calculateSchedule(tasks: Task[], links: Link[], columns: ColumnS
     }
 
     // Update driving status on links
+    // ⚡ Bolt: Use a map to quickly look up original links by ID
+    const originalLinkMap = new Map<string, Link>(links.map(l => [l.id, l]));
+
     for(const link of expandedLinks) {
-        const originalLink = links.find(l => link.id.startsWith(l.id));
+        // expandedLinks might have modified IDs like `${link.id}-expanded...` so we need to match prefixes
+        // Although the code just passes `{...link, source, target}` so the ID is often identical unless modified elsewhere.
+        // Assuming link.id starts with originalLink.id, find the matching original link.
+        // Since originalLinkMap is an exact lookup, let's optimize the prefix search if necessary.
+        // If IDs are the same, direct lookup is fastest. Otherwise, fallback.
+        let originalLink = originalLinkMap.get(link.id);
+        if (!originalLink) {
+            originalLink = links.find(l => link.id.startsWith(l.id));
+        }
+
         if (!originalLink) continue;
         
         originalLink.isDriving = false;
