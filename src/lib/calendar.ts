@@ -1,5 +1,5 @@
 'use client';
-import { addDays, addMonths, startOfDay, differenceInCalendarDays, formatISO, isSameDay } from 'date-fns';
+import { addDays, addMonths, startOfDay, differenceInCalendarDays, isSameDay } from 'date-fns';
 import type { Calendar, DurationUnit, Exception } from './types';
 
 class CalendarService {
@@ -27,7 +27,13 @@ class CalendarService {
       }
     }
     
-    const isoDate = formatISO(sDate, { representation: 'date' });
+    // ⚡ Bolt: Native date formatting is significantly faster than date-fns formatISO
+    // This optimization is crucial because isWorkingDay is called repeatedly in loops
+    // for duration calculations and scheduling.
+    const year = sDate.getFullYear();
+    const month = String(sDate.getMonth() + 1).padStart(2, '0');
+    const dayOfMonth = String(sDate.getDate()).padStart(2, '0');
+    const isoDate = `${year}-${month}-${dayOfMonth}`;
     
     // Check overrides
     if (calendar.workingDayOverrides?.includes(isoDate)) {
