@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, Plus } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { format } from "date-fns";
+import { projectApi } from "@/services/project-api";
 
 type EditableMember = ProjectMember & {
     originalRole: ProjectMember['role'];
@@ -138,7 +139,6 @@ export function ProjectSettingsDialog({
     };
 
     const handleSave = async () => {
-        // TODO(T5): implement via API
         setIsSaving(true);
         try {
             const projectUpdates: Partial<Project> = {};
@@ -151,6 +151,9 @@ export function ProjectSettingsDialog({
             if (JSON.stringify(subprojectIds) !== JSON.stringify(project.subprojectIds || [])) {
                 projectUpdates.subprojectIds = subprojectIds;
             }
+
+            await projectApi.updateProject(project.id, projectUpdates);
+
             toast({ title: "Project settings saved!" });
             onProjectUpdate(projectUpdates);
             onOpenChange(false);

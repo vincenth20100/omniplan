@@ -52,6 +52,7 @@ import { ThemeProvider, useThemeContext } from '@/components/theme/theme-context
 import { ViewManagerDialog } from '@/components/view-options/view-manager-dialog';
 import { DeleteConfirmationDialog } from './delete-confirmation-dialog';
 import { ZoomSelector } from '@/components/zoom-selector';
+import { projectApi } from '@/services/project-api';
 import {
   Select,
   SelectContent,
@@ -182,9 +183,17 @@ function ProjectPageContent({ user, projectId }: { user: AppUser, projectId: str
   const { sidebarPosition } = layoutConfig;
   const isHorizontal = sidebarPosition === 'top' || sidebarPosition === 'bottom';
 
-  // TODO (T5): fetch project from PocketBase
-  const { data: project } = useDoc<Project>(null);
-  
+  const [project, setProject] = useState<Project | null>(null);
+
+  useEffect(() => {
+    projectApi.getProject(projectId)
+      .then((data) => setProject(data as Project))
+      .catch(err => {
+        console.error('Failed to load project details:', err);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to load project details.' });
+      });
+  }, [projectId, toast]);
+
   const handleOpenSettings = (section: 'members' | 'baselines') => {
     setProjectSettingsSection(section);
     setIsProjectSettingsOpen(true);
@@ -630,9 +639,8 @@ function ProjectPageContent({ user, projectId }: { user: AppUser, projectId: str
                     project={project}
                     projectState={state}
                     allColumns={ALL_COLUMNS}
-                    onProjectUpdate={() => {
-                        // The project data will re-sync from Firestore automatically via the useDoc hook.
-                        // No need to manually update state here.
+                    onProjectUpdate={(updatedProject) => {
+                        setProject(prev => prev ? { ...prev, ...updatedProject } : null);
                     }}
                     dispatch={dispatch}
                     initialOpenSection={projectSettingsSection}
