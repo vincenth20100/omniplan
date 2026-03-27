@@ -1,6 +1,7 @@
 'use client';
 import React, { useRef } from 'react';
-import { differenceInCalendarDays, format } from 'date-fns';
+import { fastDifferenceInCalendarDays } from '@/lib/date-utils';
+import { format } from 'date-fns';
 import type { Task, UiDensity, Calendar, TaskLabelSetting, ColumnSpec, Resource, Assignment, TooltipFieldSetting, Link } from '@/lib/types';
 import { cn, getProjectColor } from '@/lib/utils';
 import { calendarService } from '@/lib/calendar';
@@ -124,7 +125,7 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
 
     // Milestone rendering
     if (task.duration === 0 && !isSummary) {
-        const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
+        const offsetDays = fastDifferenceInCalendarDays(task.start, ganttStartDate);
         const milestoneSize = 20;
         const left = offsetDays * scale + scale / 2 - milestoneSize / 2;
         const top = row * rowHeight + (rowHeight - milestoneSize) / 2;
@@ -161,9 +162,9 @@ export const TaskBar = React.memo(({ task, ganttStartDate, scale, dispatch, row,
     }
 
 
-    const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
+    const offsetDays = fastDifferenceInCalendarDays(task.start, ganttStartDate);
     const left = offsetDays * scale;
-    const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
+    const width = (fastDifferenceInCalendarDays(task.finish, task.start) + 1) * scale;
     const top = row * rowHeight + (rowHeight - (isSummary ? summaryBarHeight : barHeight)) / 2;
 
     const getCriticalStyle = () => {

@@ -1,7 +1,7 @@
 'use client';
 import React, { useMemo } from 'react';
 import type { Link, Task } from '@/lib/types';
-import { differenceInCalendarDays } from 'date-fns';
+import { fastDifferenceInCalendarDays } from '@/lib/date-utils';
 
 interface LineInfo {
     id: string;
@@ -50,7 +50,7 @@ export const DependencyLines = React.memo(({ links, tasks, taskIndexMap, rowHeig
 
             const getTaskGeometry = (task: Task) => {
                 const isMilestone = task.duration === 0 && !task.isSummary;
-                const offsetDays = differenceInCalendarDays(task.start, ganttStartDate);
+                const offsetDays = fastDifferenceInCalendarDays(task.start, ganttStartDate);
 
                 let left: number;
                 let width: number;
@@ -61,7 +61,7 @@ export const DependencyLines = React.memo(({ links, tasks, taskIndexMap, rowHeig
                     width = milestoneSize;
                 } else {
                     left = offsetDays * scale;
-                    width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
+                    width = (fastDifferenceInCalendarDays(task.finish, task.start) + 1) * scale;
                 }
                 return { left, width };
             };
