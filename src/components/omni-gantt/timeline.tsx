@@ -8,7 +8,8 @@ import { ScrollBar } from "@/components/ui/scroll-area";
 import { TimelineHeader } from './timeline-header';
 import { TaskBar } from './task-bar';
 import { DependencyLines } from './dependency-lines';
-import { addDays, differenceInDays, min, max, startOfDay, differenceInCalendarDays, eachDayOfInterval, format } from 'date-fns';
+import { fastDifferenceInCalendarDays } from '@/lib/date-utils';
+import { addDays, differenceInDays, min, max, startOfDay, eachDayOfInterval, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { DENSITY_SETTINGS } from '@/lib/settings';
@@ -49,9 +50,9 @@ const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensi
     }
 
     const { summaryBarHeight, rowHeight } = DENSITY_SETTINGS[uiDensity];
-    const offsetDays = differenceInCalendarDays(task.start, viewStartDate);
+    const offsetDays = fastDifferenceInCalendarDays(task.start, viewStartDate);
     const left = offsetDays * scale;
-    const width = (differenceInCalendarDays(task.finish, task.start) + 1) * scale;
+    const width = (fastDifferenceInCalendarDays(task.finish, task.start) + 1) * scale;
     const top = index * rowHeight + (rowHeight - summaryBarHeight) / 2;
     const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
@@ -97,9 +98,9 @@ const SplitSummaryTaskBar = React.memo(({ task, ganttSettings, allTasks, uiDensi
             onClick={(e) => dispatch({ type: 'UPDATE_SELECTION', payload: { mode: 'row', taskId: task.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey } })}
         >
             {segments.map((segment, segIndex) => {
-                const segmentOffsetDays = differenceInCalendarDays(segment.start, task.start);
+                const segmentOffsetDays = fastDifferenceInCalendarDays(segment.start, task.start);
                 const segmentLeft = segmentOffsetDays * scale;
-                const segmentWidth = (differenceInCalendarDays(segment.finish, segment.start) + 1) * scale;
+                const segmentWidth = (fastDifferenceInCalendarDays(segment.finish, segment.start) + 1) * scale;
                 
                 return (
                     <div
@@ -268,7 +269,7 @@ export function Timeline({
   }, [visibleTasks, defaultDateRange]);
   
   // Calculate total days for virtualization
-  const totalDays = useMemo(() => differenceInCalendarDays(viewEndDate, viewStartDate) + 1, [viewStartDate, viewEndDate]);
+  const totalDays = useMemo(() => fastDifferenceInCalendarDays(viewEndDate, viewStartDate) + 1, [viewStartDate, viewEndDate]);
 
   const { virtualItems: horizontalVirtualItems } = useVirtualization({
     count: totalDays,
@@ -286,7 +287,7 @@ export function Timeline({
   const dateFormat = ganttSettings.dateFormat || 'MMM d, yyyy';
 
   const totalWidth = useMemo(() => {
-    return (differenceInCalendarDays(viewEndDate, viewStartDate) + 1) * scale;
+    return (fastDifferenceInCalendarDays(viewEndDate, viewStartDate) + 1) * scale;
   }, [viewStartDate, viewEndDate, scale]);
   
   const taskIndexMap = useMemo(() => {
@@ -300,7 +301,7 @@ export function Timeline({
   }, [renderableRows]);
 
   const today = useMemo(() => startOfDay(new Date()), []);
-  const todayOffset = useMemo(() => differenceInCalendarDays(today, viewStartDate) * scale, [today, viewStartDate, scale]);
+  const todayOffset = useMemo(() => fastDifferenceInCalendarDays(today, viewStartDate) * scale, [today, viewStartDate, scale]);
   
   if (visibleTasks.length === 0 && !defaultDateRange) {
     return <div className="flex h-full w-full items-center justify-center"><p>Loading timeline...</p></div>
@@ -408,8 +409,8 @@ export function Timeline({
                                   className="absolute rounded-sm bg-muted-foreground/60 pointer-events-none"
                                   style={{
                                       top: `${index * rowHeight + (rowHeight - barHeight) / 2 + barHeight - 4}px`,
-                                      left: `${differenceInCalendarDays(baselineTask.start, viewStartDate) * scale}px`,
-                                      width: `${(differenceInCalendarDays(baselineTask.finish, baselineTask.start) + 1) * scale}px`,
+                                      left: `${fastDifferenceInCalendarDays(baselineTask.start, viewStartDate) * scale}px`,
+                                      width: `${(fastDifferenceInCalendarDays(baselineTask.finish, baselineTask.start) + 1) * scale}px`,
                                       height: '4px',
                                   }}
                                   title={`Baseline: ${baselineTask.name}\n${format(baselineTask.start, dateFormat)} - ${format(baselineTask.finish, dateFormat)}`}

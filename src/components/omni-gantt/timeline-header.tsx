@@ -2,8 +2,9 @@
 import {
     addDays, differenceInDays, format, startOfMonth, endOfMonth,
     eachDayOfInterval, startOfQuarter, endOfQuarter, startOfYear, endOfYear,
-    getYear, getMonth, differenceInCalendarDays
+    getYear, getMonth
 } from 'date-fns';
+import { fastDifferenceInCalendarDays } from '@/lib/date-utils';
 import React from 'react';
 import type { GanttSettings } from '@/lib/types';
 
@@ -164,7 +165,7 @@ export const TimelineHeader = React.memo(({ startDate, endDate, scale, viewMode,
     }
 
     const renderUnit = (unit: any, index: number, isBottomRow = false) => {
-         const offsetDays = differenceInCalendarDays(unit.date, startDate);
+         const offsetDays = fastDifferenceInCalendarDays(unit.date, startDate);
          const left = offsetDays * scale;
          const width = unit.days * scale;
 
@@ -196,7 +197,7 @@ export const TimelineHeader = React.memo(({ startDate, endDate, scale, viewMode,
     const renderDays = () => {
         if (!showDayView) return null;
 
-        const totalDays = differenceInCalendarDays(endDate, startDate) + 1;
+        const totalDays = fastDifferenceInCalendarDays(endDate, startDate) + 1;
         const vStart = visibleStartX ?? 0;
         const vEnd = visibleEndX ?? (totalDays * scale);
 

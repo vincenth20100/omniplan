@@ -7,7 +7,7 @@ import { TimelineHeader } from '@/components/omni-gantt/timeline-header';
 import {
     startOfDay,
     addDays,
-    differenceInCalendarDays,
+
     eachDayOfInterval,
     min,
     max,

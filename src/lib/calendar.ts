@@ -1,5 +1,5 @@
 'use client';
-import { addDays, addMonths, startOfDay, differenceInCalendarDays, isSameDay } from 'date-fns';
+import { addDays, addMonths, startOfDay, isSameDay } from 'date-fns';
 import type { Calendar, DurationUnit, Exception } from './types';
 
 class CalendarService {
