@@ -1,3 +1,3 @@
-## 2024-05-24 - [Date Formatter Performance]
-**Learning:** `date-fns/formatISO` is significantly slower than native string construction methods for creating ISO date strings in tight loops.
-**Action:** When working in hot paths, such as the `calendarService.isWorkingDay` function where calendar scheduling math involves repeated iterations across dates, employ simple native string construction `YYYY-MM-DD` instead of heavy external formatters to optimize overall timeline rendering performance.
+## 2024-05-18 - Calendar Mathematical Iteration Avoidance
+**Learning:** Replacing day-by-day `while` loops with `differenceInCalendarDays` math in `getWorkingDaysDuration` and `addWorkingDays` introduces edge cases when tasks start or end on non-working days or different times of the day. The `O(1)` mathematical calculation is tempting but unsafe without extremely careful handling of fractional days and timezones. The loops in Next.js are fast enough when string allocations are avoided.
+**Action:** Do not try to mathematically optimize standard calendar iteration functions (`addWorkingDays`, `getWorkingDaysDuration`) due to edge cases. Instead, focus on optimizing the `isWorkingDay` check itself, specifically avoiding string allocation and native date formatting inside the hot path.

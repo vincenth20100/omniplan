@@ -13,34 +13,40 @@ class CalendarService {
       return day >= 1 && day <= 5;
     }
     const sDate = startOfDay(date);
+    const sTime = sDate.getTime();
 
     // Check exceptions first. Exceptions are non-working days.
-    if (calendar.exceptions) {
-      for (const ex of calendar.exceptions) {
+    if (calendar.exceptions && calendar.exceptions.length > 0) {
+      for (let i = 0; i < calendar.exceptions.length; i++) {
+        const ex = calendar.exceptions[i];
         if (ex.isActive && ex.start && ex.finish) {
-          const exStart = startOfDay(ex.start);
-          const exFinish = startOfDay(ex.finish);
-          if (sDate >= exStart && sDate <= exFinish) {
+          const exStart = startOfDay(ex.start).getTime();
+          const exFinish = startOfDay(ex.finish).getTime();
+          if (sTime >= exStart && sTime <= exFinish) {
             return false;
           }
         }
       }
     }
     
-    // ⚡ Bolt: Native date formatting is significantly faster than date-fns formatISO
-    // This optimization is crucial because isWorkingDay is called repeatedly in loops
-    // for duration calculations and scheduling.
-    const year = sDate.getFullYear();
-    const month = String(sDate.getMonth() + 1).padStart(2, '0');
-    const dayOfMonth = String(sDate.getDate()).padStart(2, '0');
-    const isoDate = `${year}-${month}-${dayOfMonth}`;
+    // ⚡ Bolt: Only format date strings if overrides exist to save allocation in hot loops
+    const hasOverrides = (calendar.workingDayOverrides && calendar.workingDayOverrides.length > 0) ||
+                         (calendar.nonWorkingDayOverrides && calendar.nonWorkingDayOverrides.length > 0);
     
-    // Check overrides
-    if (calendar.workingDayOverrides?.includes(isoDate)) {
-        return true;
-    }
-    if (calendar.nonWorkingDayOverrides?.includes(isoDate)) {
-        return false;
+    if (hasOverrides) {
+        // Native date formatting is significantly faster than date-fns formatISO
+        const year = sDate.getFullYear();
+        const month = String(sDate.getMonth() + 1).padStart(2, '0');
+        const dayOfMonth = String(sDate.getDate()).padStart(2, '0');
+        const isoDate = `${year}-${month}-${dayOfMonth}`;
+
+        // Check overrides
+        if (calendar.workingDayOverrides?.includes(isoDate)) {
+            return true;
+        }
+        if (calendar.nonWorkingDayOverrides?.includes(isoDate)) {
+            return false;
+        }
     }
 
     // Check default working days
@@ -69,6 +75,9 @@ class CalendarService {
     const direction = daysToAdd > 0 ? 1 : -1;
     let remainingDays = Math.abs(daysToAdd);
 
+    // Standard loop for complex calendars
+    // Note: Mathematical optimization was attempted here but removed due to edge cases
+    // with starting on non-working days. The loop is fast enough for typical project durations.
     while (remainingDays > 0) {
       currentDate = addDays(currentDate, direction);
       if (this.isWorkingDay(currentDate, calendar)) {
@@ -88,6 +97,11 @@ class CalendarService {
     const endDate = reverse ? d1 : d2;
 
     let count = 0;
+
+    // Standard iteration for calendars with exceptions or overrides
+    // Note: Mathematical optimization was attempted here but removed due to edge cases
+    // with starting on non-working days and time-aware differences.
+    // The loop is fast enough for typical project durations when combined with the isWorkingDay optimization.
     let currentDate = startDate;
     while(currentDate <= endDate) {
       if (this.isWorkingDay(currentDate, calendar)) {
