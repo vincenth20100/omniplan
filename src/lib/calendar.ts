@@ -12,28 +12,31 @@ class CalendarService {
       const day = date.getDay();
       return day >= 1 && day <= 5;
     }
-    const sDate = startOfDay(date);
+    // ⚡ Bolt: Native date formatting is significantly faster than date-fns startOfDay
+    // and formatISO. This optimization is crucial because isWorkingDay is called
+    // repeatedly in loops for duration calculations and scheduling.
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+    const sDate = new Date(year, month, day);
+    const sTime = sDate.getTime();
 
     // Check exceptions first. Exceptions are non-working days.
-    if (calendar.exceptions) {
-      for (const ex of calendar.exceptions) {
+    if (calendar.exceptions && calendar.exceptions.length > 0) {
+      for (let i = 0; i < calendar.exceptions.length; i++) {
+        const ex = calendar.exceptions[i];
         if (ex.isActive && ex.start && ex.finish) {
-          const exStart = startOfDay(ex.start);
-          const exFinish = startOfDay(ex.finish);
-          if (sDate >= exStart && sDate <= exFinish) {
+          const exStart = new Date(ex.start.getFullYear(), ex.start.getMonth(), ex.start.getDate()).getTime();
+          const exFinish = new Date(ex.finish.getFullYear(), ex.finish.getMonth(), ex.finish.getDate()).getTime();
+          if (sTime >= exStart && sTime <= exFinish) {
             return false;
           }
         }
       }
     }
     
-    // ⚡ Bolt: Native date formatting is significantly faster than date-fns formatISO
-    // This optimization is crucial because isWorkingDay is called repeatedly in loops
-    // for duration calculations and scheduling.
-    const year = sDate.getFullYear();
-    const month = String(sDate.getMonth() + 1).padStart(2, '0');
-    const dayOfMonth = String(sDate.getDate()).padStart(2, '0');
-    const isoDate = `${year}-${month}-${dayOfMonth}`;
+    const m = month + 1;
+    const isoDate = `${year}-${m < 10 ? '0' + m : m}-${day < 10 ? '0' + day : day}`;
     
     // Check overrides
     if (calendar.workingDayOverrides?.includes(isoDate)) {
