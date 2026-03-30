@@ -1,5 +1,5 @@
 'use client';
-import { addDays, addMonths, startOfDay, differenceInCalendarDays, isSameDay } from 'date-fns';
+import { addDays, addMonths, differenceInCalendarDays, isSameDay } from 'date-fns';
 import type { Calendar, DurationUnit, Exception } from './types';
 
 class CalendarService {
@@ -12,14 +12,15 @@ class CalendarService {
       const day = date.getDay();
       return day >= 1 && day <= 5;
     }
-    const sDate = startOfDay(date);
+    // ⚡ Bolt: Native Date instantiation is significantly faster than date-fns startOfDay
+    const sDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
     // Check exceptions first. Exceptions are non-working days.
     if (calendar.exceptions) {
       for (const ex of calendar.exceptions) {
         if (ex.isActive && ex.start && ex.finish) {
-          const exStart = startOfDay(ex.start);
-          const exFinish = startOfDay(ex.finish);
+          const exStart = new Date(ex.start.getFullYear(), ex.start.getMonth(), ex.start.getDate());
+          const exFinish = new Date(ex.finish.getFullYear(), ex.finish.getMonth(), ex.finish.getDate());
           if (sDate >= exStart && sDate <= exFinish) {
             return false;
           }
@@ -31,8 +32,10 @@ class CalendarService {
     // This optimization is crucial because isWorkingDay is called repeatedly in loops
     // for duration calculations and scheduling.
     const year = sDate.getFullYear();
-    const month = String(sDate.getMonth() + 1).padStart(2, '0');
-    const dayOfMonth = String(sDate.getDate()).padStart(2, '0');
+    const m = sDate.getMonth() + 1;
+    const d = sDate.getDate();
+    const month = m < 10 ? '0' + m : m;
+    const dayOfMonth = d < 10 ? '0' + d : d;
     const isoDate = `${year}-${month}-${dayOfMonth}`;
     
     // Check overrides
@@ -80,8 +83,9 @@ class CalendarService {
   }
   
   public getWorkingDaysDuration(start: Date, end: Date, calendar: Calendar): number {
-    const d1 = startOfDay(start);
-    const d2 = startOfDay(end);
+    // ⚡ Bolt: Native Date instantiation is significantly faster than date-fns startOfDay
+    const d1 = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const d2 = new Date(end.getFullYear(), end.getMonth(), end.getDate());
 
     const reverse = d1 > d2;
     const startDate = reverse ? d2 : d1;
