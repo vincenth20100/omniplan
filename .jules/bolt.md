@@ -1,3 +1,6 @@
 ## 2024-05-24 - [Date Formatter Performance]
 **Learning:** `date-fns/formatISO` is significantly slower than native string construction methods for creating ISO date strings in tight loops.
 **Action:** When working in hot paths, such as the `calendarService.isWorkingDay` function where calendar scheduling math involves repeated iterations across dates, employ simple native string construction `YYYY-MM-DD` instead of heavy external formatters to optimize overall timeline rendering performance.
+## 2024-05-25 - [Date & String Padding Performance in Hot Loops]
+**Learning:** `date-fns/startOfDay` instantiates multiple `Date` objects internally and is significantly slower (up to 5x) than native `new Date()` with `setHours(0,0,0,0)`. Additionally, `String().padStart()` is significantly slower (up to 25x) than an inline ternary (e.g., `m < 10 ? '0' + m : m`) for zero-padding short numbers like dates.
+**Action:** In deeply nested or hot-path loops, such as calendar working-days calculation (`isWorkingDay`), strictly avoid heavy helper functions like `startOfDay` and prefer native in-place object mutation. Use simple ternary operators for string zero-padding instead of built-in prototype methods.
