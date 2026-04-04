@@ -1,5 +1,5 @@
 'use client';
-import { addDays, addMonths, startOfDay, differenceInCalendarDays, isSameDay } from 'date-fns';
+import { addMonths } from 'date-fns';
 import type { Calendar, DurationUnit, Exception } from './types';
 
 class CalendarService {
@@ -12,14 +12,17 @@ class CalendarService {
       const day = date.getDay();
       return day >= 1 && day <= 5;
     }
-    const sDate = startOfDay(date);
+    const sDate = new Date(date);
+    sDate.setHours(0, 0, 0, 0);
 
     // Check exceptions first. Exceptions are non-working days.
     if (calendar.exceptions) {
       for (const ex of calendar.exceptions) {
         if (ex.isActive && ex.start && ex.finish) {
-          const exStart = startOfDay(ex.start);
-          const exFinish = startOfDay(ex.finish);
+          const exStart = new Date(ex.start);
+          exStart.setHours(0, 0, 0, 0);
+          const exFinish = new Date(ex.finish);
+          exFinish.setHours(0, 0, 0, 0);
           if (sDate >= exStart && sDate <= exFinish) {
             return false;
           }
@@ -27,36 +30,45 @@ class CalendarService {
       }
     }
     
+    // Check default working days first, as this allows us to skip string construction if possible
+    const isDefaultWorkingDay = calendar.workingDays.includes(sDate.getDay());
+
     // ⚡ Bolt: Native date formatting is significantly faster than date-fns formatISO
-    // This optimization is crucial because isWorkingDay is called repeatedly in loops
-    // for duration calculations and scheduling.
-    const year = sDate.getFullYear();
-    const month = String(sDate.getMonth() + 1).padStart(2, '0');
-    const dayOfMonth = String(sDate.getDate()).padStart(2, '0');
-    const isoDate = `${year}-${month}-${dayOfMonth}`;
+    // We also only build the string if there are actual overrides to check, saving CPU cycles.
+    // Memory constraint: using ternary instead of padStart
+    const hasWorkingDayOverrides = calendar.workingDayOverrides && calendar.workingDayOverrides.length > 0;
+    const hasNonWorkingDayOverrides = calendar.nonWorkingDayOverrides && calendar.nonWorkingDayOverrides.length > 0;
     
-    // Check overrides
-    if (calendar.workingDayOverrides?.includes(isoDate)) {
-        return true;
-    }
-    if (calendar.nonWorkingDayOverrides?.includes(isoDate)) {
-        return false;
+    if (hasWorkingDayOverrides || hasNonWorkingDayOverrides) {
+        const year = sDate.getFullYear();
+        const m = sDate.getMonth() + 1;
+        const d = sDate.getDate();
+        const month = m < 10 ? '0' + m : m;
+        const dayOfMonth = d < 10 ? '0' + d : d;
+        const isoDate = `${year}-${month}-${dayOfMonth}`;
+
+        // Check overrides
+        if (calendar.workingDayOverrides?.includes(isoDate)) {
+            return true;
+        }
+        if (calendar.nonWorkingDayOverrides?.includes(isoDate)) {
+            return false;
+        }
     }
 
-    // Check default working days
-    return calendar.workingDays.includes(sDate.getDay());
+    return isDefaultWorkingDay;
   }
   
   public findNextWorkingDay(date: Date, calendar: Calendar, direction: 1 | -1 = 1): Date {
-    let nextDay = date;
+    let nextDay = new Date(date);
     while (!this.isWorkingDay(nextDay, calendar)) {
-      nextDay = addDays(nextDay, direction);
+      nextDay.setDate(nextDay.getDate() + direction);
     }
     return nextDay;
   }
   
   public addWorkingDays(startDate: Date, days: number, calendar: Calendar): Date {
-    let currentDate = startDate;
+    let currentDate = new Date(startDate);
     let daysToAdd = Math.floor(days);
 
     if (daysToAdd === 0) {
@@ -70,7 +82,7 @@ class CalendarService {
     let remainingDays = Math.abs(daysToAdd);
 
     while (remainingDays > 0) {
-      currentDate = addDays(currentDate, direction);
+      currentDate.setDate(currentDate.getDate() + direction);
       if (this.isWorkingDay(currentDate, calendar)) {
         remainingDays--;
       }
@@ -80,20 +92,22 @@ class CalendarService {
   }
   
   public getWorkingDaysDuration(start: Date, end: Date, calendar: Calendar): number {
-    const d1 = startOfDay(start);
-    const d2 = startOfDay(end);
+    const d1 = new Date(start);
+    d1.setHours(0, 0, 0, 0);
+    const d2 = new Date(end);
+    d2.setHours(0, 0, 0, 0);
 
     const reverse = d1 > d2;
     const startDate = reverse ? d2 : d1;
     const endDate = reverse ? d1 : d2;
 
     let count = 0;
-    let currentDate = startDate;
+    let currentDate = new Date(startDate);
     while(currentDate <= endDate) {
       if (this.isWorkingDay(currentDate, calendar)) {
         count++;
       }
-      currentDate = addDays(currentDate, 1);
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     return reverse ? -count : count;
   }
@@ -106,12 +120,19 @@ class CalendarService {
       }
 
       const durationValue = duration > 0 ? duration - 1 : duration;
+      const res = new Date(startDate);
+
       switch (unit) {
           case 'ed': // elapsed days
-              return addDays(startDate, durationValue);
+              res.setDate(res.getDate() + durationValue);
+              return res;
           case 'm': // calendar months
           case 'em': // elapsed months
-              return addDays(addMonths(startDate, duration), -1);
+              // date-fns addMonths handles end-of-month truncation correctly
+              const targetMonth = addMonths(startDate, duration);
+              const resultMonth = new Date(targetMonth);
+              resultMonth.setDate(resultMonth.getDate() - 1);
+              return resultMonth;
           case 'd': // working days
           default:
               return this.addWorkingDays(startDate, durationValue, calendar);
