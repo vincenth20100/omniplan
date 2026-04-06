@@ -12,14 +12,23 @@ class CalendarService {
       const day = date.getDay();
       return day >= 1 && day <= 5;
     }
-    const sDate = startOfDay(date);
+
+    // Optimize: only instantiate/setHours if not already 00:00:00.000 to save allocations in loops
+    let sDate = date;
+    if (sDate.getHours() !== 0 || sDate.getMinutes() !== 0 || sDate.getSeconds() !== 0 || sDate.getMilliseconds() !== 0) {
+      sDate = new Date(date);
+      sDate.setHours(0, 0, 0, 0);
+    }
 
     // Check exceptions first. Exceptions are non-working days.
     if (calendar.exceptions) {
       for (const ex of calendar.exceptions) {
         if (ex.isActive && ex.start && ex.finish) {
-          const exStart = startOfDay(ex.start);
-          const exFinish = startOfDay(ex.finish);
+          const exStart = new Date(ex.start);
+          exStart.setHours(0, 0, 0, 0);
+          const exFinish = new Date(ex.finish);
+          exFinish.setHours(0, 0, 0, 0);
+
           if (sDate >= exStart && sDate <= exFinish) {
             return false;
           }
@@ -29,11 +38,14 @@ class CalendarService {
     
     // ⚡ Bolt: Native date formatting is significantly faster than date-fns formatISO
     // This optimization is crucial because isWorkingDay is called repeatedly in loops
-    // for duration calculations and scheduling.
+    // for duration calculations and scheduling. Using inline ternaries is faster than padStart.
     const year = sDate.getFullYear();
-    const month = String(sDate.getMonth() + 1).padStart(2, '0');
-    const dayOfMonth = String(sDate.getDate()).padStart(2, '0');
-    const isoDate = `${year}-${month}-${dayOfMonth}`;
+    const month = sDate.getMonth() + 1;
+    const dayOfMonth = sDate.getDate();
+
+    const mStr = month < 10 ? '0' + month : month;
+    const dStr = dayOfMonth < 10 ? '0' + dayOfMonth : dayOfMonth;
+    const isoDate = `${year}-${mStr}-${dStr}`;
     
     // Check overrides
     if (calendar.workingDayOverrides?.includes(isoDate)) {
@@ -48,15 +60,17 @@ class CalendarService {
   }
   
   public findNextWorkingDay(date: Date, calendar: Calendar, direction: 1 | -1 = 1): Date {
-    let nextDay = date;
+    // Return a new date to prevent mutating the input if it hasn't been cloned
+    let nextDay = new Date(date);
+
     while (!this.isWorkingDay(nextDay, calendar)) {
-      nextDay = addDays(nextDay, direction);
+      nextDay.setDate(nextDay.getDate() + direction);
     }
     return nextDay;
   }
   
   public addWorkingDays(startDate: Date, days: number, calendar: Calendar): Date {
-    let currentDate = startDate;
+    let currentDate = new Date(startDate);
     let daysToAdd = Math.floor(days);
 
     if (daysToAdd === 0) {
@@ -70,7 +84,7 @@ class CalendarService {
     let remainingDays = Math.abs(daysToAdd);
 
     while (remainingDays > 0) {
-      currentDate = addDays(currentDate, direction);
+      currentDate.setDate(currentDate.getDate() + direction);
       if (this.isWorkingDay(currentDate, calendar)) {
         remainingDays--;
       }
@@ -80,20 +94,24 @@ class CalendarService {
   }
   
   public getWorkingDaysDuration(start: Date, end: Date, calendar: Calendar): number {
-    const d1 = startOfDay(start);
-    const d2 = startOfDay(end);
+    const d1 = new Date(start);
+    d1.setHours(0, 0, 0, 0);
+    const d2 = new Date(end);
+    d2.setHours(0, 0, 0, 0);
 
     const reverse = d1 > d2;
     const startDate = reverse ? d2 : d1;
     const endDate = reverse ? d1 : d2;
 
     let count = 0;
-    let currentDate = startDate;
+    // We can clone startDate because we will mutate it
+    const currentDate = new Date(startDate);
+
     while(currentDate <= endDate) {
       if (this.isWorkingDay(currentDate, calendar)) {
         count++;
       }
-      currentDate = addDays(currentDate, 1);
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     return reverse ? -count : count;
   }
