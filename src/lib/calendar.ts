@@ -1,5 +1,5 @@
 'use client';
-import { addDays, addMonths, startOfDay, differenceInCalendarDays, isSameDay } from 'date-fns';
+import { addMonths, differenceInCalendarDays, isSameDay } from 'date-fns';
 import type { Calendar, DurationUnit, Exception } from './types';
 
 class CalendarService {
@@ -12,14 +12,20 @@ class CalendarService {
       const day = date.getDay();
       return day >= 1 && day <= 5;
     }
-    const sDate = startOfDay(date);
+
+    // ⚡ Bolt: Native startOfDay equivalent
+    const sDate = new Date(date);
+    sDate.setHours(0, 0, 0, 0);
 
     // Check exceptions first. Exceptions are non-working days.
     if (calendar.exceptions) {
       for (const ex of calendar.exceptions) {
         if (ex.isActive && ex.start && ex.finish) {
-          const exStart = startOfDay(ex.start);
-          const exFinish = startOfDay(ex.finish);
+          // ⚡ Bolt: Native startOfDay equivalent
+          const exStart = new Date(ex.start);
+          exStart.setHours(0, 0, 0, 0);
+          const exFinish = new Date(ex.finish);
+          exFinish.setHours(0, 0, 0, 0);
           if (sDate >= exStart && sDate <= exFinish) {
             return false;
           }
@@ -31,8 +37,10 @@ class CalendarService {
     // This optimization is crucial because isWorkingDay is called repeatedly in loops
     // for duration calculations and scheduling.
     const year = sDate.getFullYear();
-    const month = String(sDate.getMonth() + 1).padStart(2, '0');
-    const dayOfMonth = String(sDate.getDate()).padStart(2, '0');
+    const m = sDate.getMonth() + 1;
+    const d = sDate.getDate();
+    const month = m < 10 ? '0' + m : m;
+    const dayOfMonth = d < 10 ? '0' + d : d;
     const isoDate = `${year}-${month}-${dayOfMonth}`;
     
     // Check overrides
@@ -48,15 +56,16 @@ class CalendarService {
   }
   
   public findNextWorkingDay(date: Date, calendar: Calendar, direction: 1 | -1 = 1): Date {
-    let nextDay = date;
+    let nextDay = new Date(date);
     while (!this.isWorkingDay(nextDay, calendar)) {
-      nextDay = addDays(nextDay, direction);
+      // ⚡ Bolt: Native Date mutation is faster than date-fns addDays in hot loops
+      nextDay.setDate(nextDay.getDate() + direction);
     }
     return nextDay;
   }
   
   public addWorkingDays(startDate: Date, days: number, calendar: Calendar): Date {
-    let currentDate = startDate;
+    let currentDate = new Date(startDate);
     let daysToAdd = Math.floor(days);
 
     if (daysToAdd === 0) {
@@ -70,7 +79,8 @@ class CalendarService {
     let remainingDays = Math.abs(daysToAdd);
 
     while (remainingDays > 0) {
-      currentDate = addDays(currentDate, direction);
+      // ⚡ Bolt: Native Date mutation is faster than date-fns addDays in hot loops
+      currentDate.setDate(currentDate.getDate() + direction);
       if (this.isWorkingDay(currentDate, calendar)) {
         remainingDays--;
       }
@@ -80,20 +90,24 @@ class CalendarService {
   }
   
   public getWorkingDaysDuration(start: Date, end: Date, calendar: Calendar): number {
-    const d1 = startOfDay(start);
-    const d2 = startOfDay(end);
+    // ⚡ Bolt: Native startOfDay equivalent is faster than date-fns startOfDay
+    const d1 = new Date(start);
+    d1.setHours(0, 0, 0, 0);
+    const d2 = new Date(end);
+    d2.setHours(0, 0, 0, 0);
 
     const reverse = d1 > d2;
     const startDate = reverse ? d2 : d1;
     const endDate = reverse ? d1 : d2;
 
     let count = 0;
-    let currentDate = startDate;
+    let currentDate = new Date(startDate);
     while(currentDate <= endDate) {
       if (this.isWorkingDay(currentDate, calendar)) {
         count++;
       }
-      currentDate = addDays(currentDate, 1);
+      // ⚡ Bolt: Native Date mutation is faster than date-fns addDays in hot loops
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     return reverse ? -count : count;
   }
@@ -107,11 +121,19 @@ class CalendarService {
 
       const durationValue = duration > 0 ? duration - 1 : duration;
       switch (unit) {
-          case 'ed': // elapsed days
-              return addDays(startDate, durationValue);
+          case 'ed': { // elapsed days
+              // ⚡ Bolt: Native Date mutation is faster
+              const nextDay = new Date(startDate);
+              nextDay.setDate(nextDay.getDate() + durationValue);
+              return nextDay;
+          }
           case 'm': // calendar months
-          case 'em': // elapsed months
-              return addDays(addMonths(startDate, duration), -1);
+          case 'em': { // elapsed months
+              // ⚡ Bolt: Native Date mutation is faster
+              const nextMonth = addMonths(startDate, duration);
+              nextMonth.setDate(nextMonth.getDate() - 1);
+              return nextMonth;
+          }
           case 'd': // working days
           default:
               return this.addWorkingDays(startDate, durationValue, calendar);
