@@ -252,11 +252,18 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
 
             resourceRows.forEach(row => {
                  let periodWork = 0;
-                 let d = period.start;
+                 const d = new Date(period.start);
+                 // ⚡ Bolt: Native date formatting and mutation is significantly faster than date-fns in hot loops
                  while (d <= period.end) {
-                    const k = format(d, 'yyyy-MM-dd');
+                    const year = d.getFullYear();
+                    const m = d.getMonth() + 1;
+                    const month = m < 10 ? '0' + m : m;
+                    const day = d.getDate();
+                    const dayOfMonth = day < 10 ? '0' + day : day;
+                    const k = `${year}-${month}-${dayOfMonth}`;
+
                     periodWork += row.dailyWork[k] || 0;
-                    d = addDays(d, 1);
+                    d.setDate(d.getDate() + 1);
                  }
                  if (periodWork > 0) {
                      dataPoint[row.resourceId] = periodWork;
@@ -306,14 +313,21 @@ export function ResourceUsageView({ projectState, dispatch }: { projectState: Pr
                                             let periodWork = 0;
                                             let workingDays = 0;
 
-                                            let d = period.start;
+                                            const d = new Date(period.start);
+                                            // ⚡ Bolt: Native date formatting and mutation is significantly faster than date-fns in hot loops
                                             while (d <= period.end) {
-                                                const k = format(d, 'yyyy-MM-dd');
+                                                const year = d.getFullYear();
+                                                const m = d.getMonth() + 1;
+                                                const month = m < 10 ? '0' + m : m;
+                                                const day = d.getDate();
+                                                const dayOfMonth = day < 10 ? '0' + day : day;
+                                                const k = `${year}-${month}-${dayOfMonth}`;
+
                                                 periodWork += row.dailyWork[k] || 0;
                                                 if (!defaultCalendar || calendarService.isWorkingDay(d, defaultCalendar)) {
                                                     workingDays++;
                                                 }
-                                                d = addDays(d, 1);
+                                                d.setDate(d.getDate() + 1);
                                             }
 
                                             const capacity = (row.data as Resource).availability ? (row.data as Resource).availability! * 8 * workingDays : 8 * workingDays;
