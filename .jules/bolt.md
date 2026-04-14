@@ -1,3 +1,5 @@
 ## 2024-05-24 - [Date Formatter Performance]
 **Learning:** `date-fns/formatISO` is significantly slower than native string construction methods for creating ISO date strings in tight loops.
-**Action:** When working in hot paths, such as the `calendarService.isWorkingDay` function where calendar scheduling math involves repeated iterations across dates, employ simple native string construction `YYYY-MM-DD` instead of heavy external formatters to optimize overall timeline rendering performance.
+**Action:** When working in hot paths, such as the `calendarService.isWorkingDay` function where calendar scheduling math involves repeated iterations across dates, employ simple native string construction `YYYY-MM-DD` instead of heavy external formatters to optimize overall timeline rendering performance.## 2025-02-12 - [WeakMap Exception Caching for React Props]
+**Learning:** Mutating incoming read-only prop objects (like calendar exceptions) to store cached timestamps throws errors in React. Standard maps leak memory or do not cleanly bind to specific reference lifetimes.
+**Action:** Utilize a module-level `WeakMap` to safely and cleanly cache derived values keyed to read-only prop objects (like `calendar` objects) to significantly improve performance in tight computation loops without mutating immutable objects or causing memory leaks.
