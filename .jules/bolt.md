@@ -1,3 +1,6 @@
 ## 2024-05-24 - [Date Formatter Performance]
 **Learning:** `date-fns/formatISO` is significantly slower than native string construction methods for creating ISO date strings in tight loops.
 **Action:** When working in hot paths, such as the `calendarService.isWorkingDay` function where calendar scheduling math involves repeated iterations across dates, employ simple native string construction `YYYY-MM-DD` instead of heavy external formatters to optimize overall timeline rendering performance.
+## 2024-05-24 - [Date Object Instantiation Overhead in Loops]
+**Learning:** `date-fns/startOfDay` and `date-fns/addDays` instantiate new Date objects on every call. In tight calculation loops like `calendarService.getWorkingDaysDuration` and `addWorkingDays`, this causes a substantial performance penalty. Furthermore, attempting to attach parsed exception dates directly onto React props causes mutation-related crashes, but parsing string dates inside these hot loops is also extremely slow.
+**Action:** Use a module-level `WeakMap` to safely memoize parsed dates derived from React props without mutating them. In addition, utilize in-place date mutation (e.g., `currentDate.setDate(currentDate.getDate() + 1)`) within loops instead of `addDays` to avoid instantiating thousands of redundant objects.
