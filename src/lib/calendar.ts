@@ -1,6 +1,11 @@
 'use client';
-import { addDays, addMonths, startOfDay, differenceInCalendarDays, isSameDay } from 'date-fns';
+import { addDays, addMonths, differenceInCalendarDays, isSameDay } from 'date-fns';
 import type { Calendar, DurationUnit, Exception } from './types';
+
+// ⚡ Bolt: Cache parsed exception dates to avoid repetitive Date parsing/allocation in tight loops.
+// We use a WeakMap because exception objects come from React props and are frequently frozen/read-only.
+// Mutating them directly (e.g., ex._parsedStart) causes crashes in Next.js client components.
+const exceptionCache = new WeakMap<Exception, { start: Date; finish: Date }>();
 
 class CalendarService {
 
@@ -12,15 +17,25 @@ class CalendarService {
       const day = date.getDay();
       return day >= 1 && day <= 5;
     }
-    const sDate = startOfDay(date);
+    // ⚡ Bolt: Avoid date-fns startOfDay here because it instantiates a new Date internally.
+    // We use a single native Date instantiation which is significantly faster.
+    const sDate = new Date(date);
+    sDate.setHours(0, 0, 0, 0);
 
     // Check exceptions first. Exceptions are non-working days.
     if (calendar.exceptions) {
       for (const ex of calendar.exceptions) {
         if (ex.isActive && ex.start && ex.finish) {
-          const exStart = startOfDay(ex.start);
-          const exFinish = startOfDay(ex.finish);
-          if (sDate >= exStart && sDate <= exFinish) {
+          let cached = exceptionCache.get(ex);
+          if (!cached) {
+            const exStart = new Date(ex.start);
+            exStart.setHours(0, 0, 0, 0);
+            const exFinish = new Date(ex.finish);
+            exFinish.setHours(0, 0, 0, 0);
+            cached = { start: exStart, finish: exFinish };
+            exceptionCache.set(ex, cached);
+          }
+          if (sDate >= cached.start && sDate <= cached.finish) {
             return false;
           }
         }
@@ -48,15 +63,15 @@ class CalendarService {
   }
   
   public findNextWorkingDay(date: Date, calendar: Calendar, direction: 1 | -1 = 1): Date {
-    let nextDay = date;
+    let nextDay = new Date(date);
     while (!this.isWorkingDay(nextDay, calendar)) {
-      nextDay = addDays(nextDay, direction);
+      nextDay.setDate(nextDay.getDate() + direction);
     }
     return nextDay;
   }
   
   public addWorkingDays(startDate: Date, days: number, calendar: Calendar): Date {
-    let currentDate = startDate;
+    let currentDate = new Date(startDate);
     let daysToAdd = Math.floor(days);
 
     if (daysToAdd === 0) {
@@ -70,7 +85,7 @@ class CalendarService {
     let remainingDays = Math.abs(daysToAdd);
 
     while (remainingDays > 0) {
-      currentDate = addDays(currentDate, direction);
+      currentDate.setDate(currentDate.getDate() + direction);
       if (this.isWorkingDay(currentDate, calendar)) {
         remainingDays--;
       }
@@ -80,20 +95,24 @@ class CalendarService {
   }
   
   public getWorkingDaysDuration(start: Date, end: Date, calendar: Calendar): number {
-    const d1 = startOfDay(start);
-    const d2 = startOfDay(end);
+    // ⚡ Bolt: Fast startOfDay equivalent without object creation overhead
+    const d1 = new Date(start);
+    d1.setHours(0, 0, 0, 0);
+    const d2 = new Date(end);
+    d2.setHours(0, 0, 0, 0);
 
     const reverse = d1 > d2;
     const startDate = reverse ? d2 : d1;
     const endDate = reverse ? d1 : d2;
+    const endMs = endDate.getTime();
 
     let count = 0;
     let currentDate = startDate;
-    while(currentDate <= endDate) {
+    while(currentDate.getTime() <= endMs) {
       if (this.isWorkingDay(currentDate, calendar)) {
         count++;
       }
-      currentDate = addDays(currentDate, 1);
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     return reverse ? -count : count;
   }

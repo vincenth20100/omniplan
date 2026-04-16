@@ -1,3 +1,6 @@
 ## 2024-05-24 - [Date Formatter Performance]
 **Learning:** `date-fns/formatISO` is significantly slower than native string construction methods for creating ISO date strings in tight loops.
 **Action:** When working in hot paths, such as the `calendarService.isWorkingDay` function where calendar scheduling math involves repeated iterations across dates, employ simple native string construction `YYYY-MM-DD` instead of heavy external formatters to optimize overall timeline rendering performance.
+## 2023-10-27 - [Native Date Operations inside Tight Loops]
+**Learning:** `date-fns` functions like `startOfDay` and `addDays` internally instantiate new `Date` objects. Calling them repeatedly inside tight loops like `getWorkingDaysDuration` and `addWorkingDays` causes significant GC (Garbage Collection) pressure and slows down execution significantly. Mutating read-only React props like `calendar.exceptions` to cache computed dates results in crashes in Next.js Client Components.
+**Action:** When performing thousands of date operations inside tight loops, prefer a single `new Date()` allocation and then use native Date mutators (`setHours(0,0,0,0)`, `setDate(getDate() + 1)`). To cache derived objects for read-only React props safely, use a module-level `WeakMap` keyed by the prop object.
