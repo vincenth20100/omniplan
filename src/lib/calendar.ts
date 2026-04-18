@@ -2,6 +2,10 @@
 import { addDays, addMonths, startOfDay, differenceInCalendarDays, isSameDay } from 'date-fns';
 import type { Calendar, DurationUnit, Exception } from './types';
 
+// Cache for parsed exception dates to avoid repetitive Date parsing in tight loops.
+// Using WeakMap to safely cache derived data for read-only React prop objects.
+const calendarExceptionCache = new WeakMap<Calendar, {start: number, finish: number}[]>();
+
 class CalendarService {
 
   public isWorkingDay(date: Date, calendar: Calendar): boolean {
@@ -12,51 +16,74 @@ class CalendarService {
       const day = date.getDay();
       return day >= 1 && day <= 5;
     }
-    const sDate = startOfDay(date);
+
+    // ⚡ Bolt: Native start of day without library overhead
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+    // Use getTime() for faster comparisons below
+    const sDateTime = new Date(year, month, day).getTime();
 
     // Check exceptions first. Exceptions are non-working days.
-    if (calendar.exceptions) {
-      for (const ex of calendar.exceptions) {
-        if (ex.isActive && ex.start && ex.finish) {
-          const exStart = startOfDay(ex.start);
-          const exFinish = startOfDay(ex.finish);
-          if (sDate >= exStart && sDate <= exFinish) {
-            return false;
-          }
+    if (calendar.exceptions && calendar.exceptions.length > 0) {
+      let cachedExceptions = calendarExceptionCache.get(calendar);
+
+      if (!cachedExceptions) {
+        // Parse and cache exceptions on first access
+        cachedExceptions = calendar.exceptions
+          .filter(ex => ex.isActive && ex.start && ex.finish)
+          .map(ex => {
+            const start = new Date(ex.start!);
+            start.setHours(0, 0, 0, 0);
+            const finish = new Date(ex.finish!);
+            finish.setHours(0, 0, 0, 0);
+            return {
+              start: start.getTime(),
+              finish: finish.getTime()
+            };
+          });
+        calendarExceptionCache.set(calendar, cachedExceptions);
+      }
+
+      for (let i = 0; i < cachedExceptions.length; i++) {
+        const ex = cachedExceptions[i];
+        if (sDateTime >= ex.start && sDateTime <= ex.finish) {
+          return false;
         }
       }
     }
     
     // ⚡ Bolt: Native date formatting is significantly faster than date-fns formatISO
     // This optimization is crucial because isWorkingDay is called repeatedly in loops
-    // for duration calculations and scheduling.
-    const year = sDate.getFullYear();
-    const month = String(sDate.getMonth() + 1).padStart(2, '0');
-    const dayOfMonth = String(sDate.getDate()).padStart(2, '0');
-    const isoDate = `${year}-${month}-${dayOfMonth}`;
+    // for duration calculations and scheduling. Using inline ternary for faster zero-padding.
+    const m = month + 1;
+    const mStr = m < 10 ? '0' + m : m;
+    const dStr = day < 10 ? '0' + day : day;
+    const isoDate = `${year}-${mStr}-${dStr}`;
     
     // Check overrides
-    if (calendar.workingDayOverrides?.includes(isoDate)) {
+    if (calendar.workingDayOverrides && calendar.workingDayOverrides.length > 0 && calendar.workingDayOverrides.includes(isoDate)) {
         return true;
     }
-    if (calendar.nonWorkingDayOverrides?.includes(isoDate)) {
+    if (calendar.nonWorkingDayOverrides && calendar.nonWorkingDayOverrides.length > 0 && calendar.nonWorkingDayOverrides.includes(isoDate)) {
         return false;
     }
 
     // Check default working days
-    return calendar.workingDays.includes(sDate.getDay());
+    return calendar.workingDays.includes(date.getDay());
   }
   
   public findNextWorkingDay(date: Date, calendar: Calendar, direction: 1 | -1 = 1): Date {
-    let nextDay = date;
+    let nextDay = new Date(date);
     while (!this.isWorkingDay(nextDay, calendar)) {
-      nextDay = addDays(nextDay, direction);
+      // ⚡ Bolt: Fast inline date manipulation instead of addDays to avoid garbage collection
+      nextDay.setDate(nextDay.getDate() + direction);
     }
     return nextDay;
   }
   
   public addWorkingDays(startDate: Date, days: number, calendar: Calendar): Date {
-    let currentDate = startDate;
+    let currentDate = new Date(startDate);
     let daysToAdd = Math.floor(days);
 
     if (daysToAdd === 0) {
@@ -70,7 +97,8 @@ class CalendarService {
     let remainingDays = Math.abs(daysToAdd);
 
     while (remainingDays > 0) {
-      currentDate = addDays(currentDate, direction);
+      // ⚡ Bolt: Fast inline date manipulation
+      currentDate.setDate(currentDate.getDate() + direction);
       if (this.isWorkingDay(currentDate, calendar)) {
         remainingDays--;
       }
@@ -80,20 +108,26 @@ class CalendarService {
   }
   
   public getWorkingDaysDuration(start: Date, end: Date, calendar: Calendar): number {
-    const d1 = startOfDay(start);
-    const d2 = startOfDay(end);
+    // ⚡ Bolt: Native start of day
+    const d1 = new Date(start);
+    d1.setHours(0, 0, 0, 0);
+    const d2 = new Date(end);
+    d2.setHours(0, 0, 0, 0);
 
     const reverse = d1 > d2;
     const startDate = reverse ? d2 : d1;
     const endDate = reverse ? d1 : d2;
 
     let count = 0;
-    let currentDate = startDate;
-    while(currentDate <= endDate) {
+    const currentDate = new Date(startDate);
+    const endMs = endDate.getTime();
+
+    while(currentDate.getTime() <= endMs) {
       if (this.isWorkingDay(currentDate, calendar)) {
         count++;
       }
-      currentDate = addDays(currentDate, 1);
+      // ⚡ Bolt: Fast inline date manipulation instead of addDays
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     return reverse ? -count : count;
   }
